@@ -102,11 +102,10 @@ export interface CallReceipt {
   error: string | null;
 }
 export interface SetupStatus {
-  intelligence: boolean;
   model: boolean;
   browser: boolean;
+  search: boolean;
   voice: boolean;
-  slack: string;
   missing: string[];
 }
 export interface WorkspaceState {

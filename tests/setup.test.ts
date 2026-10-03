@@ -4,50 +4,30 @@ import {
   type PlatformConfig,
 } from '../src/server/platform-config.js';
 const config: PlatformConfig = {
-  intelligenceKey: 'fixture',
   apiKey: 'fixture',
   model: 'fixture',
   baseUrl: 'https://example.com',
-  runtimeUrl: '',
   voiceName: 'marin',
-  slackUsers: [],
 };
-it('never claims Slack online without a complete managed channel declaration', () => {
-  expect(setupStatus(config, 'online').slack).toBe('not_configured');
-  expect(
-    setupStatus({ ...config, slackChannel: 'support' }, 'online').slack,
-  ).toBe('setup_required');
-  expect(
-    setupStatus(
-      {
-        ...config,
-        slackChannel: 'support',
-        slackTeam: 'team',
-        slackUsers: ['owner'],
-      },
-      'online',
-    ).slack,
-  ).toBe('online');
-});
-it('requires Intelligence and model setup and disables voice when either is absent', () => {
+it('requires only model setup and disables voice when it is absent', () => {
+  expect(setupStatus(config)).toMatchObject({ missing: [], model: true });
   expect(
     setupStatus({
       ...config,
-      intelligenceKey: '',
+      apiKey: '',
       voiceKey: 'fixture',
       voiceModel: 'fixture',
     }),
-  ).toMatchObject({ missing: ['INTELLIGENCE_API_KEY'], voice: false });
+  ).toMatchObject({ missing: ['OPENAI_API_KEY'], voice: false });
 });
-it('reports activation failure until the SDK recovers online', () => {
-  const declared = {
-    ...config,
-    slackChannel: 'support',
-    slackTeam: 'team',
-    slackUsers: ['owner'],
-  };
-  expect(setupStatus(declared, 'offline', true).slack).toBe(
-    'activation_failed',
-  );
-  expect(setupStatus(declared, 'online', true).slack).toBe('online');
+it('reports web search and the page reader from configuration', () => {
+  expect(setupStatus(config)).toMatchObject({ search: true, browser: false });
+  expect(
+    setupStatus({
+      ...config,
+      webSearchProvider: 'disabled',
+      browserUrl: 'http://127.0.0.1:4311',
+      browserSecret: 'secret',
+    }),
+  ).toMatchObject({ search: false, browser: true });
 });

@@ -1,20 +1,18 @@
-import { parallelSources, type WebConfig, type WebSource } from './parallel.js';
+import {
+  readPage,
+  searchWeb,
+  type WebConfig,
+  type WebSource,
+} from './web-search.js';
 import { z } from 'zod';
 import type { Memory, Result } from '../shared/types.js';
+export { browserResponse } from './web-search.js';
 export interface Config extends WebConfig {
   mode: 'sample' | 'live';
   apiKey?: string;
   baseUrl: string;
   model?: string;
-  browserUrl?: string;
-  browserSecret?: string;
 }
-export const browserResponse = z.object({
-  title: z.string(),
-  url: z.string().url(),
-  text: z.string().min(1),
-  screenshot: z.string().optional(),
-});
 const modelResponse = z.object({
   choices: z
     .array(z.object({ message: z.object({ content: z.string().min(1) }) }))
@@ -26,10 +24,7 @@ export function configured(config: Config): boolean {
     Boolean(
       config.apiKey &&
       config.model &&
-      ((config.webSearchProvider ?? 'parallel') === 'parallel' ||
-        (config.webSearchProvider === 'browser' &&
-          config.browserUrl &&
-          config.browserSecret)),
+      (config.webSearchProvider ?? 'duckduckgo') !== 'disabled',
     )
   );
 }
@@ -70,65 +65,42 @@ export async function research(
   }
   if (!configured(config))
     throw new Error(
-      'Live mode is not configured. Set OPENAI_API_KEY and OPENAI_MODEL; browser research also needs BROWSER_URL and BROWSER_SECRET. Research must not be disabled.',
+      'Live mode is not configured. Set OPENAI_API_KEY and OPENAI_MODEL, and keep WEB_SEARCH_PROVIDER enabled.',
     );
-  let pages: WebSource[];
+  const pages: WebSource[] = [];
   const limitations: string[] = [];
-  let screenshot: string | undefined;
-  if ((config.webSearchProvider ?? 'parallel') === 'parallel') {
-    const urls = prompt
-      .match(/https?:\/\/[^\s<>"'\])]+/gi)
-      ?.map((url) => url.replace(/[.,;!?]+$/, ''));
-    progress(
-      urls?.length
-        ? 'Reading the requested sources with Parallel.'
-        : 'Searching and reading public sources with Parallel.',
-    );
-    pages = await parallelSources(
-      {
-        objective: prompt,
-        urls,
-        onWarning: (message) => {
-          limitations.push(message);
-          progress(message);
-        },
-      },
-      config,
-      signal,
-    );
-  } else {
-    const match = prompt.match(/https?:\/\/[^\s<>"'\])]+/i);
-    if (!match)
-      throw new Error(
-        'Please include a public https:// page URL. Open-ended web search is not configured; OpenDots will not invent sources.',
-      );
-    const url = match[0].replace(/[.,;!?]+$/, '');
-    progress('Reading the requested public page in the isolated browser.');
-    const response = await fetch(
-      `${config.browserUrl!.replace(/\/$/, '')}/browse`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.browserSecret}`,
-        },
-        body: JSON.stringify({ url }),
-        signal,
-      },
-    );
-    if (!response.ok) {
-      const data: unknown = await response.json().catch(() => null);
-      const message = z.object({ error: z.string() }).safeParse(data);
-      throw new Error(
-        `Browser failed (${response.status}): ${message.success ? message.data.error : 'Could not read the source.'}`,
+  const urls = prompt
+    .match(/https?:\/\/[^\s<>"'\])]+/gi)
+    ?.map((url) => url.replace(/[.,;!?]+$/, ''));
+  let targets = urls ?? [];
+  if (!targets.length) {
+    progress('Searching the public web.');
+    const results = await searchWeb(prompt.slice(0, 300), signal);
+    if (!results.length)
+      throw new Error('Web search returned no results for this request.');
+    targets = results.slice(0, 3).map((result) => result.url);
+    for (const result of results.slice(3))
+      pages.push({
+        title: result.title,
+        url: result.url,
+        text: result.snippet,
+      });
+  }
+  progress('Reading the most relevant pages in the isolated browser.');
+  for (const url of targets.slice(0, 3)) {
+    try {
+      pages.unshift(await readPage(url, config, signal));
+    } catch (error) {
+      limitations.push(
+        `${url}: ${error instanceof Error ? error.message : 'could not be read.'}`,
       );
     }
-    const parsed = browserResponse.safeParse(await response.json());
-    if (!parsed.success)
-      throw new Error('Browser returned an invalid or empty source response.');
-    pages = [{ ...parsed.data, text: parsed.data.text.slice(0, 24000) }];
-    screenshot = parsed.data.screenshot;
   }
+  if (!pages.length)
+    throw new Error(
+      limitations[0] ?? 'No sources could be read. Check the browser service.',
+    );
+  const screenshot = pages.find((page) => page.screenshot)?.screenshot;
   progress('Sources captured. Writing a brief grounded in the evidence.');
   signal.throwIfAborted();
   const completion = await fetch(
@@ -155,7 +127,11 @@ export async function research(
             content: JSON.stringify({
               request: prompt,
               preferences: memories.map((m) => m.text),
-              sources: pages,
+              sources: pages.map(({ title, url, text }) => ({
+                title,
+                url,
+                text,
+              })),
               limitations,
             }),
           },

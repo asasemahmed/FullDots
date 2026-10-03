@@ -677,9 +677,9 @@ export function App() {
                   </div>
                   <div className="connection-note">
                     <span
-                      className={`online-dot ${workspace.setup.slack === 'online' ? '' : 'off'}`}
+                      className={`online-dot ${workspace.setup.search ? '' : 'off'}`}
                     />
-                    Slack · {workspace.setup.slack.replaceAll('_', ' ')}
+                    Web search · {workspace.setup.search ? 'on' : 'off'}
                     <button
                       className="text-button"
                       onClick={() => setDialog({ type: 'settings' })}

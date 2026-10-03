@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PageError } from './pages.js';
 import type { WorkspaceStore } from './workspace.js';
-export interface PageIntelligence {
+export interface PageThreads {
   getOrCreateThread(input: {
     threadId: string;
     userId: string;
@@ -23,7 +23,7 @@ async function bounded<T>(operation: Promise<T>): Promise<T> {
           () =>
             reject(
               new Error(
-                'Intelligence request timed out. Retry to recover the same conversation.',
+                'Conversation request timed out. Retry to recover the same conversation.',
               ),
             ),
           30000,
@@ -41,7 +41,7 @@ export class PageService {
   >();
   constructor(
     private workspace: WorkspaceStore,
-    private intelligence: () => PageIntelligence,
+    private intelligence: () => PageThreads,
   ) {}
   async conversation(spaceId: string, pageId: string, dotId: string) {
     const page = this.workspace.pages.get(spaceId, pageId);

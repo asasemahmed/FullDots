@@ -3,7 +3,7 @@ import { research, type Config } from '../src/server/research.js';
 const signal = new AbortController().signal;
 const config: Config = {
   mode: 'live',
-  webSearchProvider: 'browser',
+  webSearchProvider: 'duckduckgo',
   apiKey: 'secret',
   model: 'test-model',
   baseUrl: 'https://model.example/v1',
@@ -26,13 +26,40 @@ describe('research adapters', () => {
     expect(result.text).toContain('fictional');
     expect(fetch).not.toHaveBeenCalled();
   });
-  it('fails visibly for missing live config and unsupported search', async () => {
+  it('fails visibly for missing live config or disabled search', async () => {
     await expect(
       research('Research', [], { mode: 'live', baseUrl: '' }, signal, () => {}),
     ).rejects.toThrow('not configured');
     await expect(
-      research('Research', [], config, signal, () => {}),
-    ).rejects.toThrow('include a public');
+      research(
+        'Research',
+        [],
+        { ...config, webSearchProvider: 'disabled' },
+        signal,
+        () => {},
+      ),
+    ).rejects.toThrow('not configured');
+  });
+  it('searches the web when no URL is given and reads the top results', async () => {
+    const html = `<div class="result results_links web-result"><a rel="nofollow" class="result__a" href="https://example.com/a">Result A</a><a class="result__snippet" href="https://example.com/a">Snippet A</a></div>`;
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(html))
+      .mockResolvedValueOnce(
+        Response.json({
+          title: 'A',
+          url: 'https://example.com/a',
+          text: 'Page A text',
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ choices: [{ message: { content: 'Brief.' } }] }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const result = await research('Find A', [], config, signal, () => {});
+    expect(String(fetch.mock.calls[0][0])).toContain('duckduckgo.com');
+    expect(result.sources[0].url).toBe('https://example.com/a');
+    expect(result.text).toBe('Brief.');
   });
   it('grounds model input in browser evidence and returns provider output', async () => {
     const fetch = vi

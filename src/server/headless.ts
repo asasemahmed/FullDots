@@ -1,8 +1,8 @@
-import { IntelligenceAgent } from '@copilotkit/core';
-import type { Message } from '@ag-ui/core';
+import type { AbstractAgent, Message } from '@ag-ui/client';
+import { EventType, type RunAgentInput } from '@ag-ui/core';
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import { voiceReceiptMessagePrefix } from '../shared/voice-receipt.js';
+import type { SqliteAgentRunner } from './sqlite-runner.js';
 
 export function currentTurnText(messages: Message[], error?: Error): string {
   if (error) throw error;
@@ -14,64 +14,72 @@ export function currentTurnText(messages: Message[], error?: Error): string {
   return content;
 }
 
-const runtimeInfoSchema = z.object({
-  mode: z.literal('intelligence'),
-  intelligence: z.object({ wsUrl: z.url() }),
-  agents: z.record(z.string(), z.unknown()),
-});
-
-export async function runThreadTurn(
-  runtimeUrl: string,
-  headers: Record<string, string>,
-  dotId: string,
+// Runs one server-side turn (voice compute, call receipts, scheduled tasks) in
+// process, through the same runner that persists browser chat turns.
+export function runThreadTurn(
+  runner: SqliteAgentRunner,
+  agent: AbstractAgent,
   threadId: string,
   prompt: string,
   signal: AbortSignal,
   metadata?: Record<string, unknown>,
 ): Promise<string> {
   signal.throwIfAborted();
-  const response = await fetch(`${runtimeUrl}/info`, { headers, signal });
-  if (!response.ok)
-    throw new Error(`Intelligence runtime returned HTTP ${response.status}.`);
-  const info = runtimeInfoSchema.parse(await response.json());
-  if (!Object.hasOwn(info.agents, dotId))
-    throw new Error('The selected Dot is unavailable in the runtime.');
-  // Core's runtime discovery is browser-only. Use the SDK's Node-compatible
-  // Intelligence agent for voice compute and scheduled server turns.
-  const agent = new IntelligenceAgent({
-    url: info.intelligence.wsUrl,
-    runtimeUrl,
-    agentId: dotId,
-    headers,
-    fetch: (input, init) =>
-      fetch(input, {
-        ...init,
-        signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
-      }),
-  });
+  const history = runner.getThreadMessages(threadId);
+  const message = {
+    id: `${metadata?.opendotsSource === 'voice_receipt' ? voiceReceiptMessagePrefix : ''}${randomUUID()}`,
+    role: 'user',
+    content: prompt,
+    ...(metadata ? { metadata } : {}),
+  } as Message;
+  const messages = [...history, message];
+  const known = new Set(messages.map((item) => item.id));
+  agent.setMessages(messages);
   agent.threadId = threadId;
-  let runError: Error | undefined;
-  const subscription = agent.subscribe({
-    onRunErrorEvent: ({ event }) => {
-      runError = new Error(event.message);
-    },
+  const input: RunAgentInput = {
+    threadId,
+    runId: randomUUID(),
+    messages,
+    tools: [],
+    context: [],
+    state: {},
+    forwardedProps: {},
+  };
+  return new Promise<string>((resolve, reject) => {
+    let runError: Error | undefined;
+    const stop = () => void runner.stop({ threadId, runId: input.runId });
+    signal.addEventListener('abort', stop, { once: true });
+    const done = () => signal.removeEventListener('abort', stop);
+    try {
+      runner.run({ threadId, agent, input }).subscribe({
+        next: (event) => {
+          if (event.type === EventType.RUN_ERROR)
+            runError = new Error(
+              (event as { message?: string }).message ?? 'The turn failed.',
+            );
+        },
+        error: (error: unknown) => {
+          done();
+          reject(error);
+        },
+        complete: () => {
+          done();
+          try {
+            signal.throwIfAborted();
+            resolve(
+              currentTurnText(
+                agent.messages.filter((item) => !known.has(item.id)),
+                runError,
+              ),
+            );
+          } catch (error) {
+            reject(error);
+          }
+        },
+      });
+    } catch (error) {
+      done();
+      reject(error);
+    }
   });
-  const stop = () => agent.abortRun();
-  signal.addEventListener('abort', stop, { once: true });
-  try {
-    signal.throwIfAborted();
-    agent.addMessage({
-      id: `${metadata?.opendotsSource === 'voice_receipt' ? voiceReceiptMessagePrefix : ''}${randomUUID()}`,
-      role: 'user',
-      content: prompt,
-      ...(metadata ? { metadata } : {}),
-    });
-    const result = await agent.runAgent();
-    signal.throwIfAborted();
-    return currentTurnText(result.newMessages, runError);
-  } finally {
-    signal.removeEventListener('abort', stop);
-    subscription.unsubscribe();
-    await agent.detachActiveRun();
-  }
 }

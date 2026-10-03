@@ -55,7 +55,7 @@ it('checks abort again before sending source evidence or memories to the model',
       config,
       controller.signal,
       (text) => {
-        if (text.startsWith('Source captured')) controller.abort();
+        if (text.startsWith('Sources captured')) controller.abort();
       },
     ),
   ).rejects.toThrow();

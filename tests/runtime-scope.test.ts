@@ -33,17 +33,10 @@ it('blocks unbound cross-Dot run and inspector routes before contacting Intellig
   ).not.toThrow();
   store.close();
 });
-it('reports setup honestly without a standalone agent fallback', () => {
-  const status = setupStatus({
-    baseUrl: '',
-    voiceName: 'marin',
-    slackUsers: [],
-    runtimeUrl: '',
-  });
-  expect(status.intelligence).toBe(false);
+it('reports setup honestly without model configuration', () => {
+  const status = setupStatus({ baseUrl: '', voiceName: 'marin' });
   expect(status.voice).toBe(false);
-  expect(status.slack).toBe('not_configured');
-  expect(status.missing).toContain('INTELLIGENCE_API_KEY');
+  expect(status.missing).toEqual(['OPENAI_API_KEY', 'OPENAI_MODEL']);
 });
 it('rejects stop scope bypasses and misleading prefixes while allowing canonical owned routes', () => {
   const store = new WorkspaceStore(':memory:', 'owner');
