@@ -14,6 +14,7 @@ import {
 import { chat, maxIterations } from '@tanstack/ai';
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible';
 import { tanstackTools } from './tanstack-tools.js';
+import { defaultLimits } from './limits.js';
 import { Observable } from 'rxjs';
 import { z } from 'zod';
 import { Store } from './store.js';
@@ -43,12 +44,14 @@ export class DotAgent extends AbstractAgent {
       this.controller = controller;
       let subscription: { unsubscribe(): void } | undefined;
       let watcher: ReturnType<typeof setInterval> | undefined;
-      const timeout = setTimeout(() => this.abortRun(), 90_000);
+      const limits = this.config.limits ?? defaultLimits;
+      const timeout = setTimeout(() => this.abortRun(), limits.agentTurnMs);
       try {
         const dot = this.workspace.dot(this.dotId);
         if (!dot) throw new Error('Specialist Dot not found.');
         this.workspace.requireThread(input.threadId, dot.id);
-        if (!this.config.apiKey || !this.config.model)
+        const model = dot.model?.trim() || this.config.model;
+        if (!this.config.apiKey || !model)
           throw new Error('Model configuration is required.');
         const initialSettings = this.store.settings();
         const check = () => {
@@ -154,7 +157,7 @@ export class DotAgent extends AbstractAgent {
           initialSettings.memoryAllowed && dot.memoryAllowed
             ? this.store.memories().map((memory) => memory.text)
             : [];
-        const adapter = openaiCompatibleText(this.config.model, {
+        const adapter = openaiCompatibleText(model, {
           apiKey: this.config.apiKey,
           baseURL: this.config.baseUrl ?? 'https://api.openai.com/v1',
           api: 'chat-completions',
@@ -187,8 +190,8 @@ export class DotAgent extends AbstractAgent {
               abortController: ctx.abortController,
               threadId: ctx.input.threadId,
               runId: ctx.input.runId,
-              modelOptions: { max_completion_tokens: 2200 },
-              agentLoopStrategy: maxIterations(8),
+              modelOptions: { max_completion_tokens: limits.agentMaxTokens },
+              agentLoopStrategy: maxIterations(limits.agentMaxSteps),
               tools: [...tanstackTools(serverTools), ...converted.tools],
             });
           },

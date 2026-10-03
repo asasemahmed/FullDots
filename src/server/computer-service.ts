@@ -1,13 +1,16 @@
 import { createHmac } from 'node:crypto';
 import { z } from 'zod';
 import {
-  computerInputs,
+  computerInputSchemas,
+  type ComputerInputLimits,
+  type ComputerInputs,
   computerPermissionsSchema,
   type ComputerAction,
   type ComputerControl,
   type ComputerStatus,
 } from '../shared/computer-types.js';
 import type { WorkspaceStore } from './workspace.js';
+import { defaultLimits } from './limits.js';
 import type { PlatformConfig } from './platform-config.js';
 const stateSchema = z.object({
   botId: z.string(),
@@ -24,13 +27,26 @@ const controlSchema = z.object({
   request: z.object({ id: z.string(), status: z.string() }).optional(),
 });
 export class ComputerService {
+  private readonly inputLimits: ComputerInputLimits;
+  private readonly responseBytes: number;
+  readonly inputs: ComputerInputs;
   constructor(
     private workspace: WorkspaceStore,
     private config: PlatformConfig,
     private paused: () => boolean,
     private transport: typeof fetch = fetch,
-    private deadlineMs = 70000,
-  ) {}
+    private deadlineMs = (config.limits ?? defaultLimits).computerRequestMs,
+  ) {
+    const limits = config.limits ?? defaultLimits;
+    this.inputLimits = {
+      execMaxMs: limits.execMaxMs,
+      commandChars: limits.commandChars,
+      fileChars: limits.fileChars,
+      typeChars: limits.typeChars,
+    };
+    this.responseBytes = limits.computerResponseBytes;
+    this.inputs = computerInputSchemas(this.inputLimits);
+  }
   get configured() {
     return !!(
       this.config.computerSupervisorUrl?.trim() &&
@@ -100,7 +116,7 @@ export class ComputerService {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > 4_000_000) {
+        if (size > this.responseBytes) {
           await reader.cancel();
           throw new Error('Computer response exceeded its size limit.');
         }
@@ -192,6 +208,7 @@ export class ComputerService {
       configured: this.configured,
       permissions: this.workspace.computers.permissions(id),
       audit: this.workspace.computers.audit(id),
+      limits: this.inputLimits,
     };
     if (!this.configured) return { ...base, state: 'not_configured' };
     try {
@@ -316,9 +333,9 @@ export class ComputerService {
     actor: 'owner' | 'agent' = 'owner',
     signal?: AbortSignal,
   ): Promise<unknown> {
-    if (!Object.hasOwn(computerInputs, action))
+    if (!Object.hasOwn(this.inputs, action))
       throw new Error('Unknown computer action.');
-    const parsed = computerInputs[action].parse(input);
+    const parsed = this.inputs[action].parse(input);
     return this.audited(id, action, actor, async () => {
       if (actor === 'agent' && action.startsWith('human_'))
         throw new Error('Human controls are owner-only.');

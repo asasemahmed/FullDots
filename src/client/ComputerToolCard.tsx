@@ -7,7 +7,7 @@ const screenSchema = z.object({
   base64: z
     .string()
     .regex(/^[A-Za-z0-9+/=]+$/)
-    .max(4_000_000),
+    .max(100_000_000),
   url: z.string(),
 });
 export type ComputerToolRenderProps = {

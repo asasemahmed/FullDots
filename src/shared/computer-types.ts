@@ -29,6 +29,7 @@ export interface ComputerStatus {
   audit: ComputerAudit[];
   control?: ComputerControl;
   error?: string;
+  limits?: ComputerInputLimits;
 }
 const path = z
   .string()
@@ -46,7 +47,19 @@ const ref = {
   ref: z.string().min(1).max(100),
   snapshotId: z.number().int().nonnegative(),
 };
-export const computerInputs = {
+export interface ComputerInputLimits {
+  execMaxMs: number;
+  commandChars: number;
+  fileChars: number;
+  typeChars: number;
+}
+export const defaultComputerInputLimits: ComputerInputLimits = {
+  execMaxMs: 60_000,
+  commandChars: 8000,
+  fileChars: 100_000,
+  typeChars: 16_000,
+};
+export const computerInputSchemas = (limits: ComputerInputLimits) => ({
   navigate: z
     .object({
       url: z
@@ -68,7 +81,7 @@ export const computerInputs = {
   type: z
     .object({
       ...ref,
-      text: z.string().max(16000),
+      text: z.string().max(limits.typeChars),
       submit: z.boolean().optional(),
     })
     .strict(),
@@ -81,14 +94,19 @@ export const computerInputs = {
   files_write: z
     .object({
       path: path.refine((p) => p.length > 0),
-      contents: z.string().max(100000),
+      contents: z.string().max(limits.fileChars),
       append: z.boolean().optional(),
     })
     .strict(),
   exec: z
     .object({
-      command: z.string().trim().min(1).max(8000),
-      timeoutMs: z.number().int().min(1000).max(60000).default(30000),
+      command: z.string().trim().min(1).max(limits.commandChars),
+      timeoutMs: z
+        .number()
+        .int()
+        .min(1000)
+        .max(limits.execMaxMs)
+        .default(Math.min(30_000, limits.execMaxMs)),
     })
     .strict(),
   human_click: z
@@ -97,10 +115,12 @@ export const computerInputs = {
       y: z.number().finite().min(0).max(16000),
     })
     .strict(),
-  human_type: z.object({ text: z.string().max(16000) }).strict(),
+  human_type: z.object({ text: z.string().max(limits.typeChars) }).strict(),
   human_key: z.object({ key: z.string().min(1).max(100) }).strict(),
   human_scroll: z
     .object({ deltaY: z.number().finite().min(-10000).max(10000) })
     .strict(),
-};
-export type ComputerAction = keyof typeof computerInputs;
+});
+export type ComputerInputs = ReturnType<typeof computerInputSchemas>;
+export const computerInputs = computerInputSchemas(defaultComputerInputLimits);
+export type ComputerAction = keyof ComputerInputs;

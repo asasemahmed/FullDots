@@ -6,6 +6,7 @@ import { completion } from './fixtures/model-stream.js';
 import { Store } from '../src/server/store.js';
 import { WorkspaceStore } from '../src/server/workspace.js';
 import { pageReviewTool } from '../src/shared/page-review.js';
+import { defaultLimits } from '../src/server/limits.js';
 
 const databases: Array<{ close(): void }> = [];
 afterEach(() => {
@@ -245,4 +246,28 @@ it('aborts the TanStack provider request when the owner pauses work', async () =
   f.store.updateSettings({ paused: true });
   await finished;
   expect(signal.aborted).toBe(true);
+});
+
+it('uses the Dot model and configured limits instead of the server defaults', async () => {
+  const f = fixture();
+  f.workspace.updateDot(f.dot.id, { ...f.dot, model: 'vendor/dot-model' });
+  const agent = new DotAgent(
+    f.store,
+    f.workspace,
+    {
+      apiKey: 'fixture',
+      model: 'custom-model',
+      baseUrl: 'https://unused.invalid/v1',
+      voiceName: 'marin',
+      limits: { ...defaultLimits, agentMaxTokens: 8000 },
+    },
+    f.dot.id,
+  );
+  const network = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(completion({ role: 'assistant', content: 'Hi.' }));
+  await lastValueFrom(agent.run(f.input).pipe(toArray()));
+  const request = JSON.parse(String(network.mock.calls[0][1]?.body));
+  expect(request.model).toBe('vendor/dot-model');
+  expect(request.max_completion_tokens).toBe(8000);
 });

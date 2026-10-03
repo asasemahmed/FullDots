@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { api } from './api';
 import type { Dot, Memory, State, WorkspaceState } from '../shared/types';
 export type Dialog =
   | { type: 'space' }
@@ -47,6 +48,22 @@ export function WorkspaceDialog({
     dialog.type === 'dot' ? (dialog.dot?.spaceId ?? dialog.spaceId) : '',
   );
   const [interval, setInterval] = useState('86400');
+  const [model, setModel] = useState(
+    dialog.type === 'dot' ? (dialog.dot?.model ?? '') : '',
+  );
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (dialog.type !== 'dot') return;
+    let active = true;
+    void api<{ models: string[] }>('/models')
+      .then((result) => {
+        if (active) setModelOptions(result.models);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [dialog.type]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const container = useRef<HTMLElement>(null);
@@ -134,6 +151,7 @@ export function WorkspaceDialog({
                 instructions: text,
                 researchAllowed: research,
                 memoryAllowed: memory,
+                model: model.trim() || null,
               };
             }
             if (dialog.type === 'settings') {
@@ -200,6 +218,38 @@ export function WorkspaceDialog({
                     : ''
                 }
               />
+            </>
+          )}
+          {dialog.type === 'dot' && (
+            <>
+              <label className="field-label" htmlFor="dot-model">
+                Model
+              </label>
+              <input
+                id="dot-model"
+                list="dot-model-options"
+                value={model}
+                maxLength={200}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder={
+                  workspace.setup.defaultModel
+                    ? `Default: ${workspace.setup.defaultModel}`
+                    : 'Server default'
+                }
+                aria-describedby="dot-model-help"
+                onChange={(event) => setModel(event.target.value)}
+              />
+              <datalist id="dot-model-options">
+                {modelOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+              <p className="muted" id="dot-model-help">
+                Leave blank to use the server default. Any model your provider
+                offers works, for example a stronger model for research and a
+                faster one for quick tasks.
+              </p>
             </>
           )}
           {dialog.type === 'dot' && (

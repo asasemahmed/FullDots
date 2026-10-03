@@ -14,6 +14,7 @@ export class Runner {
       signal: AbortSignal,
       progress: (text: string) => void,
     ) => Promise<Result>,
+    private timeoutMs = 90_000,
   ) {}
   start() {
     if (!this.timer) {
@@ -42,7 +43,8 @@ export class Runner {
   }
   async tick() {
     if (this.active.size) return;
-    const claim = this.store.claim();
+    // The lease must outlive the run so a slow task is never claimed twice.
+    const claim = this.store.claim(Date.now(), this.timeoutMs + 90_000);
     if (!claim) return;
     const controller = new AbortController();
     this.active.set(claim.id, controller);
@@ -53,9 +55,11 @@ export class Runner {
     const timeout = setTimeout(
       () =>
         controller.abort(
-          new Error('Research exceeded the 90 second time limit.'),
+          new Error(
+            `Research exceeded the ${Math.round(this.timeoutMs / 1000)} second time limit.`,
+          ),
         ),
-      90_000,
+      this.timeoutMs,
     );
     try {
       const settings = this.store.settings();

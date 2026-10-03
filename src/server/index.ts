@@ -1,5 +1,6 @@
 import './privacy.js';
 import { webSearchProvider } from './web-search.js';
+import { readLimits } from './limits.js';
 import { createShutdown } from './shutdown.js';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -40,6 +41,7 @@ const config: PlatformConfig = {
   voiceModel: process.env.VOICE_MODEL,
   voiceName: process.env.VOICE_NAME ?? 'marin',
   ownerToken,
+  limits: readLimits(),
 };
 const platform = new Platform(store, workspace, config, database);
 const researchConfig = {
@@ -64,6 +66,7 @@ const runner = new Runner(
     const text = await platform.turn(threadId, claim.prompt, signal);
     return { text, sources: [], sample: false };
   },
+  config.limits!.taskTimeoutMs,
 );
 const app = createApp({
   store,

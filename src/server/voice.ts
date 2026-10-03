@@ -184,7 +184,10 @@ export class VoiceService {
     const pending = this.platform.turn(
       call.threadId,
       request,
-      AbortSignal.any([job.controller.signal, AbortSignal.timeout(90_000)]),
+      AbortSignal.any([
+        job.controller.signal,
+        AbortSignal.timeout(this.platform.config.limits?.agentTurnMs ?? 90_000),
+      ]),
     );
     job.calls.set(toolCallId, pending);
     return pending;

@@ -1,4 +1,5 @@
 import type { WebConfig } from './web-search.js';
+import type { Limits } from './limits.js';
 import type { SetupStatus } from '../shared/types.js';
 export interface PlatformConfig extends WebConfig {
   model?: string;
@@ -12,6 +13,7 @@ export interface PlatformConfig extends WebConfig {
   voiceModel?: string;
   voiceName: string;
   ownerToken?: string;
+  limits?: Limits;
 }
 export function setupStatus(config: PlatformConfig): SetupStatus {
   const missing = [
@@ -24,5 +26,6 @@ export function setupStatus(config: PlatformConfig): SetupStatus {
     search: (config.webSearchProvider ?? 'duckduckgo') !== 'disabled',
     voice: !!(config.voiceKey && config.voiceModel && !missing.length),
     missing,
+    defaultModel: config.model,
   };
 }

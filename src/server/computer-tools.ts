@@ -1,5 +1,5 @@
 import { defineTool } from '@copilotkit/runtime/v2';
-import { computerInputs } from '../shared/computer-types.js';
+import type { ComputerAction } from '../shared/computer-types.js';
 import type { ComputerService } from './computer-service.js';
 export function computerTools(
   service: ComputerService,
@@ -7,7 +7,7 @@ export function computerTools(
   check: () => void,
   signal: AbortSignal,
 ) {
-  return Object.entries(computerInputs)
+  return Object.entries(service.inputs)
     .filter(([name]) => !name.startsWith('human_'))
     .map(([name, parameters]) =>
       defineTool({
@@ -18,7 +18,7 @@ export function computerTools(
           check();
           return service.action(
             dotId,
-            name as keyof typeof computerInputs,
+            name as ComputerAction,
             input,
             'agent',
             signal,

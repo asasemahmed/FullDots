@@ -401,7 +401,7 @@ export function ComputerPanel({ dot }: { dot: Dot }) {
                         placeholder="Type into focused field"
                         autoComplete="off"
                         value={text}
-                        maxLength={20000}
+                        maxLength={status.limits?.typeChars ?? 16000}
                         onChange={(event) => setText(event.target.value)}
                       />
                       <button disabled={busy || !browser || !text}>Type</button>
@@ -509,7 +509,7 @@ export function ComputerPanel({ dot }: { dot: Dot }) {
                     value={contents}
                     onChange={(event) => setContents(event.target.value)}
                     disabled={!running || !status.permissions.files || busy}
-                    maxLength={100000}
+                    maxLength={status.limits?.fileChars ?? 100000}
                     rows={5}
                   />
                 </label>
@@ -552,7 +552,7 @@ export function ComputerPanel({ dot }: { dot: Dot }) {
                     aria-label="Terminal command"
                     value={command}
                     onChange={(event) => setCommand(event.target.value)}
-                    maxLength={8000}
+                    maxLength={status.limits?.commandChars ?? 8000}
                     rows={3}
                     disabled={!running || !status.permissions.shell || busy}
                     placeholder="pwd"

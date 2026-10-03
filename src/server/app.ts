@@ -30,7 +30,11 @@ export function createApp({
   app.use(
     '/api/*',
     bodyLimit({
-      maxSize: 1_000_000,
+      // Leave room for the largest computer file write (UTF-8, JSON-encoded).
+      maxSize: Math.max(
+        1_000_000,
+        (platform?.config.limits?.fileChars ?? 0) * 4 + 64_000,
+      ),
       onError: (c) => c.json({ error: 'Request is too large.' }, 413),
     }),
   );

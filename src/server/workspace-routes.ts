@@ -17,6 +17,14 @@ const dotSchema = z
     skillDeliveryEnabled: z.boolean().optional(),
     spaceIds: z.array(z.string().min(1)).min(1).max(100).optional(),
     spaceId: z.string().min(1).optional(),
+    model: z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^[\w.:/@+-]*$/, 'Use a model identifier such as vendor/model.')
+      .transform((value) => value || null)
+      .nullable()
+      .optional(),
   })
   .strict();
 export function workspaceRoutes(platform: Platform, voice: VoiceService) {
@@ -31,6 +39,37 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       calls: platform.workspace.calls(),
     }),
   );
+  // Model identifiers offered by the configured OpenAI-compatible provider,
+  // used as suggestions for per-Dot model selection. Cached for ten minutes.
+  let models: { at: number; ids: string[] } | undefined;
+  app.get('/models', async (c) => {
+    const config = platform.config;
+    if (!models || Date.now() - models.at > 600_000) {
+      try {
+        const response = await fetch(
+          `${config.baseUrl.replace(/\/$/, '')}/models`,
+          {
+            headers: config.apiKey
+              ? { Authorization: `Bearer ${config.apiKey}` }
+              : {},
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        const parsed = z
+          .object({ data: z.array(z.object({ id: z.string() })) })
+          .safeParse(response.ok ? await response.json() : null);
+        models = {
+          at: Date.now(),
+          ids: parsed.success
+            ? [...new Set(parsed.data.data.map((item) => item.id))].sort()
+            : [],
+        };
+      } catch {
+        models = { at: Date.now() - 540_000, ids: [] };
+      }
+    }
+    return c.json({ default: config.model ?? null, models: models.ids });
+  });
   app.post('/spaces', async (c) => {
     const data = z
       .object({
@@ -87,6 +126,7 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
         data.data.spaceIds,
         data.data.learningContainerId,
         data.data.skillDeliveryEnabled,
+        data.data.model ?? null,
       ),
       201,
     );

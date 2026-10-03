@@ -67,6 +67,20 @@ Use the same secret on the app and browser processes. Browser navigation is read
 
 For a separate browser, persistent files, and optional shell for each specialist, follow [Computer setup](COMPUTERS.md). This uses pinned OpenBot computer/supervisor services and per-Dot permissions. Search and the page reader remain available alongside configured computer tools; use the computer for JavaScript-heavy or interactive pages. Enable each Dot's required capabilities before use.
 
+## Work limits and per-Dot models
+
+Each Dot can use its own model: open the Dot's settings and pick a model from the list your provider offers, or leave the field blank to use `OPENAI_MODEL`.
+
+How long and how far a Dot may work is set in `.env`; see the commented block in `.env.example` for every setting and its default. Times are in seconds. For example, to let a Dot work for up to ten minutes with thirty tool steps and run shell commands for up to ten minutes:
+
+```dotenv
+AGENT_TURN_TIMEOUT=600
+AGENT_MAX_STEPS=30
+COMPUTER_EXEC_MAX_TIMEOUT=600
+```
+
+Shell commands and file writes are capped by the OpenBot computer itself (10 minutes and 1 MB). The computer request timeout is raised automatically so it always outlives the longest shell command. Restart the server after changing these values.
+
 ## Calls
 
 The included speech adapter uses the Realtime API at `api.openai.com`. Set `VOICE_API_KEY` to a key with access to that API and `VOICE_MODEL` to a supported Realtime model (the local UI test used `gpt-realtime-2.1`); `VOICE_NAME` selects the voice. `OPENAI_BASE_URL` changes the compute model endpoint only, not speech. Calls use browser microphone access and WebRTC. Hosted deployments need HTTPS. The server mediates provider setup and delegates compute to the selected Dot's conversation.

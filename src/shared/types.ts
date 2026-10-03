@@ -81,6 +81,8 @@ export interface Dot {
   createdAt: number;
   learningContainerId?: string | null;
   skillDeliveryEnabled?: boolean;
+  /** Model identifier for this Dot; null uses the server default. */
+  model?: string | null;
 }
 export interface Conversation {
   id: string;
@@ -107,6 +109,7 @@ export interface SetupStatus {
   search: boolean;
   voice: boolean;
   missing: string[];
+  defaultModel?: string;
 }
 export interface WorkspaceState {
   spaces: Space[];

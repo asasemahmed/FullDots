@@ -219,3 +219,38 @@ it('restores review receipts through the owner API with current thread and Space
   ws.updateDot(dot.id, { ...dot, spaceId: other.id, spaceIds: [other.id] });
   expect((await app.request(`${base}/call`, { headers })).status).toBe(403);
 });
+
+it('saves a per-Dot model through the API and clears it back to the default', async () => {
+  const { ws, app } = fixture();
+  const dot = ws.dots()[0];
+  const body = {
+    name: dot.name,
+    instructions: dot.instructions,
+    researchAllowed: true,
+    memoryAllowed: true,
+  };
+  expect(
+    (
+      await app.request(
+        `/api/dots/${dot.id}`,
+        request({ ...body, model: 'anthropic/claude-sonnet' }, 'PUT'),
+      )
+    ).status,
+  ).toBe(200);
+  expect(ws.dot(dot.id)?.model).toBe('anthropic/claude-sonnet');
+  await app.request(`/api/dots/${dot.id}`, request(body, 'PUT'));
+  expect(ws.dot(dot.id)?.model).toBe('anthropic/claude-sonnet');
+  await app.request(
+    `/api/dots/${dot.id}`,
+    request({ ...body, model: '' }, 'PUT'),
+  );
+  expect(ws.dot(dot.id)?.model).toBeNull();
+  expect(
+    (
+      await app.request(
+        `/api/dots/${dot.id}`,
+        request({ ...body, model: 'bad model; rm -rf' }, 'PUT'),
+      )
+    ).status,
+  ).toBe(400);
+});
