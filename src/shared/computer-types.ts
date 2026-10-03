@@ -124,3 +124,79 @@ export const computerInputSchemas = (limits: ComputerInputLimits) => ({
 export type ComputerInputs = ReturnType<typeof computerInputSchemas>;
 export const computerInputs = computerInputSchemas(defaultComputerInputLimits);
 export type ComputerAction = keyof ComputerInputs;
+
+/**
+ * Live screen. The server keeps one WebSocket per viewer and relays Chrome's screencast frames and
+ * the owner's input. The owner asks for a one-time ticket over the authenticated API, then opens the
+ * socket with it, because a browser cannot attach an Authorization header to a WebSocket upgrade.
+ */
+export const computerStreamPath = (id: string) =>
+  `/api/dots/${encodeURIComponent(id)}/computer/stream`;
+
+export interface ComputerStreamTicket {
+  ticket: string;
+  expiresInMs: number;
+}
+
+/** Why a live screen ended. Every reason except `superseded` can be retried by opening it again. */
+export type ComputerStreamEndReason =
+  'superseded' | 'stopped' | 'unavailable' | 'permission' | 'shutdown';
+
+/** What the server sends. Frames are base64 JPEG exactly as Chrome produced them. */
+export type ComputerStreamMessage =
+  | { type: 'frame'; data: string; width: number; height: number }
+  | { type: 'error'; error: string }
+  | { type: 'ended'; reason: ComputerStreamEndReason; message: string };
+
+const coordinate = z.number().finite().min(0).max(16000);
+const delta = z.number().finite().min(-10000).max(10000);
+/** Chrome's modifier bit mask: Alt 1, Control 2, Meta 4, Shift 8. */
+const modifiers = z.number().int().min(0).max(15).optional();
+
+/** What the owner sends. Checked here before it reaches the computer, which checks it again. */
+export const computerStreamInputSchema = (
+  limits: Pick<ComputerInputLimits, 'typeChars'>,
+) =>
+  z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('mouse'),
+        event: z.enum(['pressed', 'released', 'moved']),
+        x: coordinate,
+        y: coordinate,
+        button: z.enum(['left', 'right', 'middle']).optional(),
+        clickCount: z.number().int().min(1).max(3).optional(),
+        modifiers,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal('wheel'),
+        x: coordinate,
+        y: coordinate,
+        deltaX: delta,
+        deltaY: delta,
+        modifiers,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal('key'),
+        event: z.enum(['down', 'up']),
+        key: z.string().min(1).max(100),
+        code: z.string().min(1).max(100),
+        text: z.string().min(1).max(16).optional(),
+        windowsVirtualKeyCode: z.number().int().min(1).max(255).optional(),
+        modifiers,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal('text'),
+        text: z.string().min(1).max(limits.typeChars),
+      })
+      .strict(),
+  ]);
+export type ComputerStreamInput = z.infer<
+  ReturnType<typeof computerStreamInputSchema>
+>;

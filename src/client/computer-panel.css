@@ -1,0 +1,819 @@
+/* The computer panel: header, live screen, one control, address bar, folded-away tools, settings.
+   Colors come from the app's tokens (--ink, --muted, --line) so a theme change reaches the panel;
+   the few that have no token are defined once below. Everything is scoped under .cp-panel because
+   the app's base styles for buttons, inputs and paragraphs are heavier than a bare class. */
+.cp-panel {
+  --cp-ink: var(--ink, #242424);
+  --cp-muted: var(--muted, #707070);
+  --cp-line: var(--line, #e7e7e7);
+  --cp-edge: color-mix(in srgb, var(--cp-ink) 22%, transparent);
+  --cp-surface: #fff;
+  --cp-soft: color-mix(in srgb, var(--cp-ink) 6%, transparent);
+  --cp-soft-strong: color-mix(in srgb, var(--cp-ink) 11%, transparent);
+  --cp-strong: var(--cp-ink);
+  --cp-strong-ink: #fff;
+  --cp-focus: #476ba0;
+  --cp-ok: #1f6b3d;
+  --cp-ok-bg: #e5f3ea;
+  --cp-warn: #7a5200;
+  --cp-warn-bg: #fdf0d2;
+  --cp-bad: #a32b32;
+  --cp-bad-bg: #fff0f0;
+  container-type: inline-size;
+  container-name: cp;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  color: var(--cp-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.cp-panel [hidden] {
+  display: none !important;
+}
+.cp-panel :is(h2, h3, h4, p, ul, ol) {
+  margin: 0;
+  line-height: inherit;
+}
+.cp-panel :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--cp-focus);
+  outline-offset: 2px;
+}
+
+/* Buttons */
+.cp-panel .cp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--cp-edge);
+  border-radius: 9px;
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transform: none;
+}
+.cp-panel .cp-btn:hover:not(:disabled) {
+  background: var(--cp-soft);
+}
+.cp-panel .cp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cp-panel .cp-btn-primary {
+  border-color: var(--cp-strong);
+  background: var(--cp-strong);
+  color: var(--cp-strong-ink);
+}
+.cp-panel .cp-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cp-strong) 82%, #fff);
+}
+.cp-panel .cp-btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cp-muted);
+  min-height: 30px;
+  padding: 0 9px;
+}
+.cp-panel .cp-btn-large {
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.cp-panel .cp-btn-block {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.cp-panel .cp-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cp-muted);
+  cursor: pointer;
+  transform: none;
+}
+.cp-panel .cp-icon-btn:hover:not(:disabled),
+.cp-panel .cp-icon-btn[aria-expanded='true'] {
+  background: var(--cp-soft);
+  color: var(--cp-ink);
+}
+.cp-panel .cp-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cp-panel .cp-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #345681;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transform: none;
+}
+.cp-panel .cp-link:hover:not(:disabled) {
+  background: none;
+  color: #1f3f66;
+}
+.cp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cp-hint {
+  color: var(--cp-muted);
+  font-size: 12px;
+}
+.cp-spin {
+  animation: cp-spin 0.9s linear infinite;
+}
+@keyframes cp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes cp-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Header */
+.cp-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--cp-line);
+}
+.cp-panel .cp-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--cp-soft);
+}
+.cp-panel .cp-avatar .mascot {
+  width: 34px;
+  height: 34px;
+}
+.cp-title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.cp-panel .cp-title h2 {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: var(--cp-soft);
+  color: var(--cp-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cp-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cp-pill-ok {
+  background: var(--cp-ok-bg);
+  color: var(--cp-ok);
+}
+.cp-pill-warn {
+  background: var(--cp-warn-bg);
+  color: var(--cp-warn);
+}
+.cp-pill-bad {
+  background: var(--cp-bad-bg);
+  color: var(--cp-bad);
+}
+.cp-header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Body */
+.cp-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 20px;
+}
+.cp-body > :is(.cp-control, .cp-address, .cp-notice, .cp-alert, .cp-more) {
+  margin-inline: 16px;
+}
+.cp-panel .cp-alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 9px;
+  background: var(--cp-bad-bg);
+  color: var(--cp-bad);
+  overflow-wrap: anywhere;
+}
+.cp-panel .cp-alert .cp-icon-btn {
+  width: 22px;
+  height: 22px;
+  margin-top: -1px;
+  color: inherit;
+}
+.cp-panel .cp-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--cp-warn-bg);
+  color: var(--cp-warn);
+  font-size: 12px;
+}
+
+/* Screen */
+.cp-stage {
+  position: relative;
+  border-bottom: 1px solid var(--cp-line);
+  background: var(--cp-soft);
+}
+.cp-stage.is-human::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 2px solid var(--cp-focus);
+  pointer-events: none;
+}
+.cp-panel .cp-placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  aspect-ratio: 16 / 10;
+  padding: 24px;
+  color: var(--cp-muted);
+  text-align: center;
+}
+.cp-panel .cp-placeholder p {
+  max-width: 30ch;
+}
+.cp-snapshot {
+  position: relative;
+}
+.cp-panel .cp-snapshot-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  line-height: 0;
+  cursor: default;
+  transform: none;
+}
+.cp-panel .cp-snapshot-button:not(:disabled) {
+  cursor: crosshair;
+}
+.cp-panel .cp-snapshot-button:disabled {
+  opacity: 1;
+}
+.cp-panel .cp-snapshot-button img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Labels laid over the screen. They never take clicks, so the screen stays fully usable. */
+.cp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  pointer-events: none;
+}
+.cp-overlay-top,
+.cp-overlay-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cp-badge,
+.cp-page,
+.cp-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: rgba(18, 18, 20, 0.74);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+}
+.cp-badge {
+  flex: none;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.cp-badge i,
+.cp-activity i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #aaa;
+}
+.cp-badge-live i {
+  background: #ff5a52;
+  animation: cp-pulse 1.8s ease-in-out infinite;
+}
+.cp-badge-wait i {
+  background: #f2b53c;
+  animation: cp-pulse 1s ease-in-out infinite;
+}
+.cp-activity i {
+  background: #6fd391;
+  animation: cp-pulse 1.2s ease-in-out infinite;
+}
+.cp-page {
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 500;
+}
+.cp-page svg {
+  flex: none;
+  opacity: 0.8;
+}
+.cp-page-title {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+}
+.cp-page-url {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  line-height: 1.5;
+  opacity: 0.65;
+  text-overflow: ellipsis;
+}
+.cp-activity {
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+}
+@container cp (max-width: 460px) {
+  .cp-page-url {
+    display: none;
+  }
+}
+
+/* Who is driving */
+.cp-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cp-control-who {
+  min-width: 0;
+  color: var(--cp-muted);
+}
+.cp-control-human {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.cp-control-human .cp-hint {
+  text-align: center;
+}
+.cp-control-waiting {
+  justify-content: center;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--cp-soft);
+  color: var(--cp-muted);
+}
+
+/* Address bar */
+.cp-address {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 4px 0 11px;
+  border: 1px solid var(--cp-line);
+  border-radius: 10px;
+  background: var(--cp-soft);
+  color: var(--cp-muted);
+}
+.cp-address:focus-within {
+  border-color: var(--cp-edge);
+  background: var(--cp-surface);
+}
+.cp-panel .cp-address input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font-size: 13px;
+}
+.cp-panel .cp-address input:focus-visible {
+  outline: none;
+}
+.cp-address:has(input:focus-visible) {
+  outline: 2px solid var(--cp-focus);
+  outline-offset: 2px;
+}
+.cp-address-error {
+  flex-basis: 100%;
+  margin: -2px 0 6px;
+  color: var(--cp-bad);
+  font-size: 12px;
+}
+
+/* Empty and error states */
+.cp-panel .cp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 44px 24px 28px;
+  color: var(--cp-muted);
+  text-align: center;
+}
+.cp-panel .cp-empty h3 {
+  color: var(--cp-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.cp-panel .cp-empty p {
+  max-width: 34ch;
+  overflow-wrap: anywhere;
+}
+.cp-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--cp-soft);
+  color: var(--cp-ink);
+}
+.cp-empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* More tools */
+.cp-more {
+  border-top: 1px solid var(--cp-line);
+  margin-top: 4px;
+}
+.cp-panel .cp-more-toggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--cp-ink);
+  font-weight: 600;
+  text-align: left;
+  transform: none;
+}
+.cp-panel .cp-more-toggle:hover:not(:disabled) {
+  background: none;
+}
+.cp-more-toggle small {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cp-muted);
+  font-size: 12px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-more-toggle svg {
+  align-self: center;
+  flex: none;
+  color: var(--cp-muted);
+  transition: transform 0.15s;
+}
+.cp-more[data-open='true'] .cp-more-toggle svg {
+  transform: rotate(180deg);
+}
+.cp-segments {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--cp-soft);
+}
+.cp-panel .cp-segments button {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--cp-muted);
+  font-size: 12px;
+  font-weight: 500;
+  transform: none;
+}
+.cp-panel .cp-segments button:hover:not(:disabled) {
+  color: var(--cp-ink);
+  background: transparent;
+}
+.cp-panel .cp-segments button[aria-selected='true'] {
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.cp-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.cp-tool > .cp-btn {
+  align-self: flex-start;
+}
+.cp-panel .cp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  color: var(--cp-muted);
+  font-size: 12px;
+}
+.cp-panel .cp-field-inline {
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.cp-panel
+  :is(.cp-tool, .cp-sheet)
+  :is(input, select, textarea):not(.cp-switch) {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--cp-edge);
+  border-radius: 9px;
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.cp-panel .cp-tool textarea {
+  resize: vertical;
+}
+.cp-panel .cp-tool :disabled {
+  background: var(--cp-soft);
+}
+.cp-panel .cp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp-panel .cp-blocked {
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--cp-soft);
+  color: var(--cp-muted);
+  font-size: 12px;
+}
+.cp-output pre {
+  max-height: 260px;
+  margin: 0 0 6px;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 9px;
+  background: var(--cp-soft);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cp-audit {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-audit li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--cp-line);
+}
+.cp-audit li:last-child {
+  border-bottom: 0;
+}
+.cp-audit span {
+  color: var(--cp-muted);
+  font-size: 11px;
+}
+.cp-audit li[data-outcome='failed'] span {
+  color: var(--cp-bad);
+}
+
+/* Settings */
+.cp-sheet {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 24px;
+}
+.cp-sheet:focus {
+  outline: none;
+}
+.cp-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp-panel .cp-sheet-head h3 {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+.cp-panel .cp-section-title {
+  margin-top: 4px;
+  color: var(--cp-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cp-panel .cp-callout {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--cp-soft);
+}
+.cp-callout a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #345681;
+  text-decoration: underline;
+}
+.cp-settings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-setting {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--cp-line);
+}
+.cp-setting:first-child {
+  padding-top: 0;
+}
+.cp-setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cp-setting-text label {
+  font-weight: 600;
+}
+.cp-setting-text p {
+  color: var(--cp-muted);
+  font-size: 12px;
+}
+.cp-save {
+  min-height: 16px;
+  color: var(--cp-muted);
+  font-size: 11px;
+}
+.cp-save > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.cp-save-saved {
+  color: var(--cp-ok);
+}
+.cp-save-error {
+  color: var(--cp-bad);
+}
+.cp-panel input.cp-switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: var(--cp-soft-strong);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cp-panel input.cp-switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+.cp-panel input.cp-switch:checked {
+  background: var(--cp-ok);
+}
+.cp-panel input.cp-switch:checked::before {
+  transform: translateX(16px);
+}
+.cp-panel input.cp-switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-panel *,
+  .cp-panel *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -7,6 +7,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Store } from './store.js';
 import { Runner } from './runner.js';
 import { createApp } from './app.js';
+import { attachComputerStream, type UpgradeServer } from './computer-stream.js';
 import { WorkspaceStore } from './workspace.js';
 import { Platform } from './platform.js';
 import type { PlatformConfig } from './platform-config.js';
@@ -68,16 +69,17 @@ const runner = new Runner(
   },
   config.limits!.taskTimeoutMs,
 );
+const appOrigin =
+  process.env.APP_ORIGIN ??
+  (process.env.NODE_ENV === 'development'
+    ? 'http://127.0.0.1:5173'
+    : undefined);
 const app = createApp({
   store,
   runner,
   config: researchConfig,
   ownerToken,
-  origin:
-    process.env.APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development'
-      ? 'http://127.0.0.1:5173'
-      : undefined),
+  origin: appOrigin,
   platform,
 });
 app.use('*', async (c, next) => {
@@ -102,13 +104,22 @@ const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
   runner.start();
   void platform.start().catch((error) => report('Startup failed', error));
 });
+// `serve` builds a plain HTTP server unless it is given another factory, and none is.
+const streams = attachComputerStream(server as unknown as UpgradeServer, {
+  computers: platform.computers,
+  ownerToken,
+  origin: appOrigin,
+});
 const shutdown = createShutdown({
   stopRunner: () => runner.stop(),
   stopPlatform: () => platform.stop(),
-  closeServer: () =>
-    new Promise<void>((resolve, reject) =>
+  closeServer: () => {
+    // An open live screen would keep the server from finishing its close.
+    streams.close();
+    return new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
-    ),
+    );
+  },
   exit: (code) => process.exit(code),
   report,
 });

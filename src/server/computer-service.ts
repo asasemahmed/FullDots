@@ -1,17 +1,24 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
   computerInputSchemas,
+  computerStreamInputSchema,
   type ComputerInputLimits,
   type ComputerInputs,
   computerPermissionsSchema,
   type ComputerAction,
   type ComputerControl,
   type ComputerStatus,
+  type ComputerStreamTicket,
 } from '../shared/computer-types.js';
 import type { WorkspaceStore } from './workspace.js';
 import { defaultLimits } from './limits.js';
 import type { PlatformConfig } from './platform-config.js';
+import {
+  ComputerConflictError,
+  classifyConflict,
+} from './computer-conflict.js';
+export { ComputerConflictError } from './computer-conflict.js';
 const stateSchema = z.object({
   botId: z.string(),
   container: z.string(),
@@ -26,10 +33,38 @@ const controlSchema = z.object({
   resumeSnapshotRequired: z.boolean(),
   request: z.object({ id: z.string(), status: z.string() }).optional(),
 });
+/** How long a live-screen ticket may wait before it is used. It works once. */
+const STREAM_TICKET_TTL_MS = 20_000;
+/** Bounds the unredeemed tickets, which only the authenticated owner can create. */
+const MAX_STREAM_TICKETS = 64;
+const hashTicket = (ticket: string) =>
+  createHash('sha256').update(ticket).digest('hex');
+export interface ComputerStreamTarget {
+  /** The computer's own WebSocket address. It carries a credential, so it never leaves the server. */
+  url: string;
+  /** Strips this computer's credentials from text that came back from it. */
+  redact: (text: string) => string;
+}
+/** One call to the computer inside a {@link ComputerService.session}. */
+export type ComputerSessionCall = (
+  action: ComputerAction,
+  input?: unknown,
+) => Promise<unknown>;
+const permissionKind = (action: string) =>
+  action === 'exec'
+    ? 'shell'
+    : action.startsWith('files_')
+      ? 'files'
+      : 'browser';
 export class ComputerService {
   private readonly inputLimits: ComputerInputLimits;
   private readonly responseBytes: number;
+  private readonly streamTickets = new Map<
+    string,
+    { dotId: string; expires: number }
+  >();
   readonly inputs: ComputerInputs;
+  readonly streamInput: ReturnType<typeof computerStreamInputSchema>;
   constructor(
     private workspace: WorkspaceStore,
     private config: PlatformConfig,
@@ -46,6 +81,11 @@ export class ComputerService {
     };
     this.responseBytes = limits.computerResponseBytes;
     this.inputs = computerInputSchemas(this.inputLimits);
+    this.streamInput = computerStreamInputSchema(this.inputLimits);
+  }
+  /** The largest live-screen input message worth reading: a paste, with JSON escaping. */
+  get streamInputBytes() {
+    return Math.max(64 * 1024, this.inputLimits.typeChars * 6 + 1024);
   }
   get configured() {
     return !!(
@@ -102,9 +142,7 @@ export class ComputerService {
         signal: combined,
       });
       if (response.status === 409)
-        throw new Error(
-          'Computer service returned HTTP 409: refresh the browser with computer_snapshot before retrying. If the owner has control, wait for them to release it; do not bypass takeover.',
-        );
+        throw new ComputerConflictError(await classifyConflict(response));
       if (!response.ok)
         throw new Error(`Computer service returned HTTP ${response.status}.`);
       if (!response.body)
@@ -137,8 +175,9 @@ export class ComputerService {
           cause: error,
         });
       if (
-        error instanceof Error &&
-        /^Computer (service returned|response exceeded)/.test(error.message)
+        error instanceof ComputerConflictError ||
+        (error instanceof Error &&
+          /^Computer (service returned|response exceeded)/.test(error.message))
       )
         throw error;
       throw new Error(
@@ -336,15 +375,29 @@ export class ComputerService {
     if (!Object.hasOwn(this.inputs, action))
       throw new Error('Unknown computer action.');
     const parsed = this.inputs[action].parse(input);
-    return this.audited(id, action, actor, async () => {
-      if (actor === 'agent' && action.startsWith('human_'))
+    return this.session(id, action, actor, signal, (call) =>
+      call(action, parsed),
+    );
+  }
+  /**
+   * Runs one or more computer calls as a single audited action.
+   *
+   * `label` is what the audit trail records and decides which permission applies. Every call made
+   * through `call` must need that same permission. A compound action such as choosing a dropdown option
+   * uses several calls but is still one thing the owner sees: permissions are re-checked before and
+   * after each call and cancel the work in flight as soon as the owner revokes them.
+   */
+  async session<T>(
+    id: string,
+    label: ComputerAction | 'select',
+    actor: 'owner' | 'agent',
+    signal: AbortSignal | undefined,
+    body: (call: ComputerSessionCall) => Promise<T>,
+  ): Promise<T> {
+    return this.audited(id, label, actor, async () => {
+      if (actor === 'agent' && label.startsWith('human_'))
         throw new Error('Human controls are owner-only.');
-      const kind =
-        action === 'exec'
-          ? 'shell'
-          : action.startsWith('files_')
-            ? 'files'
-            : 'browser';
+      const kind = permissionKind(label);
       this.allowed(id, kind, actor);
       const cancellation = new AbortController();
       const activeSignal = signal
@@ -358,29 +411,104 @@ export class ComputerService {
         }
       }, 50);
       try {
-        const url = await this.running(id, activeSignal);
-        this.allowed(id, kind, actor);
-        activeSignal.throwIfAborted();
-        const path = action
-          .replace(/^files_/, 'files/')
-          .replace(/^human_/, 'human/');
-        const result = await this.json(
-          `${url}/${path}`,
-          this.token(id),
-          ['read', 'screenshot'].includes(action) ? undefined : parsed,
-          activeSignal,
-          id,
-        );
-        this.allowed(id, kind, actor);
-        if (action === 'exec' && result && typeof result === 'object') {
-          const copy = { ...result } as Record<string, unknown>;
-          delete copy.command;
-          return copy;
-        }
-        return result;
+        let url: string | undefined;
+        const call: ComputerSessionCall = async (action, input) => {
+          if (!Object.hasOwn(this.inputs, action))
+            throw new Error('Unknown computer action.');
+          if (permissionKind(action) !== kind)
+            throw new Error('That call needs a different permission.');
+          const parsed = this.inputs[action].parse(input ?? {});
+          url ??= await this.running(id, activeSignal);
+          this.allowed(id, kind, actor);
+          activeSignal.throwIfAborted();
+          const path = action
+            .replace(/^files_/, 'files/')
+            .replace(/^human_/, 'human/');
+          const result = await this.json(
+            `${url}/${path}`,
+            this.token(id),
+            ['read', 'screenshot'].includes(action) ? undefined : parsed,
+            activeSignal,
+            id,
+          );
+          this.allowed(id, kind, actor);
+          if (action === 'exec' && result && typeof result === 'object') {
+            const copy = { ...result } as Record<string, unknown>;
+            delete copy.command;
+            return copy;
+          }
+          return result;
+        };
+        return await body(call);
       } finally {
         clearInterval(watcher);
       }
+    });
+  }
+  /**
+   * A one-time ticket for opening the live screen.
+   *
+   * Browsers cannot send an Authorization header on a WebSocket upgrade, and the owner token must not
+   * travel in a URL. The ticket is the substitute: it is random, bound to one Dot, valid for seconds,
+   * and only an authenticated request can mint it.
+   */
+  streamTicket(id: string): ComputerStreamTicket {
+    this.allowed(id, 'browser', 'owner');
+    const now = Date.now();
+    for (const [key, entry] of this.streamTickets)
+      if (entry.expires <= now) this.streamTickets.delete(key);
+    while (this.streamTickets.size >= MAX_STREAM_TICKETS) {
+      const oldest = this.streamTickets.keys().next();
+      if (oldest.done) break;
+      this.streamTickets.delete(oldest.value);
+    }
+    const ticket = randomBytes(32).toString('base64url');
+    this.streamTickets.set(hashTicket(ticket), {
+      dotId: id,
+      expires: now + STREAM_TICKET_TTL_MS,
+    });
+    return { ticket, expiresInMs: STREAM_TICKET_TTL_MS };
+  }
+  /** The Dot a ticket was minted for. Consumes the ticket whether or not it is still valid. */
+  redeemStreamTicket(ticket: string): string | undefined {
+    const key = hashTicket(ticket);
+    const entry = this.streamTickets.get(key);
+    this.streamTickets.delete(key);
+    return entry && entry.expires > Date.now() ? entry.dotId : undefined;
+  }
+  /** Whether the owner may still watch this Dot's screen. Asked repeatedly while a screen is open. */
+  streamAllowed(id: string): boolean {
+    try {
+      this.allowed(id, 'browser', 'owner');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  /** Where to connect for this Dot's live screen. Audited like any other owner action. */
+  async openStream(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<ComputerStreamTarget> {
+    return this.audited(id, 'stream', 'owner', async () => {
+      this.allowed(id, 'browser', 'owner');
+      const origin = await this.running(id, signal);
+      this.allowed(id, 'browser', 'owner');
+      signal?.throwIfAborted();
+      const token = this.token(id);
+      const secrets = [
+        token,
+        this.config.computerToken?.trim(),
+        this.config.computerSupervisorToken?.trim(),
+      ].filter((secret): secret is string => !!secret);
+      return {
+        url: `ws://${new URL(origin).host}/stream?bot=${encodeURIComponent(id)}&token=${token}`,
+        redact: (text) =>
+          secrets.reduce(
+            (all, secret) => all.split(secret).join('[redacted]'),
+            text,
+          ),
+      };
     });
   }
 }

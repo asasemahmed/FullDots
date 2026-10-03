@@ -1,0 +1,278 @@
+/* Compact computer-activity block shown in the chat transcript. One block
+   stands in for every consecutive computer_* tool call of a turn. */
+.chat-activity {
+  /* The transcript is a flex column with a 22px gap; pull the block closer to
+     the messages around it so a run of actions reads as one slim line. */
+  align-self: stretch;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: -8px 0;
+  border: 1px solid #e4e5e7;
+  border-radius: 10px;
+  background: #fff;
+  color: #34373d;
+  font-size: 12px;
+  line-height: 1.4;
+  container-type: inline-size;
+}
+.chat-activity-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 6px;
+}
+.chat-activity .chat-activity-toggle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 4px 6px 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.chat-activity .chat-activity-toggle:hover:not(:disabled) {
+  background: #f6f7f8;
+}
+.chat-activity .chat-activity-toggle:focus-visible,
+.chat-activity .chat-activity-live:focus-visible {
+  outline: 2px solid #6875bd;
+  outline-offset: -2px;
+}
+.chat-activity-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: #67736e;
+}
+.chat-activity-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.chat-activity-sep {
+  flex: 0 0 auto;
+  color: #b4b8bf;
+}
+.chat-activity-current {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #70757c;
+}
+.chat-activity-count,
+.chat-activity-time,
+.chat-activity-warn {
+  flex: 0 0 auto;
+  color: #70757c;
+  white-space: nowrap;
+}
+.chat-activity-warn {
+  color: #a23d35;
+}
+.chat-activity-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #a0a5ad;
+  transition: transform 0.15s;
+}
+.chat-activity.is-open .chat-activity-chevron {
+  transform: rotate(90deg);
+}
+.chat-activity-pulse {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #35766f;
+}
+.chat-activity-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #35766f;
+  animation: chat-activity-ping 1.4s ease-out infinite;
+}
+.chat-activity .chat-activity-live {
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid #e4e5e7;
+  border-radius: 7px;
+  background: #fff;
+  color: #4d5560;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.chat-activity .chat-activity-live:hover:not(:disabled) {
+  background: #f2f3f5;
+}
+.chat-activity-steps {
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px 8px;
+  border-top: 1px solid #eeeff0;
+  max-height: 264px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #dedfe4 transparent;
+}
+.chat-activity-step {
+  display: grid;
+  grid-template-columns: 14px minmax(0, auto) minmax(0, 1fr) 14px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 5px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #4d5560;
+}
+.chat-activity-step-icon {
+  color: #8b9097;
+}
+.chat-activity-step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-activity-step-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #8b9097;
+}
+.chat-activity-step-state {
+  display: grid;
+  place-items: center;
+  color: #8aa399;
+}
+.chat-activity-step-message {
+  grid-column: 2 / -1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  padding-top: 2px;
+  color: #8b9097;
+  overflow-wrap: anywhere;
+}
+.chat-activity-step.is-failed .chat-activity-step-state,
+.chat-activity-step.is-failed .chat-activity-step-message {
+  color: #a23d35;
+}
+.chat-activity-step.is-interrupted .chat-activity-step-state {
+  color: #a0a5ad;
+}
+.chat-activity-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #cfd8d3;
+  border-top-color: #35766f;
+  border-radius: 50%;
+  animation: chat-activity-spin 0.8s linear infinite;
+}
+.chat-activity-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@keyframes chat-activity-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@keyframes chat-activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Narrow columns (phones, the 370px page chat panel): keep the title and
+   step count, shorten the rest. */
+@container (max-width: 380px) {
+  .chat-activity-live-text {
+    display: none;
+  }
+  .chat-activity .chat-activity-live {
+    padding: 5px 7px;
+  }
+  .chat-activity-step {
+    column-gap: 6px;
+  }
+}
+@container (max-width: 300px) {
+  .chat-activity:not(.is-live) .chat-activity-mark {
+    display: none;
+  }
+  .chat-activity .chat-activity-toggle {
+    padding-left: 10px;
+  }
+  .chat-activity-current,
+  .chat-activity-current + .chat-activity-sep {
+    display: none;
+  }
+  .chat-activity-step {
+    grid-template-columns: 14px minmax(0, 1fr) 14px;
+  }
+  .chat-activity-step-detail {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-activity-pulse::after,
+  .chat-activity-spinner {
+    animation: none;
+  }
+  .chat-activity-chevron {
+    transition: none;
+  }
+}
+
+/* GitHub-flavored markdown tables in chat replies. */
+.chat-bubble table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.92em;
+}
+.chat-bubble th,
+.chat-bubble td {
+  border: 1px solid var(--line, #e5e7eb);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.chat-bubble th {
+  background: rgba(0, 0, 0, 0.03);
+  font-weight: 600;
+}

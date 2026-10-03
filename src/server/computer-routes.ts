@@ -33,6 +33,10 @@ export function computerRoutes(computers: ComputerService) {
   app.post('/dots/:id/computer/release', async (c) =>
     c.json(await computers.control(c.req.param('id'), 'release')),
   );
+  // Mints a one-time ticket for the live-screen WebSocket; see computer-stream.ts.
+  app.post('/dots/:id/computer/stream', (c) =>
+    c.json(computers.streamTicket(c.req.param('id'))),
+  );
   app.post('/dots/:id/computer/actions', async (c) => {
     const body = z
       .object({ action: z.string(), input: z.unknown() })

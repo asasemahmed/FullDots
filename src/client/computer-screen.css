@@ -1,0 +1,50 @@
+/* The live screen in the computer panel. The labels laid over it live in computer-panel.css. */
+.cp-panel .computer-screen[hidden] {
+  display: none;
+}
+.computer-screen-live {
+  position: relative;
+}
+.computer-screen-live canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+}
+.computer-screen-interactive canvas {
+  cursor: default;
+}
+.computer-screen-live:focus-within {
+  outline: 2px solid var(--cp-focus, #476ba0);
+  outline-offset: -2px;
+}
+/* Receives the keyboard, paste and composition for the screen; never seen. */
+.cp-panel .computer-keys {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  resize: none;
+  pointer-events: none;
+}
+/* A short message from the computer, such as an input it refused. Goes away on its own after a few seconds. */
+.computer-screen-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 3;
+  max-width: calc(100% - 20px);
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(30, 30, 30, 0.86);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}

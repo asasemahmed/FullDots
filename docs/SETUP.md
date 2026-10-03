@@ -79,6 +79,8 @@ AGENT_MAX_STEPS=30
 COMPUTER_EXEC_MAX_TIMEOUT=600
 ```
 
+A step is one reply from the model together with its tool calls; `AGENT_MAX_STEPS` accepts 1 to 1000. A Dot never ends a turn mid-sentence: the last step it is allowed is spent without tools on a short summary of what it did, what is left, and what it needs from you. When `AGENT_TURN_TIMEOUT` passes, the Dot gets `AGENT_TURN_GRACE` more seconds (20 by default) to write that summary before the turn is stopped, and if it is stopped it says so in the conversation. Set `AGENT_TURN_TIMEOUT=0` or `TASK_TIMEOUT=0` for no time limit on a Dot's turn or on a scheduled task run (scheduled runs and calls internally stop after 24 hours, so a crashed run is eventually retried); steps, tokens and the computer limits still apply. A scheduled run or a call stops its turn when its own limit passes, so keep `TASK_TIMEOUT` above `AGENT_TURN_TIMEOUT` plus the grace period if you want the summary to be written.
+
 Shell commands and file writes are capped by the OpenBot computer itself (10 minutes and 1 MB). The computer request timeout is raised automatically so it always outlives the longest shell command. Restart the server after changing these values.
 
 ## Calls

@@ -5,8 +5,19 @@ import {
   type ComputerInputLimits,
 } from '../shared/computer-types.js';
 
+/**
+ * What "no time limit" becomes where a timer or a lease needs a number: the voice call, the
+ * scheduled-task runner and its database lease. A Dot's own turn treats it as no timer at all.
+ * Twenty-four hours is far beyond any real turn, and keeps a lease from outliving a crash by weeks.
+ */
+export const NO_TIME_LIMIT_MS = 24 * 60 * 60 * 1000;
+
+export const hasTimeLimit = (ms: number) => ms < NO_TIME_LIMIT_MS;
+
 export interface Limits extends ComputerInputLimits {
   agentTurnMs: number;
+  /** Extra time a Dot gets to write its summary once the turn limit is reached. */
+  agentGraceMs: number;
   agentMaxSteps: number;
   agentMaxTokens: number;
   taskTimeoutMs: number;
@@ -17,6 +28,7 @@ export interface Limits extends ComputerInputLimits {
 export const defaultLimits: Limits = {
   ...defaultComputerInputLimits,
   agentTurnMs: 90_000,
+  agentGraceMs: 20_000,
   agentMaxSteps: 8,
   agentMaxTokens: 2200,
   taskTimeoutMs: 90_000,
@@ -44,19 +56,29 @@ function number(
 export function readLimits(env: Env = process.env): Limits {
   const seconds = (name: string, fallback: number, max: number) =>
     number(env, name, fallback / 1000, 1, max) * 1000;
+  // 0 means no time limit; see NO_TIME_LIMIT_MS for what the rest of the server sees.
+  const unlimitedSeconds = (name: string, fallback: number, max: number) => {
+    const value = number(env, name, fallback / 1000, 0, max) * 1000;
+    return value === 0 ? NO_TIME_LIMIT_MS : value;
+  };
   const execMaxMs = seconds(
     'COMPUTER_EXEC_MAX_TIMEOUT',
     defaultLimits.execMaxMs,
     600, // OpenBot rejects shell timeouts above 10 minutes.
   );
   return {
-    agentTurnMs: seconds('AGENT_TURN_TIMEOUT', defaultLimits.agentTurnMs, 7200),
+    agentTurnMs: unlimitedSeconds(
+      'AGENT_TURN_TIMEOUT',
+      defaultLimits.agentTurnMs,
+      7200,
+    ),
+    agentGraceMs: seconds('AGENT_TURN_GRACE', defaultLimits.agentGraceMs, 600),
     agentMaxSteps: number(
       env,
       'AGENT_MAX_STEPS',
       defaultLimits.agentMaxSteps,
       1,
-      200,
+      1000,
     ),
     agentMaxTokens: number(
       env,
@@ -65,7 +87,11 @@ export function readLimits(env: Env = process.env): Limits {
       256,
       128_000,
     ),
-    taskTimeoutMs: seconds('TASK_TIMEOUT', defaultLimits.taskTimeoutMs, 7200),
+    taskTimeoutMs: unlimitedSeconds(
+      'TASK_TIMEOUT',
+      defaultLimits.taskTimeoutMs,
+      7200,
+    ),
     execMaxMs,
     commandChars: number(
       env,

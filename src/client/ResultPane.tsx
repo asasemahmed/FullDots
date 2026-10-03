@@ -8,6 +8,7 @@ import {
   X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Dot, Result, Status } from '../shared/types';
 import { Mascot } from './Mascot';
 import { ComputerPanel } from './ComputerPanel';
@@ -60,22 +61,13 @@ export function ResultPane({
       </div>
       {resultTab === 'Computer' ? (
         <>
-          <label className="computer-dot-picker">
-            Computer for
-            <select
-              value={computerDot?.id ?? ''}
-              onChange={(event) => setComputerDotId(event.target.value)}
-              aria-label="Select Dot computer"
-            >
-              {dots.map((dot) => (
-                <option key={dot.id} value={dot.id}>
-                  {dot.name}
-                </option>
-              ))}
-            </select>
-          </label>
           {computerDot ? (
-            <ComputerPanel key={computerDot.id} dot={computerDot} />
+            <ComputerPanel
+              key={computerDot.id}
+              dot={computerDot}
+              dots={dots}
+              onSelectDot={setComputerDotId}
+            />
           ) : (
             <p className="computer-panel">
               Create a Dot to give it a computer.
@@ -121,6 +113,7 @@ export function ResultPane({
           )}
           <article className="brief">
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 img: ({ alt }) => (
                   <span>{alt ? `[Image: ${alt}]` : '[Image omitted]'}</span>

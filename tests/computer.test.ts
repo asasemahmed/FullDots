@@ -305,3 +305,65 @@ it('gives agents a safe recovery instruction for stale browser or control confli
   ).rejects.not.toThrow(f.config.computerToken);
   expect(f.workspace.computers.audit(f.id)[0].outcome).toBe('failed');
 });
+
+it('tells the four kinds of conflict apart from the flags the computer sets', async () => {
+  const f = fixture();
+  const kinds = [
+    [{ humanHasControl: true }, /owner currently has control/],
+    [
+      { snapshotRequired: true, stale: true },
+      /handed back or the computer restarted/,
+    ],
+    [{ stale: true }, /element reference is out of date/],
+    [
+      { error: 'Take control first.' },
+      /refresh the browser with computer_snapshot/,
+    ],
+  ] as const;
+  for (const [body, message] of kinds) {
+    f.handle(async () => Response.json(body, { status: 409 }));
+    await expect(
+      f.service.action(f.id, 'click', { ref: 'e1', snapshotId: 1 }, 'agent'),
+    ).rejects.toThrow(message);
+  }
+  // A body that cannot be read is the general conflict, and nothing from it is repeated.
+  f.handle(
+    async () =>
+      new Response('not json: ' + f.config.computerToken, { status: 409 }),
+  );
+  const error = await f.service
+    .action(f.id, 'click', { ref: 'e1', snapshotId: 1 }, 'agent')
+    .catch((reason: Error) => reason);
+  expect(String(error)).toMatch(/computer_snapshot/);
+  expect(String(error)).not.toContain(f.config.computerToken);
+});
+
+it('runs several calls as one audited action and rechecks permission between them', async () => {
+  const f = fixture();
+  f.handle(async () => Response.json({ snapshotId: 1, elements: [] }));
+  const result = await f.service.session(
+    f.id,
+    'select',
+    'agent',
+    undefined,
+    async (call) => {
+      await call('snapshot', {});
+      await call('click', { ref: 'e1', snapshotId: 1 });
+      await expect(call('exec', { command: 'ls' })).rejects.toThrow(
+        'different permission',
+      );
+      f.workspace.computers.patch(f.id, { browser: false });
+      await expect(call('snapshot', {})).rejects.toThrow(
+        'permission is disabled',
+      );
+      return 'done';
+    },
+  );
+  expect(result).toBe('done');
+  const audit = f.workspace.computers.audit(f.id);
+  expect(audit).toHaveLength(1);
+  expect(audit[0]).toMatchObject({ action: 'select', actor: 'agent' });
+  expect(
+    f.calls.filter((call) => call.url.endsWith('/computers')),
+  ).toHaveLength(1);
+});

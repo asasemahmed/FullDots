@@ -4,6 +4,7 @@ import {
   ChatTranscript,
   isInternalVoiceReceipt,
 } from '../src/client/ChatTranscript';
+import { ComputerAutoOpen } from '../src/client/chat-turns';
 import type { Message } from '@ag-ui/core';
 it('keeps call receipts between the anchored message and later conversation turns', () => {
   const html = renderToStaticMarkup(
@@ -34,7 +35,23 @@ it('keeps call receipts between the anchored message and later conversation turn
   );
 });
 
-it('renders tool-only assistant messages inline between chat turns without printing tool JSON', () => {
+const toolCall = (name: string, args: unknown = {}, id = name) => ({
+  id,
+  type: 'function' as const,
+  function: { name, arguments: JSON.stringify(args) },
+});
+const toolResult = (toolCallId: string, content: unknown): Message => ({
+  id: `result-${toolCallId}`,
+  role: 'tool',
+  toolCallId,
+  content: typeof content === 'string' ? content : JSON.stringify(content),
+});
+const blocks = (html: string) =>
+  (html.match(/class="chat-activity[ "]/g) ?? []).length;
+const withoutResults = (messages: Message[]) =>
+  messages.filter((message) => message.role !== 'tool');
+
+it('renders a computer-only assistant message as one block between chat turns without printing tool JSON', () => {
   const html = renderToStaticMarkup(
     <ChatTranscript
       messages={[
@@ -43,34 +60,271 @@ it('renders tool-only assistant messages inline between chat turns without print
           id: 'tool-call',
           role: 'assistant',
           toolCalls: [
-            {
-              id: 'navigate',
-              type: 'function',
-              function: {
-                name: 'computer_navigate',
-                arguments: '{"url":"https://example.com"}',
-              },
-            },
+            toolCall('computer_navigate', { url: 'https://example.com' }),
           ],
         },
         { id: 'reply', role: 'assistant', content: 'Here is the summary' },
       ]}
       calls={[]}
-      renderTools={(message) =>
-        message.toolCalls?.length ? (
-          <section>Inline computer view</section>
-        ) : null
-      }
     />,
   );
   expect(html.indexOf('Open the website')).toBeLessThan(
-    html.indexOf('Inline computer view'),
+    html.indexOf('chat-activity'),
   );
-  expect(html.indexOf('Inline computer view')).toBeLessThan(
+  expect(html.indexOf('chat-activity')).toBeLessThan(
     html.indexOf('Here is the summary'),
   );
   expect(html).not.toContain('undefined');
   expect(html).not.toContain('computer_navigate');
+});
+
+it('renders many consecutive computer calls as one collapsed block', () => {
+  const ids = Array.from({ length: 24 }, (_, index) => `step-${index}`);
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Fill in the form' },
+    {
+      id: 'run',
+      role: 'assistant',
+      content: 'All done.',
+      toolCalls: ids.map((id, index) =>
+        toolCall(
+          index % 2 ? 'computer_type' : 'computer_click',
+          { ref: 'r', snapshotId: 1, text: 'Ahmed' },
+          id,
+        ),
+      ),
+    },
+    ...ids.map((id) => toolResult(id, { action: 'ok' })),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+      dotName="Scout"
+    />,
+  );
+  expect(blocks(html)).toBe(1);
+  expect(html).toContain('Used the computer');
+  expect(html).toContain('24 steps');
+  expect(html).toContain('aria-expanded="false"');
+  expect(html).not.toContain('chat-activity-steps');
+  expect(html).not.toContain('Typing in browser');
+  expect(html.indexOf('chat-activity')).toBeLessThan(html.indexOf('All done.'));
+});
+
+it('merges computer calls that a turn splits across consecutive assistant messages', () => {
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[
+        { id: 'request', role: 'user', content: 'Look it up' },
+        {
+          id: 'first',
+          role: 'assistant',
+          content: 'Let me look.',
+          toolCalls: [toolCall('computer_navigate', { url: 'https://a.test' })],
+        },
+        {
+          id: 'second',
+          role: 'assistant',
+          toolCalls: [toolCall('computer_snapshot'), toolCall('computer_read')],
+        },
+        { id: 'third', role: 'assistant', content: 'Found it.' },
+      ]}
+      calls={[]}
+    />,
+  );
+  expect(blocks(html)).toBe(1);
+  expect(html).toContain('3 steps');
+  // Earlier messages keep their text before their actions; the reply comes last.
+  expect(html.indexOf('Let me look.')).toBeLessThan(
+    html.indexOf('chat-activity'),
+  );
+  expect(html.indexOf('chat-activity')).toBeLessThan(html.indexOf('Found it.'));
+});
+
+it('keeps blocks of different turns apart', () => {
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[
+        { id: 'u1', role: 'user', content: 'First' },
+        {
+          id: 'a1',
+          role: 'assistant',
+          toolCalls: [toolCall('computer_navigate', {}, 'n1')],
+        },
+        { id: 'u2', role: 'user', content: 'Second' },
+        {
+          id: 'a2',
+          role: 'assistant',
+          toolCalls: [toolCall('computer_navigate', {}, 'n2')],
+        },
+      ]}
+      calls={[]}
+    />,
+  );
+  expect(blocks(html)).toBe(2);
+});
+
+it('renders the reply below the actions when one message holds both', () => {
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[
+        { id: 'request', role: 'user', content: 'Check the site' },
+        {
+          id: 'run',
+          role: 'assistant',
+          content: 'The final answer is 42.',
+          toolCalls: [
+            toolCall('computer_navigate', { url: 'https://example.com' }),
+            toolCall('computer_snapshot'),
+          ],
+        },
+      ]}
+      calls={[]}
+    />,
+  );
+  expect(html.indexOf('chat-activity')).toBeGreaterThan(-1);
+  expect(html.indexOf('chat-activity')).toBeLessThan(
+    html.indexOf('The final answer is 42.'),
+  );
+});
+
+it('keeps other tools rendering through renderTools, with the review card after the reply', () => {
+  const seen: string[][] = [];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[
+        { id: 'request', role: 'user', content: 'Draft a page' },
+        {
+          id: 'run',
+          role: 'assistant',
+          content: 'Please review the draft.',
+          toolCalls: [
+            toolCall('computer_navigate'),
+            toolCall('review_space_page', { title: 'Brief' }),
+          ],
+        },
+      ]}
+      calls={[]}
+      renderTools={(message) => {
+        seen.push(message.toolCalls?.map((call) => call.function.name) ?? []);
+        return <section>Review card</section>;
+      }}
+    />,
+  );
+  expect(seen).toEqual([['review_space_page']]);
+  expect(html.indexOf('chat-activity')).toBeLessThan(
+    html.indexOf('Please review the draft.'),
+  );
+  expect(html.indexOf('Please review the draft.')).toBeLessThan(
+    html.indexOf('Review card'),
+  );
+});
+
+it('shows the working state and a live-view button only while the run is active', () => {
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Go' },
+    {
+      id: 'run',
+      role: 'assistant',
+      toolCalls: [
+        toolCall('computer_navigate', { url: 'https://example.com' }, 'a'),
+        toolCall('computer_type', { ref: 'r', snapshotId: 1, text: 'x' }, 'b'),
+      ],
+    },
+    toolResult('a', { url: 'https://example.com' }),
+  ];
+  const live = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+      running
+      onViewComputer={() => {}}
+    />,
+  );
+  expect(live).toContain('Using the computer');
+  expect(live).toContain('Typing in browser');
+  expect(live).toContain('2 steps');
+  expect(live).toContain('View live');
+  const stopped = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+    />,
+  );
+  expect(stopped).toContain('Used the computer');
+  expect(stopped).toContain('stopped');
+  expect(stopped).not.toContain('View live');
+});
+
+it('does not render screenshots or base64 in the transcript', () => {
+  const base64 = 'iVBORw0KGgo'.repeat(500);
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Look' },
+    {
+      id: 'run',
+      role: 'assistant',
+      toolCalls: [toolCall('computer_screenshot')],
+    },
+    toolResult('computer_screenshot', { base64, url: 'https://example.com' }),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+    />,
+  );
+  expect(html).not.toContain('<img');
+  expect(html).not.toContain('iVBORw0KGgo');
+});
+
+it('opens the computer panel once per turn and never for loaded history', () => {
+  const old: Message[] = [
+    { id: 'u0', role: 'user', content: 'Earlier' },
+    {
+      id: 'a0',
+      role: 'assistant',
+      toolCalls: [toolCall('computer_navigate', {}, 'old')],
+    },
+  ];
+  const tracker = new ComputerAutoOpen();
+  // History loaded on page load: no turn has begun.
+  expect(tracker.shouldOpen(old)).toBe(false);
+  const turn: Message[] = [...old, { id: 'u1', role: 'user', content: 'Now' }];
+  tracker.beginTurn(turn);
+  expect(tracker.shouldOpen(turn)).toBe(false);
+  const reply = {
+    id: 'a1',
+    role: 'assistant' as const,
+    toolCalls: [toolCall('search_web', {}, 'search')],
+  };
+  expect(tracker.shouldOpen([...turn, reply])).toBe(false);
+  reply.toolCalls.push(toolCall('computer_navigate', {}, 'new'));
+  expect(tracker.shouldOpen([...turn, reply])).toBe(true);
+  reply.toolCalls.push(toolCall('computer_click', {}, 'newer'));
+  expect(tracker.shouldOpen([...turn, reply])).toBe(false);
+  tracker.endTurn();
+  const next: Message[] = [
+    ...turn,
+    reply,
+    { id: 'u2', role: 'user', content: 'Again' },
+  ];
+  tracker.beginTurn(next);
+  expect(tracker.shouldOpen(next)).toBe(false);
+  expect(
+    tracker.shouldOpen([
+      ...next,
+      {
+        id: 'a2',
+        role: 'assistant',
+        toolCalls: [toolCall('computer_scroll', {}, 'again')],
+      },
+    ]),
+  ).toBe(true);
 });
 
 it('hides only marked receipt prompts while retaining summaries and prior unmarked messages', () => {

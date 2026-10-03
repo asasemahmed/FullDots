@@ -6,6 +6,6 @@ export default defineConfig({
   server: {
     strictPort: true,
     host: '127.0.0.1',
-    proxy: { '/api': 'http://127.0.0.1:4310' },
+    proxy: { '/api': { target: 'http://127.0.0.1:4310', ws: true } },
   },
 });

@@ -21,11 +21,8 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import {
-  ComputerToolCard,
-  type ComputerToolRenderProps,
-} from './ComputerToolCard';
 import { ChatTranscript, isInternalVoiceReceipt } from './ChatTranscript';
+import { ComputerAutoOpen, isComputerTool } from './chat-turns';
 import type { CallReceipt, Conversation, Dot } from '../shared/types';
 import { Mascot } from './Mascot';
 import { useVoice } from './useVoice';
@@ -95,6 +92,8 @@ export function Chat({
   const voice = useVoice(thread.id, onSaved, agent.messages.at(-1)?.id);
   const sent = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
+  const followOutput = useRef(true);
+  const autoOpen = useRef(new ComputerAutoOpen());
   useEffect(() => {
     const subscription = copilotkit.subscribe({
       onError: ({ error }) => setError(error.message),
@@ -134,6 +133,8 @@ export function Chat({
       role: 'user',
       content: contextualMessage(text, pageContext),
     });
+    followOutput.current = true;
+    autoOpen.current.beginTurn(agent.messages);
     setDraft('');
     setSource('');
     setSourceOpen(false);
@@ -151,6 +152,7 @@ export function Chat({
           : 'The turn failed. Your conversation remains saved.',
       );
     } finally {
+      autoOpen.current.endTurn();
       setRunning(false);
     }
   };
@@ -162,8 +164,34 @@ export function Chat({
     }
   }, [loaded, contextReady, paused, initialPrompt]);
   useEffect(() => {
+    followOutput.current = true;
     bottom.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
   }, [agent.messages.length, running]);
+  // The runtime streams a whole turn into one assistant message, so text and
+  // tool calls grow without the message count changing. Keep the newest reply
+  // in view while the reader is at the bottom, but never fight a scroll-up.
+  const lastMessage = agent.messages.at(-1);
+  const growth = `${lastMessage?.id}:${
+    typeof lastMessage?.content === 'string' ? lastMessage.content.length : 0
+  }:${lastMessage?.role === 'assistant' ? (lastMessage.toolCalls?.length ?? 0) : 0}:${agent.messages.length}`;
+  useEffect(() => {
+    if (followOutput.current)
+      bottom.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+  }, [growth]);
+  // Open the computer panel the first time a turn starts using the computer.
+  const computerCallCount = agent.messages.reduce(
+    (total, message) =>
+      total +
+      (message.role === 'assistant'
+        ? (message.toolCalls?.filter((call) =>
+            isComputerTool(call.function.name),
+          ).length ?? 0)
+        : 0),
+    0,
+  );
+  useEffect(() => {
+    if (onComputer && autoOpen.current.shouldOpen(agent.messages)) onComputer();
+  }, [computerCallCount, running, agent, onComputer]);
   useEffect(() => {
     if (paused && voice.status !== 'idle') void voice.end();
   }, [paused]);
@@ -178,38 +206,10 @@ export function Chat({
     },
     [thread.id, onSaved],
   );
-  const computerCalls = agent.messages.flatMap((message) =>
-    message.role === 'assistant' ? (message.toolCalls ?? []) : [],
-  );
-  const latestBrowserCall = computerCalls.findLast((call) =>
-    [
-      'navigate',
-      'snapshot',
-      'read',
-      'screenshot',
-      'click',
-      'type',
-      'key',
-      'scroll',
-    ].some((action) => call.function.name === `computer_${action}`),
-  );
-  useRenderTool(
-    {
-      name: '*',
-      render: (props: ComputerToolRenderProps) =>
-        props.name.startsWith('computer_') ? (
-          <ComputerToolCard
-            {...props}
-            dotId={dot.id}
-            dotName={dot.name}
-            running={running}
-            showScreen={props.toolCallId === latestBrowserCall?.id}
-            onExpand={onComputer}
-          />
-        ) : null,
-    },
-    [dot.id, dot.name, running, latestBrowserCall?.id, onComputer],
-  );
+  // Computer calls are drawn by ChatTranscript as one compact activity block;
+  // this keeps every other tool without its own renderer from being reported
+  // as unrendered.
+  useRenderTool({ name: '*', render: () => null }, []);
   const visible = agent.messages.filter(
     (message) =>
       !isInternalVoiceReceipt(message) &&
@@ -218,7 +218,7 @@ export function Chat({
         (message.role === 'assistant' &&
           message.toolCalls?.some(
             (call) =>
-              call.function.name.startsWith('computer_') ||
+              isComputerTool(call.function.name) ||
               call.function.name === pageReviewTool.name,
           ))),
   );
@@ -307,7 +307,15 @@ export function Chat({
           </a>
         </div>
       )}
-      <div className="chat-transcript">
+      <div
+        className="chat-transcript"
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          followOutput.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            160;
+        }}
+      >
         {!visible.length && (
           <div className="chat-welcome">
             <span className="eyebrow">A LITTLE SPACE TO THINK</span>
@@ -321,6 +329,10 @@ export function Chat({
         <ChatTranscript
           messages={visible}
           calls={calls}
+          allMessages={agent.messages}
+          running={running}
+          dotName={dot.name}
+          onViewComputer={onComputer}
           renderTools={(message) => (
             <CopilotChatToolCallsView
               message={message}
