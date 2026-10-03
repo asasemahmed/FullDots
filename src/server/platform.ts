@@ -44,7 +44,7 @@ export class Platform {
       runner: this.runner,
       identifyUser: async () => ({
         id: workspace.ownerId,
-        name: 'OpenDots owner',
+        name: 'FullDots owner',
       }),
       agents: async () =>
         Object.fromEntries(

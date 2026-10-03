@@ -95,7 +95,7 @@ const report = (operation: string, error: unknown) =>
     error instanceof Error ? error.message : 'Unknown error',
   );
 const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
-  console.log(`OpenDots listening on http://${host}:${info.port}`);
+  console.log(`FullDots listening on http://${host}:${info.port}`);
   runner.start();
   void platform.start().catch((error) => report('Startup failed', error));
 });
