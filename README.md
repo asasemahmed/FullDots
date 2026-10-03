@@ -1,220 +1,118 @@
 <div align="center">
 
-# OpenDots
+# FullDots
 
-### Always-on AI coworkers that move between text, calls, and Slack.
+### Self-hosted AI coworkers with their own computers, and you in full control.
 
-**An open-source template for persistent AI agents, each with its own computer. Available on Web and Mobile.**
+**A fully local fork of [CopilotKit OpenDots](https://github.com/CopilotKit/OpenDots): conversations stay on your machine, web search needs no key, and nothing is sent to analytics.**
 
-Built with [CopilotKit](https://github.com/CopilotKit/CopilotKit) and [AG-UI](https://docs.ag-ui.com/introduction). · [Get started](#get-started) · [Overview](#overview) · [Architecture](#architecture) · [Features](#features) · [Contributing](CONTRIBUTING.md)
+[Get started](#get-started) · [What's different](#whats-different-from-opendots) · [Features](#features) · [Credits](#credits) · [Contributing](CONTRIBUTING.md)
 
-[![CI](https://github.com/CopilotKit/OpenDots/actions/workflows/ci.yml/badge.svg)](https://github.com/CopilotKit/OpenDots/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Alpha](https://img.shields.io/badge/status-alpha-orange.svg)
-
-Fully self-hostable. Clone this template and customize it however you want.
-
-[**Building on OpenDots? Meet with the CopilotKit team →**](https://www.copilotkit.ai/talk-to-an-engineer?ref=opendots_readme)
 
 </div>
 
 ---
 
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/4c74fe7d-ecdd-42dd-95da-5d34f9b9576e
-
-</td></tr></table>
-
-</div>
-
-_Ask → browse → approve → save. A live computer view and a human review card appear right in chat, then the approved draft becomes an editable Space page. Enlarged for readability; idle time is trimmed and playback is accelerated._
+> FullDots is an independent project based on [OpenDots](https://github.com/CopilotKit/OpenDots) by CopilotKit, used under the MIT License. It is not affiliated with or endorsed by CopilotKit. See [NOTICE.md](NOTICE.md).
 
 ## Overview
 
-OpenDots is a starting point for building your own agent workspace. Clone it, define your Dots, connect your services, and adapt the interface and tools to your needs.
-
-**A template, not a hosted product.** You run the application and configure its infrastructure. The template is in early development; the Features section below describes what's included and distinguishes local verification from connected-service testing.
+FullDots is a personal agent workspace you run yourself. Create Specialist Dots with their own roles and permissions, give each one an isolated computer, and keep your documents in Spaces. Everything except the model call runs on your own machine.
 
 ### Spaces
 
-A Space is a home for working documents. Dots appear separately in navigation and can be granted access to multiple Spaces in their settings. Each Dot has a default destination for saved pages; existing installations retain their original Space access. Browse pages in a searchable library, switch between grid and list views, and organize documents as nested subpages. Open a page in a focused visual editor with formatting, slash commands, and undo/redo. Write directly, save a conversation as a page, or ask a specialist to create and revise content.
-
-Pages stay in the local workspace database. Their conversations use CopilotKit Threads, with a separate conversation for each page and specialist. Page links connect the document workspace to Dot chat. Manual editing works before you configure conversation services. Autosave reports its progress, failed saves retain your draft, and revision checks prevent stale edits from overwriting newer content. Markdown source mode remains available.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/d20c3405-4339-49e7-a799-43298728015c
-
-</td></tr></table>
-
-</div>
-
-_Open a Space, navigate to its launch brief, ask Scout about the saved page, and continue in Dot chat. This recording uses live page chat and example launch content._
+A Space is a home for working documents. Browse pages in a searchable library, organize them as nested subpages, and edit them in a visual editor with slash commands, autosave, and revision checks. Write directly, save a conversation as a page, or ask a Dot to create and revise content.
 
 ### Specialist Dots
 
-Give each Dot a name, role, instructions, and permitted tools. A researcher can investigate a topic; a writer can turn findings into a draft. Inspect their work and control what they can do.
+Give each Dot a name, role, instructions, and permitted tools. A researcher can investigate a topic; a writer can turn findings into a draft. Grant each Dot access to the Spaces it needs.
 
 ### Dot computers
 
-Each Dot can have its own computer, using [OpenBot](https://github.com/CopilotKit/OpenBot)'s container supervisor and computer service. Its browser profile and workspace files persist across stop/start. The Computer panel exposes browser control, human takeover, files, terminal output, and activity, with browser, file, and shell permissions set per Dot. The application keeps service credentials on the server and derives a different computer credential for each Dot.
-
-See [Computer setup](docs/COMPUTERS.md) to build the pinned services and connect your deployment. Computer tools require those services; an unconfigured template does not execute commands on your host.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/30b691c3-0f66-4964-9fdb-67d4feab5568
-
-</td></tr></table>
-
-</div>
-
-_Ask Scout to open a website, summarize it, save notes, and verify the file. Every computer action in this demo is requested through chat; CopilotKit tool renderers show the live browser, saved file, and terminal output inline._
+Each Dot can have its own computer, using [OpenBot](https://github.com/CopilotKit/OpenBot)'s container supervisor and computer service. Its browser profile and workspace files persist across stop/start. The Computer panel exposes browser control, human takeover, files, terminal, and activity, with browser, file, and shell permissions set per Dot. See [Computer setup](docs/COMPUTERS.md).
 
 ### Review before saving
 
-Ask a Dot to show a draft before saving it. A CopilotKit human-in-the-loop card pauses the conversation for **Approve & save** or **Decline**. Approval creates the page in an authorized Space and returns a link; retries recover the same saved page. The agent continues after your decision.
+Ask a Dot to show a draft before saving it. A human-in-the-loop card pauses the conversation for **Approve & save** or **Decline**.
 
 ### Text and calls
 
-A continuous conversation keeps the Dot's avatar and status above the messages, with text and call controls close at hand. Work updates, source links, and call receipts appear in the timeline; a side panel shows results or the agent's computer.
+A continuous conversation with text and call controls. Calls pair realtime speech with a compute agent that uses the same conversation and tool permissions. Voice needs separate provider configuration.
 
-Calls pair realtime speech with a separate compute agent, so the conversation can continue while longer work runs. Both use the same conversation context and tool permissions. The call screen includes a live timer, separate user and Dot captions, microphone mute, speaker mute, and a minimized view for continuing in chat. Voice needs separate provider configuration.
+## What's different from OpenDots
 
-<div align="center">
+| Area          | OpenDots                                      | FullDots                                                            |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| Conversations | Stored in CopilotKit Intelligence (hosted)    | Stored locally in SQLite by a built-in agent runner                 |
+| Web search    | Parallel (sends queries and URLs to Parallel) | DuckDuckGo with no API key, plus a local read-only page reader      |
+| Telemetry     | CopilotKit runtime telemetry on by default    | Disabled in code before the runtime loads                           |
+| Required keys | Intelligence key + model key                  | Model key only (any OpenAI-compatible provider, such as OpenRouter) |
+| Slack         | Managed Slack channel through Intelligence    | Removed (it depends on Intelligence)                                |
+| Learning      | CopilotKit Automatic Learning                 | Removed (it depends on Intelligence)                                |
+| Server turns  | Voice and scheduled turns over a WebSocket    | Run in process through the same local runner                        |
 
-<table><tr><td>
-
-https://github.com/user-attachments/assets/3c06cf71-39ed-4e2b-b846-5463b2722389
-
-</td></tr></table>
-
-</div>
-
-_Connect, talk, mute, minimize, and return to chat. This is a silent screen capture of a real call, with waiting time trimmed and playback accelerated._
-
-### Slack
-
-Mention a Dot through a managed Slack connection using Channels SDK, then continue in its thread. The integration follows [OpenTag](https://github.com/CopilotKit/OpenTag), with an explicit workspace/user allowlist and a selected specialist. See [Slack setup](docs/SETUP.md#slack) to connect your deployment.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/27d03a6c-a9e0-4c29-8d96-fafe0fbae20f
-
-</td></tr></table>
-
-</div>
-
-Bring your agents into Slack with [Channels SDK](https://github.com/CopilotKit/channels-sdk). See the [managed Channels documentation](https://docs.copilotkit.ai/intelligence/channels) to connect them through CopilotKit Intelligence.
+The only outbound traffic is your model provider, the DuckDuckGo search queries, and the pages a Dot reads or browses.
 
 ## Architecture
 
-### AG-UI connects the agent to the interface
-
-[AG-UI](https://docs.ag-ui.com/introduction) carries streamed messages, tool calls, and agent state between the backend and CopilotKit components. Computer activity appears inline as the agent works; human-in-the-loop cards pause a tool call for your decision before it continues.
-
-The template uses TanStack AI for model streaming and server-tool execution, CopilotKit's React SDK and runtime, Intelligence for durable Threads, and Channels SDK for Slack. Pages, application metadata, and background-work state are stored separately from conversation history.
-
 ```mermaid
 flowchart TB
-  Web["Web app: pages, Spaces, Dots, chat"] -->|AG-UI| Runtime[CopilotKit runtime]
-  Slack[Slack] <--> Managed[Managed channel connection]
-  Managed <--> Channels[Channels SDK]
-  Channels --> Agents[Specialist compute agents]
-  Runtime --> Agents
+  Web["Web app: pages, Spaces, Dots, chat"] -->|AG-UI| Runtime[CopilotKit runtime, SSE mode]
+  Runtime --> Runner[(Local SQLite agent runner)]
+  Runtime --> Agents[Specialist Dot agents]
   Agents --> AI[TanStack AI]
   AI --> Provider[OpenAI-compatible model provider]
-  Runtime <--> Intelligence["Intelligence / Threads"]
-  Channels <--> Intelligence
-  Web <--> Speech[Realtime speech]
-  Speech --> Bridge[Compute bridge]
-  Bridge --> Agents
+  Agents --> Search[DuckDuckGo search]
+  Agents --> Reader[Read-only page reader]
   Agents --> Controls[Tool permissions]
-  Controls --> Computer[Isolated browser / workspace]
-  Agents --> Jobs[Background work]
+  Controls --> Computer[Isolated per-Dot computer]
+  Web <--> Speech[Realtime speech]
+  Speech --> Agents
   Runtime --> Metadata[(Pages, Spaces, Dots, work metadata)]
 ```
-
-You configure the Intelligence project, model provider, and channel connection for your deployment; calls also need a speech provider. Credentials stay on the server. Missing configuration should produce a clear setup state, and test fixtures should remain visibly separate from live integrations.
-
-[OpenMuse](https://github.com/CopilotKit/OpenMuse) and [OpenBot](https://github.com/CopilotKit/openbot) are code references for persistent work, agent computers, and execution controls. OpenDots can be adapted to your own workflows and deployment choices.
 
 ## Get started
 
 Use **Node.js 24** and **npm**:
 
 ```sh
-git clone https://github.com/CopilotKit/OpenDots.git
-cd OpenDots
+git clone https://github.com/asasemahmed/FullDots.git
+cd FullDots
 npm ci
 cp .env.example .env
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. You can create Spaces, write pages, and configure Dots before connecting services. Add your conversation and model settings to `.env` to start chatting.
+Set `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` in `.env`, then open **http://127.0.0.1:5173**. You can create Spaces, write pages, and configure Dots before adding a model key.
 
-See [Setup](docs/SETUP.md) for configuration, Slack, calls, the browser service, and Docker.
+See [Setup](docs/SETUP.md) for the page reader, calls, Docker, and computers.
 
 ## Features
 
-| Area                       | Included                                                                                                                                |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Spaces and Specialist Dots | Saved names, role instructions, and per-Dot research and memory permissions                                                             |
-| Pages                      | Searchable library, visual editor, slash commands, autosave, and revision checks                                                        |
-| Conversations              | React SDK chat and Threads integration, page-specific conversations, and source links                                                   |
-| Slack                      | Managed Channels SDK declaration with workspace and user allowlists                                                                     |
-| Calls                      | WebRTC speech, delegated compute, bounded sessions, hangup, and timeline receipts                                                       |
-| Background work            | Scheduled server-side turns in their original conversation, with pause and retry controls                                               |
-| Browser                    | Separate read-only public-page service with page capture and navigation limits                                                          |
-| Dot computers              | Per-Dot browser profiles, files, shell, takeover, permissions, and action records through OpenBot                                       |
-| Memory                     | User-managed preferences that permitted Dots can use                                                                                    |
-| Automatic Learning         | Per-Dot Learning containers, conversation evidence routing, and published-skill delivery; see [setup](docs/SETUP.md#automatic-learning) |
-| Deployment                 | Local Node setup and separate application/browser containers                                                                            |
+| Area                       | Included                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| Spaces and Specialist Dots | Saved names, role instructions, and per-Dot research and memory permissions               |
+| Pages                      | Searchable library, visual editor, slash commands, autosave, and revision checks          |
+| Conversations              | Local SQLite thread storage, page-specific conversations, and source links                |
+| Web research               | Keyless DuckDuckGo search and a separate read-only page reader                            |
+| Calls                      | WebRTC speech, delegated compute, bounded sessions, hangup, and timeline receipts         |
+| Background work            | Scheduled server-side turns in their original conversation, with pause and retry controls |
+| Dot computers              | Per-Dot browser profiles, files, shell, takeover, permissions, and action records         |
+| Memory                     | User-managed preferences that permitted Dots can use                                      |
+| Deployment                 | Local Node setup and separate application/browser containers                              |
 
-Local checks cover setup, persistence, permissions, SDK failure handling, and browser isolation. Automated tests use service fixtures. **Live Intelligence, model responses, and page-context chat were verified on September 29, 2026.** Live OpenBot computer browsing, file creation, shell verification, and file persistence across stop/start were also verified locally. Live Realtime speech, call controls, and receipt persistence were verified locally on September 30, 2026. Slack and spoken compute delegation still need connected-service verification. See [recording notes](docs/demos/README.md) for the demonstrated flows and limits.
-
-Automatic Learning routing and skill delivery are configured locally. Cloud schedules, eligible-thread counts, and published-skill delivery still need connected-service verification. Skills require review and publication in Intelligence; existing conversations without a container are not enrolled retroactively.
-
-This is a single-owner starting point. Shared editing, invitations, file uploads, and interactive page embeds are not included. Schedules are recurring instructions, not a complete goal or event-trigger system. Specialist Dots have separate roles and conversations; multi-Dot group conversations and automatic delegation are further work.
-
-### Extending the template
-
-- Add identity, Space membership, and shared page editing for multi-user deployments.
-- Add file attachments and richer page content.
-- Add event triggers and a persistent responsibility lifecycle.
-- Extend tools and approval flows for your own workflows.
-- Add richer artifacts, connected-app context, and specialist coordination.
+This is a single-owner starting point. Shared editing, invitations, and file uploads are not included.
 
 ## Contributing
 
-See [Contributing](CONTRIBUTING.md) for development guidance and [Security](SECURITY.md) for reporting issues. Contributions should describe the workflow they enable, include verification evidence, and distinguish live integrations from fixtures.
+See [Contributing](CONTRIBUTING.md) for development guidance and [Security](SECURITY.md) for reporting issues.
 
-## References
+## Credits
 
-- [AG-UI documentation](https://docs.ag-ui.com/introduction)
-- [CopilotKit documentation](https://docs.copilotkit.ai/intelligence/overview)
-- [Channels SDK](https://github.com/CopilotKit/channels-sdk)
-- [OpenMuse](https://github.com/CopilotKit/OpenMuse)
-- [OpenBot](https://github.com/CopilotKit/openbot)
-- [OpenTag](https://github.com/CopilotKit/OpenTag) — Channels SDK integration reference
+FullDots is built on [OpenDots](https://github.com/CopilotKit/OpenDots), created by Atai Barkai and the CopilotKit team, and keeps its full commit history. It also relies on [CopilotKit](https://github.com/CopilotKit/CopilotKit), [AG-UI](https://docs.ag-ui.com/introduction), [TanStack AI](https://tanstack.com/ai), and [OpenBot](https://github.com/CopilotKit/OpenBot). The local runner is adapted from CopilotKit's MIT-licensed `@copilotkit/sqlite-runner`.
 
 ## License
 
-[MIT](LICENSE).
-
-## Public-web research
-
-Parallel is selected by default in live research and Dot conversations. Ask a topic-only question to discover and read up to five sources, or supply URLs to extract them directly. Sources are saved with their links. A browser worker is not required for this research path; computer tools remain available for interactive work.
-
-`WEB_SEARCH_PROVIDER=browser` preserves the existing URL-only browser reader, and `WEB_SEARCH_PROVIDER=disabled` disables these research tools. Workspace and Dot research permissions, pause and cancellation controls still apply. Sample research remains fictional and does not contact a provider.
-
-Queries, requested URLs, a stable session identifier and the research objective are sent to `https://search.parallel.ai/mcp`. Memories and complete conversations are not automatically forwarded to Parallel. Model-selected objectives may still contain context from the conversation. The anonymous service is free for light use with provider-managed limits; set `PARALLEL_API_KEY` on the server for production or higher limits. Provider errors and empty results are reported rather than replaced with invented evidence. See [Parallel Search MCP documentation](https://docs.parallel.ai/integrations/mcp/search-mcp).
+[MIT](LICENSE). The original OpenDots copyright notice is retained.

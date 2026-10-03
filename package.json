@@ -1,7 +1,7 @@
 {
-  "name": "opendots",
+  "name": "fulldots",
   "version": "0.1.0",
-  "description": "A self-hosted personal-agent template with CopilotKit Intelligence, Threads, and Channels.",
+  "description": "A self-hosted personal-agent workspace with local conversations, per-Dot computers, and keyless web search. Based on CopilotKit OpenDots.",
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -20,7 +20,7 @@
     "check-format": "prettier --check src tests *.json *.ts *.js index.html public .github Dockerfile \"compose*.yml\" deployment README.md docs .env.example --ignore-unknown"
   },
   "keywords": [],
-  "author": "Atai Barkai",
+  "author": "asemabdallah",
   "license": "MIT",
   "type": "module",
   "dependencies": {
@@ -72,9 +72,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CopilotKit/OpenDots.git"
+    "url": "git+https://github.com/asasemahmed/FullDots.git"
   },
   "overrides": {
     "undici": "^6.29.0"
-  }
+  },
+  "contributors": [
+    "Atai Barkai (original OpenDots)"
+  ]
 }

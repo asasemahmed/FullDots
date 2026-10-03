@@ -455,7 +455,7 @@ export function App() {
           </button>
           <a
             className="nav-item"
-            href="https://github.com/CopilotKit/OpenDots"
+            href="https://github.com/asasemahmed/FullDots"
             target="_blank"
             rel="noreferrer"
           >
@@ -617,7 +617,7 @@ export function App() {
                           preferences are ready to use.
                         </p>
                         <a
-                          href="https://github.com/CopilotKit/OpenDots/blob/main/docs/SETUP.md"
+                          href="https://github.com/asasemahmed/FullDots/blob/main/docs/SETUP.md"
                           target="_blank"
                           rel="noreferrer"
                         >

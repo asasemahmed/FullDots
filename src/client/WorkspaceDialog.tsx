@@ -317,7 +317,7 @@ export function WorkspaceDialog({
                 .
               </p>
               <a
-                href="https://github.com/CopilotKit/OpenDots/blob/main/docs/SETUP.md"
+                href="https://github.com/asasemahmed/FullDots/blob/main/docs/SETUP.md"
                 target="_blank"
                 rel="noreferrer"
               >

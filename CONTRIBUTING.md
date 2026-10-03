@@ -1,6 +1,8 @@
-# Contributing to OpenDots
+# Contributing to FullDots
 
-OpenDots is an application template in early development. Focus changes on Spaces, Specialist Dots, text and calls, Slack, and inspectable background work. Keep the documented SDK integrations functional and report missing configuration clearly.
+FullDots is a self-hosted fork of CopilotKit OpenDots in early development. Focus changes on Spaces, Specialist Dots, Dot computers, text and calls, and inspectable background work. Keep everything except the model provider running locally, and report missing configuration clearly.
+
+Changes that belong in upstream OpenDots are welcome there too: https://github.com/CopilotKit/OpenDots.
 
 For bugs, include the app mode, Node version, steps to reproduce, expected behavior, and actual behavior. Remove credentials and private page content from logs or screenshots.
 
