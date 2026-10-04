@@ -11,6 +11,7 @@ import type {
   ComputerStreamEndReason,
   ComputerStreamMessage,
 } from '../shared/computer-types.js';
+import { originAllowed } from './origins.js';
 
 /**
  * The owner's live view of a Dot's computer.
@@ -125,7 +126,7 @@ export function attachComputerStream(
     const scheme = 'encrypted' in socket && socket.encrypted ? 'https' : 'http';
     const expectedOrigin = options.origin ?? `${scheme}://${host.host}`;
     const origin = request.headers.origin;
-    if (origin && origin !== expectedOrigin)
+    if (origin && !originAllowed(origin, expectedOrigin))
       return 'Cross-origin requests are not allowed.';
     if (request.headers['sec-fetch-site'] === 'cross-site')
       return 'Cross-site requests are not allowed.';
