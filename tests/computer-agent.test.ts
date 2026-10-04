@@ -645,3 +645,18 @@ it('keeps addressing a long batch of actions sent from one snapshot', async () =
   }
   expect(f.fake.calls.filter((call) => call === 'type')).toHaveLength(10);
 });
+
+it('lets the owner open a page right after handing control back', async () => {
+  const { service, fake, id, workspace } = computerFixture();
+  fake.pages['https://form.test/'] = page('Form', form);
+  fake.resumeSnapshotRequired = true;
+  await service.action(id, 'navigate', { url: 'https://form.test/' }, 'owner');
+  expect(fake.url).toBe('https://form.test/');
+  expect(fake.calls.filter((call) => call === 'snapshot')).toHaveLength(1);
+  // A click still refuses: its refs may belong to the page from before the handback.
+  fake.resumeSnapshotRequired = true;
+  await expect(
+    service.action(id, 'click', { ref: 'e2', snapshotId: 1 }, 'owner'),
+  ).rejects.toThrow();
+  workspace.close();
+});

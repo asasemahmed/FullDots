@@ -52,6 +52,8 @@ export function ComputerPanel({
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [page, setPage] = useState<PagePosition>();
   const [error, setError] = useState('');
+  // Kept apart from load errors so the status poll does not wipe a failed action's message.
+  const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState<Working>();
   const [snapshotError, setSnapshotError] = useState('');
@@ -207,7 +209,7 @@ export function ComputerPanel({
     lifecycle.current.revision++;
     lifecycle.current.urlAt = 0;
     setBusy(true);
-    setError('');
+    setActionError('');
     try {
       const result = await api<unknown>(
         `${base}${endpoint}`,
@@ -220,7 +222,7 @@ export function ComputerPanel({
       return { ok: true, result };
     } catch (cause) {
       if (lifecycle.current.active)
-        setError(
+        setActionError(
           cause instanceof Error ? cause.message : 'Computer action failed.',
         );
       return { ok: false };
@@ -309,8 +311,11 @@ export function ComputerPanel({
       onClose={onClose}
       status={status}
       loadFailed={!!error}
-      error={error}
-      onDismissError={() => setError('')}
+      error={error || actionError}
+      onDismissError={() => {
+        setError('');
+        setActionError('');
+      }}
       busy={busy}
       working={working}
       stream={stream}

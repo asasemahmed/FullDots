@@ -56,6 +56,14 @@ const permissionKind = (action: string) =>
     : action.startsWith('files_')
       ? 'files'
       : 'browser';
+/** Owner actions that can safely be repeated after a fresh snapshot. */
+const OWNER_REFRESHABLE = new Set<ComputerAction>([
+  'navigate',
+  'key',
+  'scroll',
+  'read',
+  'screenshot',
+]);
 export class ComputerService {
   private readonly inputLimits: ComputerInputLimits;
   private readonly responseBytes: number;
@@ -375,9 +383,23 @@ export class ComputerService {
     if (!Object.hasOwn(this.inputs, action))
       throw new Error('Unknown computer action.');
     const parsed = this.inputs[action].parse(input);
-    return this.session(id, action, actor, signal, (call) =>
-      call(action, parsed),
-    );
+    return this.session(id, action, actor, signal, async (call) => {
+      try {
+        return await call(action, parsed);
+      } catch (error) {
+        // After a handback the computer wants a fresh look at the page before anything else. The
+        // owner's own navigation, keys and scrolling do not depend on old refs, so refresh and go again.
+        if (
+          actor !== 'owner' ||
+          !(error instanceof ComputerConflictError) ||
+          error.kind !== 'snapshot_required' ||
+          !OWNER_REFRESHABLE.has(action)
+        )
+          throw error;
+        await call('snapshot', {});
+        return call(action, parsed);
+      }
+    });
   }
   /**
    * Runs one or more computer calls as a single audited action.
