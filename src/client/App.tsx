@@ -1,5 +1,4 @@
 import { openPageLink } from './page-navigation';
-import { SpaceNav } from './SpaceNav';
 import { SpaceWorkspace } from './SpaceWorkspace';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { CopilotKitProvider } from '@copilotkit/react-core/v2';
@@ -8,14 +7,11 @@ import {
   ArrowUpRight,
   BookOpen,
   Clock3,
-  Code2,
-  Folder,
   Menu,
   MessageCircle,
   Monitor,
   MoreHorizontal,
   Pause,
-  PanelLeft,
   Play,
   Plus,
   Search,
@@ -32,9 +28,12 @@ import type {
   WorkspaceState,
 } from '../shared/types';
 import { api, ApiError, authHeaders, setToken } from './api';
+import { deriveTitle } from '../shared/conversation-title';
 import { Mascot } from './Mascot';
 import { Chat } from './Chat';
-import { ThreadList } from './ThreadList';
+import { Sidebar } from './sidebar/Sidebar';
+import { readFlag, writeFlag } from './sidebar/hooks';
+import { latestChat } from './sidebar/chat-groups';
 import { ResultPane } from './ResultPane';
 import { TaskRow } from './TaskPresentation';
 import { TaskActions } from './TaskActions';
@@ -97,7 +96,20 @@ export function App() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [dialog, setDialog] = useState<Dialog>();
   const [mobile, setMobile] = useState(false);
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(() =>
+    readFlag('fulldots.sidebar.collapsed', false),
+  );
+  const toggleCollapsed = () => {
+    const next = !navCollapsed;
+    setNavCollapsed(next);
+    writeFlag('fulldots.sidebar.collapsed', next);
+  };
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const dismissMobile = useCallback(() => {
+    setMobile(false);
+    menuButton.current?.focus();
+  }, []);
   const [pane, setPane] = useState(false);
   const [capture, setCapture] = useState<Result>();
   const [prompt, setPrompt] = useState('');
@@ -169,12 +181,58 @@ export function App() {
   const configured = !!workspace && workspace.setup.missing.length === 0;
   const chooseDot = (next: Dot) => {
     setSelectedDot(next.id);
-    setSelectedThread(
-      workspace?.conversations.find((item) => item.dotId === next.id)?.id,
-    );
+    setSelectedThread(latestChat(workspace?.conversations ?? [], next.id)?.id);
     setView('chat');
     setMobile(false);
     setPendingPrompt(undefined);
+  };
+  // A new chat is only a fresh composer: the conversation is created, already
+  // titled, when the first message is sent, so abandoned chats leave nothing behind.
+  const startNewChat = (target: Dot = dot!) => {
+    if (!configured) return;
+    setSelectedDot(target.id);
+    setSelectedThread(undefined);
+    setPendingPrompt(undefined);
+    setPrompt('');
+    setView('chat');
+    setMobile(false);
+    requestAnimationFrame(() => composer.current?.focus());
+  };
+  const selectThread = (id: string) => {
+    const conversation = workspace?.conversations.find(
+      (item) => item.id === id,
+    );
+    if (conversation) setSelectedDot(conversation.dotId);
+    setSelectedThread(id);
+    setView('chat');
+    setMobile(false);
+  };
+  const renameThread = async (id: string, title: string) => {
+    setError('');
+    try {
+      await api(`/conversations/${id}`, 'PATCH', { title });
+      await refresh();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not rename the chat.');
+      return false;
+    }
+  };
+  const deleteThreads = async (ids: string[]) => {
+    setError('');
+    let ok = true;
+    for (const id of ids) {
+      try {
+        await api(`/conversations/${id}`, 'DELETE');
+        if (id === selectedThread) setSelectedThread(undefined);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not delete the chat.');
+        ok = false;
+        break;
+      }
+    }
+    await refresh();
+    return ok;
   };
   const newConversation = async (text?: string) => {
     if (!dot || !configured || busy) return;
@@ -183,7 +241,7 @@ export function App() {
     try {
       const next = await api<Conversation>('/conversations', 'POST', {
         dotId: dot.id,
-        title: text?.slice(0, 80) || 'A new thought',
+        ...(text?.trim() ? { title: deriveTitle(text) } : {}),
       });
       await refresh();
       setSelectedThread(next.id);
@@ -257,54 +315,12 @@ export function App() {
     );
   const content = (
     <div className={`app template-app ${navCollapsed ? 'nav-collapsed' : ''}`}>
-      <nav className="icon-rail" aria-label="Workspace navigation">
-        <button
-          className="rail-brand"
-          aria-label="FullDots home"
-          onClick={() => {
-            setView('chat');
-            setSelectedThread(undefined);
-          }}
-        >
-          o<span>·</span>
-        </button>
-        <button
-          aria-label={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          onClick={() => setNavCollapsed(!navCollapsed)}
-        >
-          <PanelLeft size={18} />
-        </button>
-        <button
-          aria-label="New chat"
-          disabled={!configured}
-          onClick={() => void newConversation()}
-        >
-          <Plus size={19} />
-        </button>
-        <button
-          aria-label="Open Spaces"
-          onClick={() => {
-            if (workspace.spaces[0]) openPage(workspace.spaces[0].id);
-          }}
-        >
-          <Folder size={18} />
-        </button>
-        <button aria-label="Open activity" onClick={() => setView('tasks')}>
-          <Clock3 size={18} />
-        </button>
-        <button
-          className="rail-settings"
-          aria-label="Open settings"
-          onClick={() => setDialog({ type: 'settings' })}
-        >
-          <Settings2 size={18} />
-        </button>
-      </nav>
       <button
         className="mobile-menu icon-button"
         aria-label="Open navigation"
         aria-expanded={mobile}
         aria-controls="workspace-sidebar"
+        ref={menuButton}
         onClick={() => setMobile(true)}
       >
         <Menu size={21} />
@@ -313,170 +329,46 @@ export function App() {
         <button
           className="nav-scrim"
           aria-label="Close navigation"
-          onClick={() => setMobile(false)}
+          tabIndex={-1}
+          onClick={dismissMobile}
         />
       )}
-      <aside
-        id="workspace-sidebar"
-        className={`sidebar ${mobile ? 'open' : ''}`}
-      >
-        <button
-          className="wordmark"
-          onClick={() => {
-            setView('chat');
-            setSelectedThread(undefined);
-          }}
-        >
-          <span className="dotted-logo">
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
-          FullDots<span className="wordmark-dot">•</span>
-        </button>
-        <button
-          className="new-chat nav-item"
-          disabled={!configured}
-          onClick={() => void newConversation()}
-        >
-          <Plus size={17} />
-          <span>New chat</span>
-        </button>
-        <div className="spaces-heading nav-label">
-          DOTS
-          <button
-            className="icon-button"
-            aria-label="Create Dot"
-            onClick={() =>
-              setDialog({ type: 'dot', spaceId: workspace.spaces[0].id })
-            }
-          >
-            <Plus size={14} />
-          </button>
-        </div>
-        <nav className="dots-nav" aria-label="Dots">
-          {workspace.dots.map((item) => (
-            <div className="dot-nav-row" key={item.id}>
-              <button
-                className={`dot-nav ${dot.id === item.id && view === 'chat' ? 'active' : ''}`}
-                aria-current={
-                  dot.id === item.id && view === 'chat' ? 'page' : undefined
-                }
-                onClick={() => chooseDot(item)}
-              >
-                <Mascot identity={item.id} name={item.name} small decorative />
-                <span>{item.name}</span>
-              </button>
-              <button
-                className="icon-button dot-settings"
-                aria-label={`Edit ${item.name} settings`}
-                onClick={() =>
-                  setDialog({ type: 'dot', dot: item, spaceId: item.spaceId })
-                }
-              >
-                <MoreHorizontal size={15} />
-              </button>
-            </div>
-          ))}
-        </nav>
-        <div className="spaces-heading nav-label">
-          SPACES
-          <button
-            className="icon-button"
-            aria-label="Create Space"
-            onClick={() => setDialog({ type: 'space' })}
-          >
-            <Plus size={14} />
-          </button>
-        </div>
-        <nav className="spaces-nav" aria-label="Spaces">
-          {workspace.spaces.map((space) => (
-            <SpaceNav
-              key={space.id}
-              space={space}
-              active={view === 'space' && spaceId === space.id}
-              pageId={pageId}
-              onOpen={(id) => openPage(space.id, id)}
-            />
-          ))}
-        </nav>
-        {configured ? (
-          <ThreadList
-            dotId={dot.id}
-            dots={workspace.dots}
-            local={workspace.conversations}
-            selected={view === 'chat' ? selectedThread : undefined}
-            onSelect={(id) => {
-              const conversation = workspace.conversations.find(
-                (item) => item.id === id,
-              );
-              if (conversation) setSelectedDot(conversation.dotId);
-              setSelectedThread(id);
-              setView('chat');
-              setMobile(false);
-            }}
-            onNew={() => void newConversation()}
-          />
-        ) : (
-          <div className="sidebar-empty">
-            Set up text chat to begin a persistent conversation.
-          </div>
-        )}
-        <div className="sidebar-bottom">
-          <button
-            className={`nav-item ${view === 'tasks' ? 'active' : ''}`}
-            onClick={() => {
-              setView('tasks');
-              setMobile(false);
-            }}
-          >
-            <Clock3 size={17} />
-            <span>Scheduled & activity</span>
-            <small>{state.tasks.length}</small>
-          </button>
-          <button
-            className={`nav-item ${view === 'memories' ? 'active' : ''}`}
-            onClick={() => {
-              setView('memories');
-              setMobile(false);
-            }}
-          >
-            <BookOpen size={17} />
-            <span>Memories</span>
-            <small>{state.memories.length}</small>
-          </button>
-          <button
-            className="nav-item"
-            onClick={() => setDialog({ type: 'settings' })}
-          >
-            <Settings2 size={17} />
-            <span>Settings & setup</span>
-          </button>
-          <a
-            className="nav-item"
-            href="https://github.com/asasemahmed/FullDots"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Code2 size={17} />
-            <span>Make it your own</span>
-            <ArrowUpRight size={13} />
-          </a>
-          <div className="version">
-            OPEN SOURCE TEMPLATE <span>v0.1</span>
-          </div>
-        </div>
-      </aside>
-      <div className="workspace">
+      <Sidebar
+        workspace={workspace}
+        dot={dot}
+        view={view}
+        selectedThread={selectedThread}
+        spaceId={spaceId}
+        pageId={pageId}
+        taskCount={state.tasks.length}
+        memoryCount={state.memories.length}
+        configured={configured}
+        collapsed={navCollapsed}
+        onToggleCollapsed={toggleCollapsed}
+        mobileOpen={mobile}
+        onDismissMobile={dismissMobile}
+        onHome={() => {
+          setView('chat');
+          setSelectedThread(undefined);
+          setMobile(false);
+        }}
+        onNewChat={startNewChat}
+        onChooseDot={chooseDot}
+        onSelectThread={selectThread}
+        onRenameThread={renameThread}
+        onDeleteThreads={deleteThreads}
+        onOpenPage={openPage}
+        onView={(next) => {
+          setView(next);
+          setMobile(false);
+        }}
+        onDialog={(next) => {
+          setDialog(next);
+          setMobile(false);
+        }}
+      />
+      <div className="workspace" inert={mobile}>
         <header className="topbar">
-          <button
-            className="desktop-nav-toggle document-icon"
-            aria-label={navCollapsed ? 'Show navigation' : 'Hide navigation'}
-            onClick={() => setNavCollapsed(!navCollapsed)}
-          >
-            <PanelLeft size={18} />
-          </button>
           <div className="breadcrumbs">
             <span>
               {view === 'space'
@@ -634,6 +526,7 @@ export function App() {
                     }}
                   >
                     <textarea
+                      ref={composer}
                       aria-label="Start a conversation"
                       placeholder={
                         configured

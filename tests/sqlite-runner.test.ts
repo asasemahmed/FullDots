@@ -6,7 +6,10 @@ import { lastValueFrom, toArray } from 'rxjs';
 import { Observable } from 'rxjs';
 import { AbstractAgent, type BaseEvent, type Message } from '@ag-ui/client';
 import { EventType, type RunAgentInput } from '@ag-ui/core';
-import { SqliteAgentRunner } from '../src/server/sqlite-runner.js';
+import {
+  SqliteAgentRunner,
+  ThreadRunningError,
+} from '../src/server/sqlite-runner.js';
 import { runThreadTurn } from '../src/server/headless.js';
 
 class EchoAgent extends AbstractAgent {
@@ -125,5 +128,74 @@ it('runs server-side turns with the stored history and returns the reply', async
     'Second',
     'Two',
   ]);
+  runner.close();
+});
+
+class GatedAgent extends AbstractAgent {
+  release = () => {};
+  private onReady = () => {};
+  ready = new Promise<void>((resolve) => (this.onReady = resolve));
+  constructor() {
+    super({ agentId: 'dot-1' });
+  }
+  run(input: RunAgentInput): Observable<BaseEvent> {
+    return new Observable((subscriber) => {
+      const started = {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      } as BaseEvent;
+      subscriber.next(started);
+      this.onReady();
+      this.release = () => {
+        const messageId = `reply-${input.runId}`;
+        for (const event of [
+          { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' },
+          { type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: 'Done' },
+          { type: EventType.TEXT_MESSAGE_END, messageId },
+          {
+            type: EventType.RUN_FINISHED,
+            threadId: input.threadId,
+            runId: input.runId,
+          },
+        ])
+          subscriber.next(event as BaseEvent);
+        subscriber.complete();
+      };
+    });
+  }
+}
+
+it('deletes one thread and refuses while that thread is running', async () => {
+  const runner = new SqliteAgentRunner(databasePath());
+  for (const id of ['keep', 'drop'])
+    await runThreadTurn(
+      runner,
+      new EchoAgent(),
+      id,
+      `Hello ${id}`,
+      AbortSignal.timeout(5000),
+    );
+  const gated = new GatedAgent();
+  const running = runThreadTurn(
+    runner,
+    gated,
+    'drop',
+    'Still working',
+    AbortSignal.timeout(5000),
+  );
+  expect(await runner.isRunning({ threadId: 'drop' })).toBe(true);
+  expect(() => runner.deleteThread('drop')).toThrow(ThreadRunningError);
+  expect(runner.getThreadMessages('drop').length).toBeGreaterThan(0);
+  await gated.ready;
+  gated.release();
+  await running;
+
+  runner.deleteThread('drop');
+  expect(runner.listThreads().map((thread) => thread.id)).toEqual(['keep']);
+  expect(runner.getThreadMessages('drop')).toEqual([]);
+  expect(runner.getThreadEvents('drop')).toEqual([]);
+  expect(runner.getThreadMessages('keep').length).toBeGreaterThan(0);
+  expect(() => runner.deleteThread('never-existed')).not.toThrow();
   runner.close();
 });

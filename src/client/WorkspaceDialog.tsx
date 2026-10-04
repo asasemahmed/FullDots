@@ -375,6 +375,22 @@ export function WorkspaceDialog({
               </a>
             </div>
           )}
+          {dialog.type === 'settings' && (
+            <div className="config-note">
+              <strong>About</strong>
+              <p>
+                FullDots is an open source template <span>v0.1</span>. Fork it
+                and make it your own.
+              </p>
+              <a
+                href="https://github.com/asasemahmed/FullDots"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Make it your own ↗
+              </a>
+            </div>
+          )}
           {dialog.type === 'memory' && (
             <p className="muted">
               Memories are explicit preferences, not automatic learning. Avoid

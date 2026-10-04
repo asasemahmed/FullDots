@@ -8,18 +8,26 @@ export function SpaceNav({
   space,
   active,
   pageId,
+  collapsed = false,
   onOpen,
 }: {
   space: Space;
   active: boolean;
   pageId?: string;
+  /** Slim icon-only sidebar: just the Space, no page tree. */
+  collapsed?: boolean;
   onOpen: (pageId?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [error, setError] = useState('');
+  // Following a link into this Space opens its tree so the page is visible.
   useEffect(() => {
-    if (!expanded) return;
+    if (active && pageId) setExpanded(true);
+  }, [active, pageId]);
+  const showPages = expanded && !collapsed;
+  useEffect(() => {
+    if (!showPages) return;
     let current = true;
     const load = async () => {
       try {
@@ -38,29 +46,32 @@ export function SpaceNav({
       current = false;
       clearInterval(timer);
     };
-  }, [expanded, space.id]);
+  }, [showPages, space.id]);
   const branches = (parentId: string | null, depth = 0): React.ReactNode =>
     pages
       .filter((page) => page.parentId === parentId)
       .map((page) => (
         <div key={page.id}>
           <button
-            className={`nav-item space-page-link ${active && pageId === page.id ? 'active' : ''}`}
-            style={{ paddingLeft: 28 + depth * 12 }}
+            type="button"
+            className={`sb-row sb-page ${active && pageId === page.id ? 'active' : ''}`}
+            style={{ paddingLeft: 30 + Math.min(depth, 4) * 12 }}
             aria-current={active && pageId === page.id ? 'page' : undefined}
+            title={page.title}
             onClick={() => onOpen(page.id)}
           >
-            <FileText size={14} />
-            <span>{page.title}</span>
+            <FileText size={14} aria-hidden />
+            <span className="sb-text">{page.title}</span>
           </button>
           {branches(page.id, depth + 1)}
         </div>
       ));
   return (
-    <div className="space-nav-group">
-      <div className="space-nav-row">
+    <div className="sb-space">
+      <div className="sb-space-row">
         <button
-          className="icon-button space-disclosure"
+          type="button"
+          className="sb-icon sb-space-toggle"
           aria-label={`${expanded ? 'Collapse' : 'Expand'} ${space.name}`}
           aria-expanded={expanded}
           aria-controls={`space-pages-${space.id}`}
@@ -68,30 +79,32 @@ export function SpaceNav({
         >
           <ChevronRight
             size={13}
-            style={{ transform: expanded ? 'rotate(90deg)' : undefined }}
+            aria-hidden
+            className={expanded ? 'turned' : ''}
           />
         </button>
         <button
-          className={`nav-item ${active && !pageId ? 'active' : ''}`}
+          type="button"
+          className={`sb-row ${active && !pageId ? 'active' : ''}`}
           aria-current={active && !pageId ? 'page' : undefined}
+          aria-label={collapsed ? space.name : undefined}
+          title={collapsed ? space.name : undefined}
           onClick={() => onOpen()}
         >
-          <Folder size={16} />
-          <span>{space.name}</span>
+          <Folder size={16} aria-hidden />
+          <span className="sb-text">{space.name}</span>
         </button>
       </div>
-      {expanded && (
-        <div id={`space-pages-${space.id}`}>
+      {showPages && (
+        <div id={`space-pages-${space.id}`} className="sb-pages">
           {error ? (
-            <p className="sidebar-error" role="status">
+            <p className="sb-note error" role="status">
               {error}
             </p>
           ) : (
             branches(null)
           )}
-          {!error && !pages.length && (
-            <p className="sidebar-empty">No pages yet</p>
-          )}
+          {!error && !pages.length && <p className="sb-note">No pages yet</p>}
         </div>
       )}
     </div>

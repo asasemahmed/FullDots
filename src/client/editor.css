@@ -21,9 +21,6 @@
 .template-app .breadcrumbs {
   flex: 1;
 }
-.desktop-nav-toggle {
-  flex-shrink: 0;
-}
 .document-icon {
   width: 40px;
   height: 40px;
@@ -969,14 +966,6 @@
 .saving-spinner {
   animation: saving-spin 1s linear infinite;
 }
-@media (min-width: 701px) {
-  .template-app.nav-collapsed .sidebar {
-    display: none;
-  }
-  .template-app.nav-collapsed .workspace {
-    margin-left: 0;
-  }
-}
 @media (max-width: 1150px) {
   .library-pages.grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1034,9 +1023,6 @@
   }
 }
 @media (max-width: 700px) {
-  .desktop-nav-toggle {
-    display: none;
-  }
   .space-library {
     padding: 35px 23px;
   }
@@ -1162,42 +1148,6 @@
   }
 }
 /* Keep application chrome readable beside the quieter document surface. */
-.template-app .template-label {
-  font-size: 9px;
-  line-height: 1.5;
-  letter-spacing: 0.8px;
-  color: #646c60;
-}
-.template-app .nav-label,
-.template-app .spaces-heading,
-.template-app .thread-list .nav-label {
-  font-size: 10px;
-  color: #646b61;
-}
-.template-app .space-title,
-.template-app .space-open {
-  color: #535f4e;
-}
-.template-app .dot-nav {
-  color: #58634f;
-  font-size: 12px;
-}
-.template-app .sidebar-empty,
-.template-app .sidebar-error {
-  color: #646d5d;
-  font-size: 11px;
-  line-height: 1.6;
-}
-.template-app .sidebar-bottom .nav-item {
-  color: #58634f;
-}
-.template-app .new-chat.nav-item {
-  color: #53634d;
-}
-.template-app .version {
-  color: #65705d;
-  font-size: 9px;
-}
 .template-app .mode-badge {
   color: #53614f;
   background: #eff2ec;
@@ -1206,17 +1156,6 @@
 .template-app .breadcrumbs,
 .template-app .breadcrumbs > span {
   color: #636d5b;
-}
-.template-app .thread-row {
-  color: #5e6a54;
-}
-.template-app .thread-row small,
-.template-app .sidebar small {
-  color: #64705a;
-}
-.template-app .nav-item small {
-  background: #edf1e7;
-  color: #526249;
 }
 .template-app .pause-button,
 .template-app .pause-button > span {

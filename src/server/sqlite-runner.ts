@@ -29,6 +29,12 @@ interface ActiveRun {
   stopRequested: boolean;
 }
 
+export class ThreadRunningError extends Error {
+  constructor() {
+    super('Conversation is running. Stop it before deleting.');
+  }
+}
+
 export class SqliteAgentRunner extends AgentRunner {
   readonly ɵsupportsLocalThreadEndpoints = true as const;
   private db: DatabaseSync;
@@ -259,6 +265,25 @@ export class SqliteAgentRunner extends AgentRunner {
     return snapshot?.snapshot && typeof snapshot.snapshot === 'object'
       ? (snapshot.snapshot as Record<string, unknown>)
       : null;
+  }
+
+  /**
+   * Forget one thread's stored runs and messages. A running thread is never
+   * touched: its in-flight run would write the history right back.
+   */
+  deleteThread(threadId: string) {
+    if (this.active.has(threadId)) throw new ThreadRunningError();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('DELETE FROM chat_runs WHERE threadId=?').run(threadId);
+      this.db
+        .prepare('DELETE FROM chat_threads WHERE threadId=?')
+        .run(threadId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   clearThreads() {

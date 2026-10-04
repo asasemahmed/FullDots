@@ -93,6 +93,13 @@ export interface Conversation {
   /** Frozen at creation; null means this conversation does not participate. */
   learningContainerId?: string | null;
 }
+/** A conversation as the sidebar lists it, with activity facts from the server. */
+export interface ConversationSummary extends Conversation {
+  /** Last time the conversation's history changed (ms); null if never. */
+  updatedAt: number | null;
+  /** Nothing was ever sent, scheduled, linked or called in it. */
+  empty: boolean;
+}
 export interface CallReceipt {
   anchorMessageId?: string | null;
   id: string;
@@ -114,7 +121,7 @@ export interface SetupStatus {
 export interface WorkspaceState {
   spaces: Space[];
   dots: Dot[];
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   setup: SetupStatus;
   calls: CallReceipt[];
 }

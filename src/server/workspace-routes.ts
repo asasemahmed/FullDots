@@ -3,6 +3,13 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { Platform } from './platform.js';
 import { VoiceService } from './voice.js';
+import { ThreadRunningError } from './sqlite-runner.js';
+import {
+  MAX_CONVERSATION_TITLE_LENGTH,
+  deriveTitle,
+  hasDefaultTitle,
+} from '../shared/conversation-title.js';
+import type { ConversationSummary } from '../shared/types.js';
 import {
   learningContainerIdSchema,
   validateLearningSettings,
@@ -27,14 +34,96 @@ const dotSchema = z
       .optional(),
   })
   .strict();
+const conversationPatch = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_CONVERSATION_TITLE_LENGTH)
+      .transform((title) => title.replace(/\s+/g, ' ')),
+  })
+  .strict();
+function ownedConversation(platform: Platform, id: string) {
+  try {
+    return platform.workspace.requireThread(id);
+  } catch {
+    return undefined;
+  }
+}
+/** Conversations plus the activity facts the sidebar needs to order and tidy them. */
+async function conversationSummaries(
+  platform: Platform,
+): Promise<ConversationSummary[]> {
+  const activity = new Map(
+    platform.runner
+      .listThreads()
+      .map((thread) => [thread.id, Date.parse(thread.updatedAt)]),
+  );
+  const linked = platform.workspace.linkedThreadIds();
+  return Promise.all(
+    platform.workspace.conversations().map(async (conversation) => {
+      const updatedAt = activity.get(conversation.id) ?? null;
+      // A reply that is still streaming is not stored until it finishes.
+      const empty =
+        updatedAt === null &&
+        !linked.has(conversation.id) &&
+        !(await platform.runner.isRunning({ threadId: conversation.id }));
+      return { ...conversation, updatedAt, empty };
+    }),
+  );
+}
+function messageText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .flatMap((part) =>
+      part && typeof part === 'object' && typeof part.text === 'string'
+        ? [part.text]
+        : [],
+    )
+    .join('\n');
+}
+/**
+ * Names a still-untitled conversation after the first message sent in it.
+ * Done here, where every chat turn passes, so no client path can leave a
+ * conversation with the placeholder title. Best effort: never blocks the turn.
+ */
+export async function titleFromFirstMessage(
+  platform: Platform,
+  request: Request,
+) {
+  try {
+    if (
+      request.method !== 'POST' ||
+      !/\/agent\/[^/]+\/run$/.test(new URL(request.url).pathname)
+    )
+      return;
+    const body = (await request.clone().json()) as {
+      threadId?: unknown;
+      messages?: unknown;
+    };
+    if (typeof body.threadId !== 'string' || !Array.isArray(body.messages))
+      return;
+    const thread = platform.workspace
+      .conversations()
+      .find((item) => item.id === body.threadId);
+    if (!thread || !hasDefaultTitle(thread.title)) return;
+    const first = body.messages.find((message) => message?.role === 'user');
+    const title = deriveTitle(messageText(first?.content), '');
+    if (title) platform.workspace.renameThread(thread.id, title);
+  } catch {
+    // The title is a convenience; the turn itself must still run.
+  }
+}
 export function workspaceRoutes(platform: Platform, voice: VoiceService) {
   const app = new Hono();
   app.route('/', pageRoutes(platform));
-  app.get('/workspace', (c) =>
+  app.get('/workspace', async (c) =>
     c.json({
       spaces: platform.workspace.spaces(),
       dots: platform.workspace.dots(),
-      conversations: platform.workspace.conversations(),
+      conversations: await conversationSummaries(platform),
       setup: platform.setup(),
       calls: platform.workspace.calls(),
     }),
@@ -177,6 +266,43 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       201,
     );
   });
+  app.patch('/conversations/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!ownedConversation(platform, id))
+      return c.json({ error: 'Conversation not found.' }, 404);
+    const data = conversationPatch.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!data.success)
+      return c.json(
+        {
+          error: `Enter a title (1 to ${MAX_CONVERSATION_TITLE_LENGTH} characters).`,
+        },
+        400,
+      );
+    return c.json(platform.workspace.renameThread(id, data.data.title));
+  });
+  app.delete('/conversations/:id', (c) => {
+    const id = c.req.param('id');
+    if (!ownedConversation(platform, id))
+      return c.json({ error: 'Conversation not found.' }, 404);
+    if (platform.workspace.hasLiveCall(id))
+      return c.json(
+        { error: 'A call is in progress. End it before deleting.' },
+        409,
+      );
+    try {
+      // Chat history first: it refuses while a reply is streaming, and nothing
+      // has been removed from the workspace database by then.
+      platform.runner.deleteThread(id);
+    } catch (error) {
+      if (error instanceof ThreadRunningError)
+        return c.json({ error: error.message }, 409);
+      throw error;
+    }
+    platform.workspace.deleteThread(id);
+    return c.json({ deleted: id });
+  });
   app.get('/conversations/:id/capture', (c) =>
     c.json(platform.workspace.capture(c.req.param('id'))),
   );
@@ -239,7 +365,10 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
     platform.workspace.anchorCall(c.req.param('id'), data.data.anchorMessageId);
     return c.json(await voice.end(c.req.param('id'), data.data.transcript));
   });
-  app.all('/copilotkit/*', (c) => platform.handle(c.req.raw));
+  app.all('/copilotkit/*', async (c) => {
+    await titleFromFirstMessage(platform, c.req.raw);
+    return platform.handle(c.req.raw);
+  });
   app.onError((error, c) => {
     const text = error.message;
     const known =

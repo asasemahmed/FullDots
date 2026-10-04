@@ -6,6 +6,8 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { validateLearningSettings } from '../shared/learning.js';
 import type { CallReceipt, Conversation, Dot, Space } from '../shared/types.js';
+/** A call still marked active after this long is treated as abandoned. */
+const LIVE_CALL_MS = 60 * 60 * 1000;
 export class WorkspaceStore {
   private db: DatabaseSync;
   readonly pages: Pages;
@@ -273,6 +275,62 @@ export class WorkspaceStore {
     if (!thread || (dotId && thread.dotId !== dotId))
       throw new Error('Conversation does not belong to this Dot and owner.');
     return thread;
+  }
+  renameThread(id: string, title: string): Conversation {
+    this.requireThread(id);
+    this.db
+      .prepare('UPDATE thread_bindings SET title=? WHERE id=? AND ownerId=?')
+      .run(title, id, this.ownerId);
+    return this.requireThread(id);
+  }
+  /**
+   * Ids of conversations that something other than chat history points at: a
+   * page conversation, a scheduled task or a call receipt. Such a conversation
+   * is never "empty" even before its first message is stored.
+   */
+  linkedThreadIds(): Set<string> {
+    const rows = this.db
+      .prepare(
+        `SELECT threadId FROM task_threads
+         UNION SELECT threadId FROM page_threads
+         UNION SELECT threadId FROM calls`,
+      )
+      .all();
+    return new Set(rows.map((row) => String(row.threadId)));
+  }
+  /** A call that has not ended and is recent enough to still be live. */
+  hasLiveCall(threadId: string, now = Date.now()): boolean {
+    return this.calls(threadId).some(
+      (call) => call.endedAt === null && now - call.startedAt < LIVE_CALL_MS,
+    );
+  }
+  /**
+   * Removes a conversation and everything that exists only because of it:
+   * its binding, page-conversation link and review receipts, capture, task
+   * binding (the tasks themselves stay) and call receipts. Pages keep their
+   * content but forget which conversation produced them.
+   */
+  deleteThread(id: string) {
+    this.requireThread(id);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const sql of [
+        'DELETE FROM calls WHERE threadId=?',
+        'DELETE FROM captures WHERE threadId=?',
+        'DELETE FROM task_threads WHERE threadId=?',
+        'DELETE FROM page_threads WHERE threadId=?',
+        'DELETE FROM page_reviews WHERE threadId=?',
+        'UPDATE pages SET sourceThreadId=NULL WHERE sourceThreadId=?',
+      ])
+        this.db.prepare(sql).run(id);
+      this.db
+        .prepare('DELETE FROM thread_bindings WHERE id=? AND ownerId=?')
+        .run(id, this.ownerId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
   bindTask(taskId: string, threadId: string) {
     this.requireThread(threadId);
