@@ -28,6 +28,7 @@ import { filterChats, groupChats, listableChats } from './chat-groups';
 import { MOBILE_QUERY, useMediaQuery, useStoredFlag } from './hooks';
 import { RowMenu } from './RowMenu';
 import '../sidebar.css';
+import { BrandMark } from '../DotCharacter';
 
 export type NavView = 'chat' | 'tasks' | 'memories' | 'space' | 'approvals';
 
@@ -206,13 +207,10 @@ export function Sidebar({
           title={collapsed ? 'FullDots home' : undefined}
           onClick={onHome}
         >
-          <span className="dotted-logo" aria-hidden>
-            <i />
-            <i />
-            <i />
-            <i />
+          <BrandMark size={24} />
+          <span className="sb-text brand-word">
+            Full<span className="brand-word-dots">Dots</span>
           </span>
-          <span className="sb-text">FullDots</span>
         </button>
         <button
           type="button"

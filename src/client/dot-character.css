@@ -1,0 +1,149 @@
+/* The Dot character: expression and status light follow the state class on the svg. */
+.dot-figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dot-figure .dot-body-group {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: dot-breathe 4.8s ease-in-out infinite;
+}
+.dot-figure .dot-eyes-open {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: dot-blink 5.2s infinite;
+}
+.dot-figure .dot-eyes-happy,
+.dot-figure .dot-eyes-closed {
+  display: none;
+}
+.dot-figure .dot-glow {
+  fill: #ffd34d;
+  opacity: 0.22;
+}
+.dot-figure .dot-spark,
+.dot-figure .dot-glow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.dot-figure.working .dot-body-group {
+  animation: dot-bob 1.6s ease-in-out infinite;
+}
+.dot-figure.working .dot-pupils {
+  animation: dot-look 3.2s ease-in-out infinite;
+}
+.dot-figure.working .dot-spark,
+.dot-figure.working .dot-glow {
+  animation: dot-pulse 1.1s ease-in-out infinite;
+}
+
+.dot-figure.needs-input .dot-body-group {
+  animation: none;
+  transform: rotate(5deg);
+}
+.dot-figure.needs-input .dot-spark,
+.dot-figure.needs-input .dot-glow {
+  fill: #ffb020;
+  animation: dot-pulse 0.7s ease-in-out infinite;
+}
+
+.dot-figure.complete .dot-eyes-open,
+.dot-figure.paused .dot-eyes-open {
+  display: none;
+}
+.dot-figure.complete .dot-eyes-happy,
+.dot-figure.paused .dot-eyes-closed {
+  display: inline;
+}
+.dot-figure.complete .dot-spark,
+.dot-figure.complete .dot-glow {
+  fill: #3dd68c;
+}
+
+.dot-figure.paused {
+  filter: saturate(0.45);
+}
+.dot-figure.paused .dot-body-group {
+  animation: none;
+}
+.dot-figure.paused .dot-spark {
+  fill: #c9ccd6;
+}
+.dot-figure.paused .dot-glow {
+  opacity: 0;
+}
+
+@keyframes dot-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.015, 0.985);
+  }
+}
+@keyframes dot-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4%);
+  }
+}
+@keyframes dot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes dot-look {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+}
+@keyframes dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.75;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-figure *,
+  .dot-figure {
+    animation: none !important;
+  }
+}
+
+/* The FullDots mark next to the wordmark. */
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.brand-word {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.brand-word .brand-word-dots {
+  color: #5867e0;
+}

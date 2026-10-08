@@ -1,12 +1,12 @@
-const characters = ['blue', 'mint', 'orange', 'purple'] as const;
+import { DOT_PALETTE_NAMES, DotCharacter } from './DotCharacter';
 
 /** Stable identity keeps each specialist recognizable across views and reloads. */
-function characterFor(identity?: string) {
-  if (!identity) return characters[0];
+function paletteFor(identity?: string) {
+  if (!identity) return DOT_PALETTE_NAMES[0];
   let hash = 0;
   for (const character of identity)
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return characters[hash % characters.length];
+  return DOT_PALETTE_NAMES[hash % DOT_PALETTE_NAMES.length];
 }
 
 export function Mascot({
@@ -24,13 +24,10 @@ export function Mascot({
 }) {
   return (
     <span className={`mascot ${state} ${small ? 'small' : ''}`}>
-      <img
-        className="dot-body"
-        src={`/dots/${characterFor(identity)}.png`}
-        alt={decorative ? '' : `${name} is ${state}`}
-        width={512}
-        height={512}
-        draggable={false}
+      <DotCharacter
+        palette={paletteFor(identity)}
+        state={state}
+        label={decorative ? undefined : `${name} is ${state}`}
       />
     </span>
   );

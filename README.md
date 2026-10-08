@@ -1,5 +1,9 @@
 <div align="center">
 
+<img src="docs/brand/fulldots-logo.svg" alt="FullDots" width="300" />
+
+<img src="docs/brand/dot-indigo.svg" alt="" width="72" /> <img src="docs/brand/dot-mint.svg" alt="" width="72" /> <img src="docs/brand/dot-coral.svg" alt="" width="72" /> <img src="docs/brand/dot-lilac.svg" alt="" width="72" />
+
 # FullDots
 
 ### Self-hosted AI coworkers with their own computers, and you in full control.

@@ -104,23 +104,6 @@ h3 {
   display: flex;
   min-height: 100vh;
 }
-.dotted-logo {
-  display: grid;
-  grid-template-columns: repeat(2, 5px);
-  gap: 3px;
-  width: 13px;
-  transform: rotate(-10deg);
-  flex-shrink: 0;
-}
-.dotted-logo i {
-  height: 5px;
-  width: 5px;
-  background: #8492c6;
-  border-radius: 50%;
-}
-.dotted-logo i:first-child {
-  background: #42485d;
-}
 .online-dot,
 .ready-pill > span {
   width: 6px;
@@ -297,20 +280,6 @@ h3 {
 .mascot.small {
   width: 54px;
   height: 54px;
-}
-.mascot.working .dot-body {
-  animation: bob 2s ease-in-out infinite;
-}
-.mascot.complete .dot-body {
-  transform: rotate(-3deg);
-  transform-origin: center;
-}
-.mascot.paused {
-  filter: saturate(0.5);
-}
-.mascot.needs-input .dot-body {
-  transform: rotate(6deg);
-  transform-origin: center;
 }
 .composer {
   background: white;
@@ -498,10 +467,6 @@ h3 {
   color: #b4b3ba;
   font-size: 8px;
   margin-top: 45px;
-}
-.dotted-logo.tiny {
-  transform: scale(0.7);
-  opacity: 0.55;
 }
 .text-button {
   border: 0;
@@ -2664,8 +2629,8 @@ h3 {
   margin-bottom: 25px;
 }
 .template-app .empty-chat-persona .mascot {
-  width: 68px;
-  height: 68px;
+  width: 96px;
+  height: 96px;
   margin: 0 auto 4px;
 }
 .template-app .empty-chat-persona h2 {
@@ -2850,22 +2815,11 @@ h3 {
   }
 }
 
-/* Plush Dot avatars share identity and state across every surface. */
+/* Dot avatars share identity and state across every surface (see dot-character.css). */
 .mascot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-.mascot > img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-@media (prefers-reduced-motion: reduce) {
-  .mascot.working .dot-body {
-    animation: none;
-  }
 }
 
 /* Which Spaces a Dot may read and edit, in the Dot dialog. */

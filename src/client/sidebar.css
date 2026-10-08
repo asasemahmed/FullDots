@@ -103,9 +103,6 @@
   letter-spacing: -0.4px;
   color: var(--sb-ink);
 }
-.sb .sb-brand .dotted-logo {
-  transform: rotate(-10deg);
-}
 .sb .sb-icon {
   display: inline-grid;
   place-items: center;
