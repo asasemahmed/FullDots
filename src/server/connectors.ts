@@ -1,7 +1,15 @@
 import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import {
+  UnauthorizedError,
+  type OAuthClientProvider,
+} from '@modelcontextprotocol/sdk/client/auth.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPError,
+} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { connectorValueView } from '../shared/connector-config.js';
@@ -13,6 +21,7 @@ import type {
   ConnectorView,
 } from '../shared/types.js';
 import { withoutBinary } from './computer-agent.js';
+import type { ConnectorOAuthService } from './connector-oauth.js';
 import type { ConnectorStore } from './connector-store.js';
 import { mcpToolName } from './mcp-tools.js';
 
@@ -30,10 +39,25 @@ export interface ConnectorRegistryOptions {
   transport?: (
     connector: Connector,
     resolved: ResolvedConnectorValues,
+    /** OAuth connectors only: the provider the transport must use for the Authorization header. */
+    authProvider?: OAuthClientProvider,
+    /** http connectors: which wire protocol to speak. `sse` is only asked for after a 404/405 on `streamable`. */
+    flavor?: TransportFlavor,
   ) => Transport;
+  /** Browser-authorization service (OAuth connectors). Without it an oauth connector stays `needs_auth`. */
+  oauth?: Pick<
+    ConnectorOAuthService,
+    'providerFor' | 'hasTokens' | 'secrets' | 'transportFetch'
+  >;
+  /** When the tokens of an OAuth connector were stored and the account they belong to (display only). */
+  authInfo?: (
+    id: string,
+  ) => { authorizedAt?: number; account?: string } | undefined;
   listTtlMs?: number; // default 60_000
   log?: (line: string) => void;
 }
+
+export type TransportFlavor = 'streamable' | 'sse';
 
 export interface McpCallOutcome {
   connector: string;
@@ -95,6 +119,8 @@ interface Entry {
   timer?: NodeJS.Timeout;
   attempt: number;
   dead: boolean;
+  /** `sse` once a server answered 404/405 to the Streamable HTTP probe; reconnects skip the probe. */
+  flavor?: TransportFlavor;
 }
 
 const messageOf = (error: unknown) =>
@@ -216,6 +242,10 @@ export class ConnectorRegistry {
           `The call to ${tool} timed out after ${connector.callTimeoutMs} ms.`,
         );
       if (signal?.aborted) return failed('The call was cancelled.');
+      if (error instanceof UnauthorizedError) {
+        this.needsAuth(connector);
+        return failed(this.unavailable(connector, this.statusOf(connector)));
+      }
       // A failure that is not an MCP error means the connection itself is suspect: reconnect in the background.
       if (!(error instanceof McpError)) this.broken(connector, error);
       return failed(messageOf(error));
@@ -253,6 +283,7 @@ export class ConnectorRegistry {
           if (space < 0) add(`Bearer ${resolved}`);
           else add(resolved.slice(space + 1).trim());
         }
+    for (const token of this.options.oauth?.secrets() ?? []) add(token);
     return [...found].sort((a, b) => b.length - a.length);
   }
 
@@ -274,12 +305,20 @@ export class ConnectorRegistry {
         ]),
       );
     const status = this.statusOf(connector);
+    const oauth =
+      connector.auth === 'oauth'
+        ? {
+            authorized: this.options.oauth?.hasTokens(connector.id) ?? false,
+            ...this.options.authInfo?.(connector.id),
+          }
+        : undefined;
     return {
       ...connector,
       headers: show(connector.headers),
       env: show(connector.env),
       status: {
         ...status,
+        ...oauth,
         error:
           status.error === undefined ? undefined : this.redact(status.error),
         tools: [...status.tools],
@@ -303,10 +342,17 @@ export class ConnectorRegistry {
       return { state: 'error', error: STDIO_OFF, tools: [] };
     const missing = this.missing(connector);
     if (missing.length) return { state: 'missing_env', missing, tools: [] };
+    if (
+      connector.auth === 'oauth' &&
+      !this.options.oauth?.hasTokens(connector.id)
+    )
+      return { state: 'needs_auth', tools: [] };
     return undefined;
   }
 
   private unavailable(connector: Connector, status: ConnectorStatus): string {
+    if (status.state === 'needs_auth')
+      return `The ${connector.name} connector needs to be connected in Settings.`;
     if (status.error) return status.error;
     if (status.state === 'missing_env')
       return `Missing environment variables: ${(status.missing ?? []).join(', ')}.`;
@@ -325,11 +371,24 @@ export class ConnectorRegistry {
       connector.transport === 'http' ? connector.headers : connector.env;
     return [
       ...new Set(
-        Object.values(record).flatMap((value) =>
-          'env' in value && !this.resolveValue(value) ? [value.env] : [],
+        Object.entries(record).flatMap(([name, value]) =>
+          'env' in value &&
+          !this.resolveValue(value) &&
+          !this.ignoresHeader(connector, name)
+            ? [value.env]
+            : [],
         ),
       ),
     ];
+  }
+
+  /** OAuth connectors never send a configured Authorization header; the provider sets it. */
+  private ignoresHeader(connector: Connector, name: string): boolean {
+    return (
+      connector.auth === 'oauth' &&
+      connector.transport === 'http' &&
+      /^authorization$/i.test(name)
+    );
   }
 
   private resolve(connector: Connector): ResolvedConnectorValues {
@@ -341,6 +400,8 @@ export class ConnectorRegistry {
         }),
       );
     const headers = resolve(connector.headers);
+    for (const name of Object.keys(headers))
+      if (this.ignoresHeader(connector, name)) delete headers[name];
     for (const name of Object.keys(headers))
       if (/^authorization$/i.test(name) && !/\s/.test(headers[name]))
         headers[name] = `Bearer ${headers[name]}`;
@@ -358,12 +419,21 @@ export class ConnectorRegistry {
   private defaultTransport(
     connector: Connector,
     resolved: ResolvedConnectorValues,
+    authProvider?: OAuthClientProvider,
+    flavor: TransportFlavor = 'streamable',
   ): Transport {
     if (connector.transport === 'http') {
       if (!connector.url) throw new Error('This connector has no URL.');
-      return new StreamableHTTPClientTransport(new URL(connector.url), {
+      const options = {
         requestInit: { headers: resolved.headers },
-      });
+        ...(authProvider
+          ? { authProvider, fetch: this.options.oauth?.transportFetch }
+          : {}),
+      };
+      const url = new URL(connector.url);
+      return flavor === 'sse'
+        ? new SSEClientTransport(url, options)
+        : new StreamableHTTPClientTransport(url, options);
     }
     if (!connector.command) throw new Error('This connector has no command.');
     return new StdioClientTransport({
@@ -421,16 +491,34 @@ export class ConnectorRegistry {
     let client: Client | undefined;
     try {
       const resolved = this.resolve(connector);
-      const transport = (
-        this.options.transport ?? this.defaultTransport.bind(this)
-      )(connector, resolved);
-      this.watchStderr(connector, transport);
-      client = new Client({ name: 'fulldots', version: '0.1.0' });
-      const connected = client;
-      connected.onclose = () => this.closed(connector, entry, connected);
-      connected.onerror = (error) =>
-        this.log(`connector ${connector.name}: ${messageOf(error)}`);
-      await connected.connect(transport);
+      const authProvider =
+        connector.auth === 'oauth'
+          ? this.options.oauth?.providerFor(connector, 'transport')
+          : undefined;
+      let flavor = entry.flavor ?? 'streamable';
+      let connected: Client;
+      for (;;) {
+        client = connected = new Client({ name: 'fulldots', version: '0.1.0' });
+        const current = connected;
+        current.onclose = () => this.closed(connector, entry, current);
+        current.onerror = (error) =>
+          this.log(`connector ${connector.name}: ${messageOf(error)}`);
+        try {
+          const transport = (
+            this.options.transport ?? this.defaultTransport.bind(this)
+          )(connector, resolved, authProvider, flavor);
+          this.watchStderr(connector, transport);
+          await current.connect(transport);
+          break;
+        } catch (error) {
+          // A legacy SSE-only server answers the Streamable HTTP POST with 404/405: probe once with SSE.
+          if (!this.sseWorthTrying(connector, flavor, error)) throw error;
+          await this.closeClient(current);
+          client = undefined;
+          flavor = 'sse';
+        }
+      }
+      entry.flavor = flavor;
       const tools = await this.listAll(connected, connector);
       if (entry.dead) {
         await this.closeClient(connected);
@@ -446,6 +534,10 @@ export class ConnectorRegistry {
       if (entry.dead) return;
       entry.client = undefined;
       entry.cache = undefined;
+      if (error instanceof UnauthorizedError) {
+        this.needsAuth(connector);
+        return;
+      }
       entry.status = {
         state: 'error',
         error: this.redact(messageOf(error)),
@@ -454,6 +546,30 @@ export class ConnectorRegistry {
       this.log(`connector ${connector.name} failed: ${entry.status.error}`);
       this.scheduleReconnect(connector.id, entry);
     }
+  }
+
+  private sseWorthTrying(
+    connector: Connector,
+    flavor: TransportFlavor,
+    error: unknown,
+  ): boolean {
+    return (
+      connector.transport === 'http' &&
+      flavor === 'streamable' &&
+      error instanceof StreamableHTTPError &&
+      (error.code === 404 || error.code === 405)
+    );
+  }
+
+  /** The server wants a (new) authorization: no reconnect loop, the owner has to act in Settings. */
+  private needsAuth(connector: Connector) {
+    const entry = this.entries.get(connector.id);
+    if (!entry || entry.dead) return;
+    void this.dropClient(entry);
+    this.clearTimer(entry);
+    entry.cache = undefined;
+    entry.status = { state: 'needs_auth', tools: [] };
+    this.log(`connector ${connector.name}: authorization required`);
   }
 
   /** Refuses a tool list whose names clash with a connector that is already connected. */
@@ -562,6 +678,7 @@ export class ConnectorRegistry {
   private broken(connector: Connector, error: unknown) {
     const entry = this.entries.get(connector.id);
     if (!entry || entry.dead || !entry.client) return;
+    if (error instanceof UnauthorizedError) return this.needsAuth(connector);
     void this.dropClient(entry);
     entry.cache = undefined;
     entry.status = {

@@ -149,6 +149,12 @@ export interface TurnMetadata {
 export type ApprovalMode = 'sensitive' | 'writes' | 'off';
 
 export type ConnectorTransport = 'http' | 'stdio';
+/**
+ * How an http connector authenticates. `oauth`: browser authorization, the
+ * server sets the Authorization header itself. `token`: headers reference env
+ * variables. `none`: no credentials.
+ */
+export type ConnectorAuth = 'oauth' | 'token' | 'none';
 /** A header or env value as stored: a reference to a process env variable, or a literal non-secret. */
 export type ConnectorValue = { env: string } | { literal: string };
 export interface ConnectorConfig {
@@ -161,6 +167,8 @@ export interface ConnectorConfig {
   cwd?: string;
   headers?: Record<string, ConnectorValue>;
   env?: Record<string, ConnectorValue>;
+  /** Default: 'token' when an Authorization header is configured, else 'none'. */
+  auth?: ConnectorAuth;
   /** 1000..600000, default 30000. */
   callTimeoutMs?: number;
   /** Default true. */
@@ -177,6 +185,7 @@ export interface Connector {
   cwd: string | null;
   headers: Record<string, ConnectorValue>;
   env: Record<string, ConnectorValue>;
+  auth: ConnectorAuth;
   callTimeoutMs: number;
   enabled: boolean;
   presetId: string | null;
@@ -199,13 +208,23 @@ export interface ConnectorToolInfo {
   inputSchema: Record<string, unknown>;
 }
 export type ConnectorState =
-  'disabled' | 'missing_env' | 'connecting' | 'connected' | 'error';
+  | 'disabled'
+  | 'missing_env'
+  | 'needs_auth'
+  | 'connecting'
+  | 'connected'
+  | 'error';
 export interface ConnectorStatus {
   state: ConnectorState;
   error?: string;
   missing?: string[];
   tools: ConnectorToolInfo[];
   connectedAt?: number;
+  /** OAuth connectors: tokens are stored. Never the tokens themselves. */
+  authorized?: boolean;
+  authorizedAt?: number;
+  /** Display only: email or name from the token response's id_token, when present. */
+  account?: string;
 }
 export interface ConnectorView extends Omit<Connector, 'headers' | 'env'> {
   headers: Record<string, ConnectorValueView>;

@@ -207,3 +207,52 @@ it('grantHash differs between Dots and ignores other Dots', () => {
   store.setGrant('b', connector.id, ['y']);
   expect(store.grantHash('a')).toBe(a);
 });
+
+it('adds the auth column to a database created with the old schema', () => {
+  const db = new DatabaseSync(':memory:');
+  dbs.push(db);
+  db.exec(`CREATE TABLE connectors(id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, transport TEXT NOT NULL,
+  url TEXT, command TEXT, args TEXT NOT NULL DEFAULT '[]', cwd TEXT, headers TEXT NOT NULL DEFAULT '{}', env TEXT NOT NULL DEFAULT '{}',
+  callTimeoutMs INTEGER NOT NULL DEFAULT 30000, enabled INTEGER NOT NULL DEFAULT 1, presetId TEXT,
+  createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL);
+  INSERT INTO connectors(id,name,transport,url,createdAt,updatedAt) VALUES ('old','legacy','http','https://x/',1,1);`);
+  const store = new ConnectorStore(db);
+  expect(store.get('old')?.auth).toBe('token');
+  expect(() => new ConnectorStore(db)).not.toThrow();
+  const columns = db
+    .prepare('PRAGMA table_info(connectors)')
+    .all()
+    .filter((field) => field.name === 'auth');
+  expect(columns).toHaveLength(1);
+  expect(
+    store.create({ name: 'new', transport: 'http', url: 'https://y/' }).auth,
+  ).toBe('none');
+});
+
+it('stores auth, defaults it from headers, and updates it', () => {
+  const { store } = fixture();
+  expect(store.create(github).auth).toBe('token');
+  expect(
+    store.create({ name: 'plain', transport: 'http', url: 'https://p/' }).auth,
+  ).toBe('none');
+  const oauth = store.create({
+    name: 'oauthy',
+    transport: 'http',
+    url: 'https://o/',
+    auth: 'oauth',
+  });
+  expect(oauth.auth).toBe('oauth');
+  expect(store.update(oauth.id, { name: 'renamed' }).auth).toBe('oauth');
+  expect(store.update(oauth.id, { auth: 'none' }).auth).toBe('none');
+  expect(store.get(oauth.id)?.auth).toBe('none');
+});
+
+it('creates the connector_auth table and delete removes its row', () => {
+  const { db, store } = fixture();
+  const created = store.create(github);
+  db.prepare(
+    'INSERT INTO connector_auth(connectorId,updatedAt) VALUES (?,1)',
+  ).run(created.id);
+  expect(store.delete(created.id)).toBe(true);
+  expect(db.prepare('SELECT * FROM connector_auth').all()).toEqual([]);
+});

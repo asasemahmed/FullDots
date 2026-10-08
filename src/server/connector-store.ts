@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
+import { CONNECTOR_AUTH_SCHEMA } from './connector-auth-store.js';
 import type {
   Connector,
   ConnectorConfig,
@@ -24,6 +25,7 @@ function toConnector(row: Row): Connector {
     callTimeoutMs: Number(row.callTimeoutMs),
     enabled: Number(row.enabled) === 1,
     presetId: row.presetId === null ? null : String(row.presetId),
+    auth: row.auth as Connector['auth'],
     createdAt: Number(row.createdAt),
     updatedAt: Number(row.updatedAt),
   };
@@ -41,6 +43,15 @@ function toGrant(row: Row): DotConnectorGrant {
   };
 }
 
+/** New connectors: `token` when an Authorization header is configured, else `none`. */
+function defaultAuth(headers: ConnectorConfig['headers']): Connector['auth'] {
+  return Object.keys(headers ?? {}).some(
+    (name) => name.toLowerCase() === 'authorization',
+  )
+    ? 'token'
+    : 'none';
+}
+
 function mapUnique(error: unknown): never {
   if (error instanceof Error && /UNIQUE/i.test(error.message))
     throw new Error('A connector with that name exists.');
@@ -55,6 +66,17 @@ export class ConnectorStore {
   createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT NOT NULL,
   tools TEXT NOT NULL DEFAULT '"*"', overrides TEXT NOT NULL DEFAULT '{}', PRIMARY KEY(dotId, connectorId));`);
+    // SQLite has no ADD COLUMN IF NOT EXISTS; existing rows keep today's behaviour ('token').
+    if (
+      !db
+        .prepare('PRAGMA table_info(connectors)')
+        .all()
+        .some((field) => field.name === 'auth')
+    )
+      db.exec(
+        "ALTER TABLE connectors ADD COLUMN auth TEXT NOT NULL DEFAULT 'token'",
+      );
+    db.exec(CONNECTOR_AUTH_SCHEMA);
   }
 
   list(): Connector[] {
@@ -75,7 +97,7 @@ CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT 
     try {
       this.db
         .prepare(
-          'INSERT INTO connectors(id,name,transport,url,command,args,cwd,headers,env,callTimeoutMs,enabled,presetId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO connectors(id,name,transport,url,command,args,cwd,headers,env,callTimeoutMs,enabled,presetId,auth,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         )
         .run(
           id,
@@ -90,6 +112,7 @@ CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT 
           config.callTimeoutMs ?? 30_000,
           (config.enabled ?? true) ? 1 : 0,
           config.presetId ?? null,
+          config.auth ?? defaultAuth(config.headers),
           now,
           now,
         );
@@ -119,11 +142,12 @@ CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT 
       enabled: defined.enabled ?? current.enabled,
       presetId:
         'presetId' in defined ? (defined.presetId ?? null) : current.presetId,
+      auth: defined.auth ?? current.auth,
     };
     try {
       this.db
         .prepare(
-          'UPDATE connectors SET name=?,transport=?,url=?,command=?,args=?,cwd=?,headers=?,env=?,callTimeoutMs=?,enabled=?,presetId=?,updatedAt=? WHERE id=?',
+          'UPDATE connectors SET name=?,transport=?,url=?,command=?,args=?,cwd=?,headers=?,env=?,callTimeoutMs=?,enabled=?,presetId=?,auth=?,updatedAt=? WHERE id=?',
         )
         .run(
           next.name,
@@ -137,6 +161,7 @@ CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT 
           next.callTimeoutMs,
           next.enabled ? 1 : 0,
           next.presetId,
+          next.auth,
           Math.max(Date.now(), current.updatedAt + 1),
           id,
         );
@@ -147,6 +172,7 @@ CREATE TABLE IF NOT EXISTS dot_connectors(dotId TEXT NOT NULL, connectorId TEXT 
   }
 
   delete(id: string): boolean {
+    this.db.prepare('DELETE FROM connector_auth WHERE connectorId=?').run(id);
     this.db.prepare('DELETE FROM dot_connectors WHERE connectorId=?').run(id);
     return (
       Number(

@@ -3,6 +3,7 @@ import {
   SECRET_NAME,
   connectorConfigSchema,
   connectorValueView,
+  defaultAuth,
   looksLikeCredential,
   validateConnectorConfig,
 } from '../src/shared/connector-config.js';
@@ -254,16 +255,151 @@ describe('connectorValueView', () => {
   });
 });
 
-describe('connector presets', () => {
-  it('lists the six presets with unique ids', () => {
-    expect(connectorPresets.map((p) => p.id)).toEqual([
-      'github',
-      'notion',
-      'filesystem',
-      'fetch',
-      'google-drive',
-      'gmail',
+describe('connector auth', () => {
+  const oauth = (extra: Record<string, unknown> = {}) =>
+    http({ auth: 'oauth', ...extra });
+  const validate = (input: unknown, allowStdio = true) =>
+    validateConnectorConfig(input, { allowStdio });
+
+  it('accepts oauth without headers', () => {
+    const result = validate(oauth());
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.config.auth).toBe('oauth');
+  });
+
+  it('rejects an unknown auth value', () => {
+    expect(
+      connectorConfigSchema.safeParse(http({ auth: 'basic' })).success,
+    ).toBe(false);
+  });
+
+  it.each(['Authorization', 'authorization', 'AUTHORIZATION'])(
+    'rejects oauth with a %s header',
+    (name) => {
+      const result = validate(
+        oauth({ headers: { [name]: { env: 'GITHUB_TOKEN' } } }),
+      );
+      expect(result.errors).toContain(
+        'Browser authorization sets the Authorization header itself; remove it or switch to token.',
+      );
+    },
+  );
+
+  it('allows other headers with oauth', () => {
+    const result = validate(
+      oauth({ headers: { 'X-Team': { literal: 'platform' } } }),
+    );
+    expect(result.errors).toEqual([]);
+  });
+
+  it('rejects oauth with stdio', () => {
+    const result = validate(stdio({ auth: 'oauth' }));
+    expect(result.errors).toEqual([
+      'auth: browser authorization needs an http connector',
     ]);
+  });
+
+  it('defaults to none without an Authorization header', () => {
+    expect(validate(http()).config.auth).toBe('none');
+    expect(
+      validate(http({ headers: { 'X-Team': { literal: 'a' } } })).config.auth,
+    ).toBe('none');
+    expect(validate(stdio()).config.auth).toBe('none');
+  });
+
+  it('defaults to token with an Authorization header, in any case', () => {
+    for (const name of ['Authorization', 'authorization'])
+      expect(
+        validate(http({ headers: { [name]: { env: 'GITHUB_TOKEN' } } })).config
+          .auth,
+      ).toBe('token');
+  });
+
+  it('keeps an explicit auth value', () => {
+    expect(
+      validate(http({ auth: 'none', headers: { Authorization: { env: 'T' } } }))
+        .config.auth,
+    ).toBe('none');
+    expect(validate(http({ auth: 'token' })).config.auth).toBe('token');
+  });
+
+  it('defaultAuth works on a plain config', () => {
+    expect(defaultAuth({})).toBe('none');
+    expect(defaultAuth({ headers: { authorization: { env: 'T' } } })).toBe(
+      'token',
+    );
+    expect(defaultAuth({ auth: 'oauth' })).toBe('oauth');
+  });
+
+  it('warns, without failing, for oauth over non-loopback http', () => {
+    const result = validate(oauth({ url: 'http://mcp.example.com/mcp' }));
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([
+      'url: this connector uses http, so authorization tokens would travel unencrypted. Use https.',
+    ]);
+  });
+
+  it.each([
+    'http://localhost:3000/mcp',
+    'http://127.0.0.1:8080/mcp',
+    'http://[::1]:8080/mcp',
+    'http://foo.localhost/mcp',
+    'https://mcp.example.com/mcp',
+  ])('does not warn for oauth at %s', (url) => {
+    expect(validate(oauth({ url })).warnings).toEqual([]);
+  });
+
+  it('does not warn for token connectors over http', () => {
+    expect(
+      validate(http({ url: 'http://mcp.example.com/mcp', auth: 'token' }))
+        .warnings,
+    ).toEqual([]);
+  });
+});
+
+describe('connector presets', () => {
+  const oauthIds = [
+    'notion',
+    'linear',
+    'supabase',
+    'intercom',
+    'huggingface',
+    'atlassian',
+    'stripe',
+    'sentry',
+    'asana',
+    'neon',
+    'cloudflare',
+  ];
+
+  it('lists the presets with unique ids', () => {
+    const ids = connectorPresets.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort()).toEqual(
+      [
+        ...oauthIds,
+        'github',
+        'paypal',
+        'cloudflare-docs',
+        'filesystem',
+        'fetch',
+        'google-drive',
+        'gmail',
+      ].sort(),
+    );
+  });
+
+  it('assigns the verified auth mode to each preset', () => {
+    const byId = Object.fromEntries(connectorPresets.map((p) => [p.id, p]));
+    for (const id of oauthIds) expect(byId[id].auth).toBe('oauth');
+    expect(byId.github.auth).toBe('token');
+    expect(byId.paypal.auth).toBe('token');
+    expect(byId['cloudflare-docs'].auth).toBe('none');
+    for (const id of ['filesystem', 'fetch', 'google-drive', 'gmail']) {
+      expect(byId[id].auth).toBe('none');
+      expect(byId[id].requiresStdio).toBe(true);
+    }
   });
 
   it.each(connectorPresets)('$id passes validation', (preset) => {
@@ -275,25 +411,81 @@ describe('connector presets', () => {
       args: preset.args,
       headers: preset.headers,
       env: preset.env,
+      auth: preset.auth,
       presetId: preset.id,
     } satisfies ConnectorConfig;
     const clean = JSON.parse(JSON.stringify(config)) as unknown;
     const withStdio = validateConnectorConfig(clean, { allowStdio: true });
     expect(withStdio.errors).toEqual([]);
     expect(withStdio.warnings).toEqual([]);
+    expect(withStdio.config.auth).toBe(preset.auth);
     const without = validateConnectorConfig(clean, { allowStdio: false });
     expect(without.errors.length === 0).toBe(!preset.requiresStdio);
     expect(preset.transport === 'stdio').toBe(!!preset.requiresStdio);
     expect(preset.docsUrl).toMatch(/^https:\/\//);
+    expect(preset.description).toMatch(/^[A-Z].*[^.]$/);
+    expect(['work', 'dev', 'data', 'files', 'web']).toContain(preset.category);
   });
 
-  it('github and notion reference env variables for Authorization', () => {
-    expect(connectorPresets[0].headers?.Authorization).toEqual({
-      env: 'GITHUB_TOKEN',
-    });
-    expect(connectorPresets[1].headers?.['Notion-Version']).toEqual({
-      literal: '2022-06-28',
-    });
-    expect(connectorPresets[1].requiredEnv[0].name).toBe('NOTION_TOKEN');
+  it.each(connectorPresets.filter((p) => p.auth === 'oauth'))(
+    '$id (oauth) has an https url and no Authorization header',
+    (preset) => {
+      expect(preset.transport).toBe('http');
+      expect(preset.url).toMatch(/^https:\/\//);
+      expect(
+        Object.keys(preset.headers ?? {}).map((name) => name.toLowerCase()),
+      ).not.toContain('authorization');
+      expect(preset.requiredEnv).toEqual([]);
+    },
+  );
+
+  it.each(connectorPresets.filter((p) => p.auth === 'token'))(
+    '$id (token) sends its tokenEnv variable',
+    (preset) => {
+      expect(preset.tokenEnv).toBeDefined();
+      expect(preset.headers?.Authorization).toEqual({
+        env: preset.tokenEnv!.name,
+      });
+      expect(preset.requiredEnv.map((v) => v.name)).toContain(
+        preset.tokenEnv!.name,
+      );
+    },
+  );
+
+  it.each(connectorPresets.filter((p) => p.tokenEnv))(
+    '$id tokenEnv makes a valid token config',
+    (preset) => {
+      const result = validateConnectorConfig(
+        {
+          name: preset.name,
+          transport: preset.transport,
+          url: preset.url,
+          headers: {
+            [preset.tokenEnv!.header ?? 'Authorization']: {
+              env: preset.tokenEnv!.name,
+            },
+          },
+          auth: 'token',
+        },
+        { allowStdio: false },
+      );
+      expect(result.errors).toEqual([]);
+    },
+  );
+
+  it('keeps github on a token and replaces the old notion token preset', () => {
+    const github = connectorPresets.find((p) => p.id === 'github')!;
+    expect(github.headers?.Authorization).toEqual({ env: 'GITHUB_TOKEN' });
+    const notion = connectorPresets.find((p) => p.id === 'notion')!;
+    expect(notion.headers).toBeUndefined();
+    expect(notion.tokenEnv).toBeUndefined();
+    expect(notion.url).toBe('https://mcp.notion.com/mcp');
+  });
+
+  it('documents the Sentry scheme and the Intercom redirect allowlist', () => {
+    const sentry = connectorPresets.find((p) => p.id === 'sentry')!;
+    expect(sentry.tokenEnv?.scheme).toBe('Sentry-Bearer');
+    const intercom = connectorPresets.find((p) => p.id === 'intercom')!;
+    expect(intercom.authNote).toMatch(/localhost|127\.0\.0\.1/);
   });
 });

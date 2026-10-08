@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Hono } from 'hono';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectorRoutes } from '../src/server/connector-routes.js';
 import { ConnectorStore } from '../src/server/connector-store.js';
 import {
@@ -38,9 +38,16 @@ function setup(
     workspace.close();
     db.close();
   });
+  const clearAuth = vi.spyOn(workspace.connectorAuth, 'clear');
   const app = new Hono().route(
     '/api',
-    connectorRoutes({ store, registry, workspace, allowStdio }),
+    connectorRoutes({
+      store,
+      registry,
+      workspace,
+      connectorAuth: workspace.connectorAuth,
+      allowStdio,
+    }),
   );
   const dot = workspace.createDot(
     workspace.spaces()[0].id,
@@ -71,7 +78,7 @@ function setup(
       body: JSON.parse(text) as any,
     };
   };
-  return { app, store, registry, workspace, dot, call };
+  return { app, store, registry, workspace, dot, call, clearAuth };
 }
 
 const http = (name: string, extra: Record<string, unknown> = {}) => ({
@@ -105,6 +112,39 @@ describe('connector CRUD', () => {
     const list = await call('GET', '/connectors');
     expect(list.body.connectors).toHaveLength(1);
     expect(list.body.connectors[0].id).toBe(created.body.id);
+  });
+
+  it('reads one connector by id and 404s for an unknown one', async () => {
+    const { call } = setup();
+    const created = await call('POST', '/connectors', http('github'));
+    const one = await call('GET', `/connectors/${created.body.id}`);
+    expect(one.status).toBe(200);
+    expect(one.body.id).toBe(created.body.id);
+    expect(one.body.status.state).toBeDefined();
+    expect((await call('GET', '/connectors/nope')).status).toBe(404);
+  });
+
+  it('clears stored authorization when the url or auth changes, not otherwise', async () => {
+    const { call, clearAuth } = setup();
+    const created = await call('POST', '/connectors', http('github'));
+    const id = created.body.id;
+    await call('PATCH', `/connectors/${id}`, { name: 'renamed' });
+    await call('PATCH', `/connectors/${id}`, {
+      url: 'https://mcp.example.test/mcp',
+    });
+    expect(clearAuth).not.toHaveBeenCalled();
+    await call('PATCH', `/connectors/${id}`, {
+      url: 'https://other.example.test/mcp',
+    });
+    expect(clearAuth).toHaveBeenCalledWith(id, 'all');
+    clearAuth.mockClear();
+    const switched = await call('PATCH', `/connectors/${id}`, {
+      auth: 'none',
+      headers: {},
+    });
+    expect(switched.status).toBe(200);
+    expect(switched.body.auth).toBe('none');
+    expect(clearAuth).toHaveBeenCalledWith(id, 'all');
   });
 
   it('shows an env reference whose variable is unset as set: false', async () => {

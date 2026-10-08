@@ -1,8 +1,14 @@
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPError,
+} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -12,6 +18,11 @@ import {
   ConnectorRegistry,
   type ConnectorRegistryOptions,
 } from '../src/server/connectors.js';
+import {
+  ConnectorAuthStore,
+  hashState,
+} from '../src/server/connector-auth-store.js';
+import { ConnectorOAuthService } from '../src/server/connector-oauth.js';
 import { ConnectorStore } from '../src/server/connector-store.js';
 import {
   assertNoCollisions,
@@ -23,6 +34,10 @@ import {
 } from '../src/server/mcp-tools.js';
 import { tanstackTools } from '../src/server/tanstack-tools.js';
 import type { ConnectorConfig } from '../src/shared/types.js';
+import {
+  createOAuthFixture,
+  type OAuthFixtureOptions,
+} from './fixtures/oauth-server.js';
 import {
   createMcpFixture,
   type McpFixtureOptions,
@@ -834,4 +849,343 @@ it('gives a later tool whose sanitized name collides a hash suffix and routes ea
     mcpToolInfo(registry, store, 'dot1', listed[1].toolName),
   ).toMatchObject({ readOnly: true });
   expect(listed[1].toolName.length).toBeLessThanOrEqual(64);
+});
+
+// --- OAuth connectors ----------------------------------------------------------------------------
+
+const PLACEHOLDER = 'ACCESS-TOKEN-PLACEHOLDER';
+const entryOf = (registry: ConnectorRegistry, id: string) =>
+  (
+    registry as unknown as {
+      entries: Map<string, { timer?: unknown; flavor?: string }>;
+    }
+  ).entries.get(id);
+
+function oauthSetup(
+  fixtureOptions: OAuthFixtureOptions = {},
+  options: Partial<ConnectorRegistryOptions> & { echoToken?: boolean } = {},
+) {
+  const { echoToken, ...registryOptions } = options;
+  const fixture = createOAuthFixture({
+    ...(echoToken ? { secret: PLACEHOLDER } : {}),
+    ...fixtureOptions,
+  });
+  // The fixture's echo_secret result is fixed up front; swap in the bearer of the request that asked.
+  const echoing: FetchLike = async (url, init) => {
+    const response = await fixture.fetch(url, init);
+    if (!echoToken || !new URL(String(url)).pathname.endsWith('/mcp'))
+      return response;
+    const bearer = (
+      new Headers(init?.headers).get('authorization') ?? ''
+    ).replace(/^Bearer /i, '');
+    const body = (await response.text()).split(PLACEHOLDER).join(bearer);
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    return new Response(body.length ? body : null, {
+      status: response.status,
+      headers,
+    });
+  };
+  const db = new DatabaseSync(':memory:');
+  const store = new ConnectorStore(db);
+  const authStore = new ConnectorAuthStore(db, Buffer.alloc(32, 9));
+  const service = new ConnectorOAuthService({
+    store: authStore,
+    publicOrigin: 'http://localhost:5173',
+    baseFetch: echoing,
+  });
+  const logs: string[] = [];
+  const registry = new ConnectorRegistry(store, {
+    allowStdio: false,
+    resultMaxChars: 20_000,
+    env: {},
+    oauth: service,
+    authInfo: (id) => ({ authorizedAt: authStore.get(id)?.authorizedAt }),
+    log: (line) => logs.push(line),
+    ...registryOptions,
+  });
+  cleanups.push(async () => {
+    await registry.stop();
+    db.close();
+  });
+  const add = (extra: Partial<ConnectorConfig> = {}) =>
+    store.create({
+      name: 'x',
+      transport: 'http',
+      url: fixture.mcpUrl,
+      auth: 'oauth',
+      ...extra,
+    });
+  /** begin, approve in the "browser", finish. */
+  async function authorize(connector: { id: string; url: string | null }) {
+    const url = await service.begin(connector);
+    if (!url) throw new Error('expected an authorization URL');
+    const approved = await fixture.approve(url);
+    await service.finish(hashState(approved.state ?? ''), approved.code ?? '');
+  }
+  return { fixture, store, authStore, service, registry, logs, add, authorize };
+}
+
+it('an oauth connector without tokens is needs_auth: no transport, no timer, no tools', async () => {
+  const transport = vi.fn<NonNullable<ConnectorRegistryOptions['transport']>>(
+    () => {
+      throw new Error('must not connect');
+    },
+  );
+  const { store, registry, add, logs } = oauthSetup({}, { transport });
+  const connector = add();
+  store.setGrant('dot1', connector.id, '*');
+
+  const status = await registry.status(connector.id);
+  expect(status).toEqual({ state: 'needs_auth', tools: [] });
+  expect(transport).not.toHaveBeenCalled();
+  expect(entryOf(registry, connector.id)?.timer).toBeUndefined();
+  expect(registry.toolsCached(connector.id)).toEqual([]);
+  expect(logs).toEqual([]);
+
+  expect(registry.view(connector.id)).toMatchObject({
+    auth: 'oauth',
+    status: { state: 'needs_auth', authorized: false },
+  });
+  const outcome = await registry.call(connector.id, 'get_issue', {});
+  expect(outcome).toMatchObject({
+    isError: true,
+    content: 'Error: The x connector needs to be connected in Settings.',
+  });
+  expect(transport).not.toHaveBeenCalled();
+});
+
+it('connects after authorization and lists the tools; the view reports authorized', async () => {
+  const transport = vi.fn<NonNullable<ConnectorRegistryOptions['transport']>>(
+    (connector, _resolved, authProvider) =>
+      new StreamableHTTPClientTransport(new URL(connector.url ?? ''), {
+        authProvider,
+        fetch: built.service.transportFetch,
+      }),
+  );
+  const built = oauthSetup({}, { transport });
+  const { registry, add, authorize, fixture } = built;
+  const connector = add({
+    headers: { Authorization: { literal: 'Bearer static-token-123' } },
+  });
+  expect((await registry.status(connector.id)).state).toBe('needs_auth');
+
+  await authorize(connector);
+  const status = await registry.reload(connector.id);
+
+  expect(status.state).toBe('connected');
+  expect(names(status.tools)).toEqual(['echo_secret', 'get_issue']);
+  expect(status.tools.map((tool) => tool.toolName).sort()).toEqual([
+    'mcp__x__echo_secret',
+    'mcp__x__get_issue',
+  ]);
+  // The seam gets the provider and flavour; a configured Authorization header is never sent.
+  expect(transport).toHaveBeenCalledOnce();
+  const [, resolved, provider, flavor] = transport.mock.calls[0];
+  expect(resolved.headers).toEqual({});
+  expect(provider?.redirectUrl).toContain('/api/connectors/oauth/callback');
+  expect(flavor).toBe('streamable');
+  expect(fixture.log.mcpAuthorized).toBeGreaterThan(0);
+
+  const view = registry.view(connector.id);
+  expect(view).toMatchObject({
+    auth: 'oauth',
+    status: { state: 'connected', authorized: true },
+  });
+  expect(view?.status.authorizedAt).toBeGreaterThan(0);
+  const outcome = await registry.call(connector.id, 'get_issue', {
+    number: 4,
+  });
+  expect(outcome.content).toBe('{"number":4,"title":"Bug"}');
+});
+
+it('connects through the default transport with the real Streamable HTTP client', async () => {
+  const { registry, add, authorize, fixture } = oauthSetup();
+  const connector = add();
+  await authorize(connector);
+  const status = await registry.status(connector.id);
+  expect(status.state).toBe('connected');
+  expect(names(status.tools)).toEqual(['echo_secret', 'get_issue']);
+  expect(fixture.log.mcpAuthorized).toBeGreaterThan(0);
+});
+
+it('a 401 with a valid refresh token is absorbed by the transport', async () => {
+  const { registry, add, authorize, fixture } = oauthSetup();
+  const connector = add();
+  await authorize(connector);
+  expect((await registry.status(connector.id)).state).toBe('connected');
+
+  fixture.unauthorizedAfter(0);
+  const outcome = await registry.call(connector.id, 'get_issue', {
+    number: 1,
+  });
+
+  expect(outcome.isError).toBeUndefined();
+  expect(outcome.content).toBe('{"number":1,"title":"Bug"}');
+  expect(fixture.log.mcpRejected).toBe(1);
+  expect(fixture.log.token.map((entry) => entry.grantType)).toContain(
+    'refresh_token',
+  );
+  expect(registry.view(connector.id)?.status.state).toBe('connected');
+});
+
+it('a rejected refresh while connecting is needs_auth with no reconnect', async () => {
+  const { registry, add, authorize, fixture, logs, service } = oauthSetup();
+  const connector = add();
+  await authorize(connector);
+  expect((await registry.status(connector.id)).state).toBe('connected');
+
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  fixture.expireAccessTokens();
+  fixture.revokeRefreshTokens();
+  const status = await registry.reload(connector.id);
+
+  expect(status).toEqual({ state: 'needs_auth', tools: [] });
+  expect(service.hasTokens(connector.id)).toBe(false);
+  expect(entryOf(registry, connector.id)?.timer).toBeUndefined();
+  const attempts = fixture.log.token.length;
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(fixture.log.token).toHaveLength(attempts);
+  expect(logs).toContain('connector x: authorization required');
+  expect(registry.view(connector.id)?.status).toMatchObject({
+    state: 'needs_auth',
+    authorized: false,
+  });
+});
+
+it('a connect refused with UnauthorizedError logs without secrets and never backs off', async () => {
+  const transport = vi.fn<NonNullable<ConnectorRegistryOptions['transport']>>(
+    () => {
+      throw new UnauthorizedError('Authorization required');
+    },
+  );
+  const { registry, add, authorize, logs } = oauthSetup({}, { transport });
+  const connector = add();
+  await authorize(connector);
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+
+  const status = await registry.status(connector.id);
+
+  expect(status).toEqual({ state: 'needs_auth', tools: [] });
+  expect(logs).toContain('connector x: authorization required');
+  expect(entryOf(registry, connector.id)?.timer).toBeUndefined();
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(transport).toHaveBeenCalledOnce();
+});
+
+it('a tool list refresh that is refused becomes needs_auth', async () => {
+  const { registry, add, authorize, fixture, logs } = oauthSetup(
+    {},
+    { listTtlMs: 1 },
+  );
+  const connector = add();
+  await authorize(connector);
+  expect((await registry.status(connector.id)).state).toBe('connected');
+
+  fixture.expireAccessTokens();
+  fixture.revokeRefreshTokens();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const status = await registry.status(connector.id);
+
+  expect(status.state).toBe('needs_auth');
+  expect(entryOf(registry, connector.id)?.timer).toBeUndefined();
+  expect(logs).toContain('connector x: authorization required');
+});
+
+it('call() after the tokens were revoked answers with the needs_auth message and does not throw', async () => {
+  const { registry, add, authorize, fixture, logs } = oauthSetup();
+  const connector = add();
+  await authorize(connector);
+  expect((await registry.status(connector.id)).state).toBe('connected');
+
+  fixture.expireAccessTokens();
+  fixture.revokeRefreshTokens();
+  const outcome = await registry.call(connector.id, 'get_issue', {
+    number: 2,
+  });
+
+  expect(outcome).toMatchObject({
+    connector: 'x',
+    isError: true,
+    content: 'Error: The x connector needs to be connected in Settings.',
+  });
+  expect(registry.view(connector.id)?.status.state).toBe('needs_auth');
+  expect(registry.toolsCached(connector.id)).toEqual([]);
+  expect(entryOf(registry, connector.id)?.timer).toBeUndefined();
+  expect(logs).toContain('connector x: authorization required');
+  // Still no connection attempts afterwards.
+  const rejected = fixture.log.mcpRejected;
+  await registry.call(connector.id, 'get_issue', { number: 2 });
+  expect(fixture.log.mcpRejected).toBe(rejected);
+});
+
+it('redacts the access token when a tool returns it', async () => {
+  const { registry, add, authorize, service } = oauthSetup(
+    {},
+    { echoToken: true },
+  );
+  const connector = add();
+  await authorize(connector);
+
+  const outcome = await registry.call(connector.id, 'echo_secret', {});
+
+  const [token] = service.secrets();
+  expect(token).toBeTruthy();
+  expect(outcome.content).toBe('[redacted]');
+  expect(registry.secrets()).toEqual(expect.arrayContaining(service.secrets()));
+  expect(registry.redact(`bearer ${token}`)).toBe('bearer [redacted]');
+  expect(JSON.stringify(registry.views())).not.toContain(token);
+});
+
+it('falls back to SSE after a 404/405 on the Streamable HTTP probe and remembers it for reconnects', async () => {
+  const flavors: unknown[] = [];
+  const holder: { fixture?: ReturnType<typeof createMcpFixture> } = {};
+  const { registry, add, store, fixture } = setup({
+    transport: (connector, _resolved, _provider, flavor) => {
+      flavors.push(flavor);
+      if (flavor !== 'sse')
+        throw new StreamableHTTPError(405, 'Method Not Allowed');
+      return holder.fixture!.transport(connector);
+    },
+  });
+  holder.fixture = fixture;
+  const fix = add('legacy');
+  store.setGrant('dot1', fix.id, '*');
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+
+  expect((await registry.status(fix.id)).state).toBe('connected');
+  expect(flavors).toEqual(['streamable', 'sse']);
+  expect(entryOf(registry, fix.id)?.flavor).toBe('sse');
+
+  // The server goes away: the reconnect goes straight to SSE.
+  await fixture.servers[0].close();
+  await vi.advanceTimersByTimeAsync(1500);
+  expect((await registry.status(fix.id)).state).toBe('connected');
+  expect(flavors).toEqual(['streamable', 'sse', 'sse']);
+});
+
+it('does not try SSE for other failures', async () => {
+  const flavors: unknown[] = [];
+  const { registry, add } = setup({
+    transport: (_connector, _resolved, _provider, flavor) => {
+      flavors.push(flavor);
+      throw new StreamableHTTPError(500, 'broken');
+    },
+  });
+  const fix = add('a');
+  expect((await registry.status(fix.id)).state).toBe('error');
+  expect(flavors).toEqual(['streamable']);
+});
+
+it('tries SSE only once when it fails too', async () => {
+  const flavors: unknown[] = [];
+  const { registry, add } = setup({
+    transport: (_connector, _resolved, _provider, flavor) => {
+      flavors.push(flavor);
+      throw new StreamableHTTPError(404, 'not here');
+    },
+  });
+  const fix = add('b');
+  expect((await registry.status(fix.id)).state).toBe('error');
+  expect(flavors).toEqual(['streamable', 'sse']);
 });

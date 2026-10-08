@@ -488,13 +488,13 @@ it('shows the status of an approval from its live row', () => {
     />,
   );
   expect(blocks(html)).toBe(0);
-  expect(html).toContain('(advisory)');
+  expect(html).toContain('>Advisory<');
   expect(html).toContain('Denied');
   expect(html).toContain('Not today');
   expect(html).not.toContain('>Approve<');
 });
 
-it('renders a handoff result as a card with a View live button', () => {
+it('renders a handoff result as a card with an Open live computer button', () => {
   const messages: Message[] = [
     { id: 'request', role: 'user', content: 'Sign in' },
     {
@@ -517,9 +517,10 @@ it('renders a handoff result as a card with a View live button', () => {
       onViewComputer={() => {}}
     />,
   );
-  expect(html).toContain('Your turn on the computer: Enter your password');
+  expect(html).toContain('Your turn on the computer');
+  expect(html).toContain('Enter your password');
   expect(html).toContain('never paste it into the chat');
-  expect(html).toContain('>View live</button>');
+  expect(html).toContain('Open live computer');
 });
 
 it('folds connector tool calls into the activity block with a connector label', () => {

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/server/app.js';
 import { Store } from '../src/server/store.js';
 import { Runner } from '../src/server/runner.js';
+import { Platform } from '../src/server/platform.js';
+import { WorkspaceStore } from '../src/server/workspace.js';
 import type { Config } from '../src/server/research.js';
 const stores: Store[] = [];
 const config: Config = { mode: 'sample', baseUrl: 'https://api.openai.com/v1' };
@@ -20,7 +22,107 @@ const json = (body: unknown) => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
-afterEach(() => stores.splice(0).forEach((store) => store.close()));
+const cleanups: (() => void)[] = [];
+afterEach(() => {
+  stores.splice(0).forEach((store) => store.close());
+  cleanups.splice(0).forEach((cleanup) => cleanup());
+});
+describe('OAuth callback exemption', () => {
+  const callback = '/api/connectors/oauth/callback';
+  const crossSite = { 'Sec-Fetch-Site': 'cross-site' };
+  const withPlatform = (token?: string, origin?: string) => {
+    const store = new Store(':memory:');
+    const workspace = new WorkspaceStore(':memory:', 'owner');
+    cleanups.push(() => {
+      store.close();
+      workspace.close();
+    });
+    const platform = new Platform(store, workspace, {
+      baseUrl: config.baseUrl,
+      voiceName: 'marin',
+      publicOrigin: 'http://127.0.0.1:5173',
+    });
+    return createApp({
+      store,
+      runner: new Runner(store, config),
+      config,
+      ownerToken: token,
+      origin,
+      platform,
+    });
+  };
+
+  it('serves the callback page to a token-less GET when an owner token is set', async () => {
+    const app = withPlatform('private-token');
+    const response = await app.request(callback);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toContain('expired or was already used');
+  });
+
+  it('is exact: other methods, paths and the connector list stay protected', async () => {
+    const app = withPlatform('private-token');
+    const post = await app.request(callback, json({}));
+    expect(post.status).toBe(401);
+    expect((await app.request(callback, { method: 'DELETE' })).status).toBe(
+      401,
+    );
+    expect((await app.request(`${callback}x`)).status).toBe(401);
+    expect((await app.request(`${callback}/`)).status).toBe(401);
+    expect((await app.request('/api/connectors')).status).toBe(401);
+    expect((await app.request('/api/connectors/oauth')).status).toBe(401);
+    expect(
+      (
+        await app.request('/api/connectors', {
+          headers: { Authorization: 'Bearer private-token' },
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it('allows a cross-site navigation to the callback only', async () => {
+    for (const token of ['private-token', undefined]) {
+      const app = withPlatform(token);
+      expect((await app.request(callback, { headers: crossSite })).status).toBe(
+        200,
+      );
+      expect(
+        (
+          await app.request('/api/connectors', {
+            headers: {
+              ...crossSite,
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await app.request(callback, {
+            ...json({}),
+            headers: { ...crossSite, 'Content-Type': 'application/json' },
+          })
+        ).status,
+      ).toBe(403);
+    }
+  });
+
+  it('keeps the origin and host checks on the callback', async () => {
+    const app = withPlatform('private-token');
+    expect(
+      (
+        await app.request(callback, {
+          headers: { Origin: 'https://evil.example' },
+        })
+      ).status,
+    ).toBe(403);
+    const local = withPlatform();
+    expect((await local.request(`http://evil.example${callback}`)).status).toBe(
+      403,
+    );
+  });
+});
 describe('API boundaries', () => {
   it('requires owner token for state and mutations when configured', async () => {
     const { app } = fixture('private-token');

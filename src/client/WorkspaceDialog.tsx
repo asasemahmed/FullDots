@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
+import { Info, Plug, Settings2, X, type LucideIcon } from 'lucide-react';
 import { api } from './api';
 import { ConnectorsSettings } from './ConnectorsSettings';
 import {
@@ -19,9 +24,81 @@ import type {
 export type Dialog =
   | { type: 'space' }
   | { type: 'dot'; dot?: Dot; spaceId: string }
-  | { type: 'settings' }
+  | { type: 'settings'; tab?: SettingsTab }
   | { type: 'memory'; memory?: Memory }
   | { type: 'schedule'; threadId: string };
+export type SettingsTab = 'general' | 'connectors' | 'about';
+const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
+  { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'connectors', label: 'Connectors', icon: Plug },
+  { id: 'about', label: 'About', icon: Info },
+];
+const TAB_STORAGE_KEY = 'fulldots-settings-tab';
+/** The tab used last time; storage can be missing or blocked, so every access is guarded. */
+export function readStoredTab(): SettingsTab {
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (SETTINGS_TABS.some((item) => item.id === stored))
+      return stored as SettingsTab;
+  } catch {
+    /* private window or blocked storage */
+  }
+  return 'general';
+}
+function storeTab(tab: SettingsTab) {
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The two workspace-wide permission switches, shared by the Dot form and Settings. */
+function PermissionRows({
+  research,
+  memory,
+  onResearch,
+  onMemory,
+}: {
+  research: boolean;
+  memory: boolean;
+  onResearch: (value: boolean) => void;
+  onMemory: (value: boolean) => void;
+}) {
+  return (
+    <>
+      <label className="permission-row">
+        <input
+          type="checkbox"
+          checked={research}
+          onChange={(e) => onResearch(e.target.checked)}
+        />
+        <span>
+          <strong>Public-page research</strong>
+          <small>
+            Allow the server-side read-only browser tool. Global settings always
+            take precedence.
+          </small>
+        </span>
+      </label>
+      <label className="permission-row">
+        <input
+          type="checkbox"
+          checked={memory}
+          onChange={(e) => onMemory(e.target.checked)}
+        />
+        <span>
+          <strong>Use saved memories</strong>
+          <small>
+            Include your preferences in new turns. Changing permission stops
+            active work.
+          </small>
+        </span>
+      </label>
+    </>
+  );
+}
+
 export function WorkspaceDialog({
   dialog,
   state,
@@ -118,6 +195,36 @@ export function WorkspaceDialog({
   }, [dialog.type]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState<SettingsTab>(() =>
+    dialog.type === 'settings' && dialog.tab ? dialog.tab : readStoredTab(),
+  );
+  // The connectors tab mounts on first visit and then stays, so a sign-in in
+  // progress survives a tab switch.
+  const [connectorsSeen, setConnectorsSeen] = useState(tab === 'connectors');
+  const selectTab = (next: SettingsTab) => {
+    setTab(next);
+    if (next === 'connectors') setConnectorsSeen(true);
+    storeTab(next);
+  };
+  const onTabKeyDown = (event: ReactKeyboardEvent) => {
+    const step =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? -1
+          : 0;
+    const count = SETTINGS_TABS.length;
+    const current = SETTINGS_TABS.findIndex((item) => item.id === tab);
+    let index: number;
+    if (step) index = (current + step + count) % count;
+    else if (event.key === 'Home') index = 0;
+    else if (event.key === 'End') index = count - 1;
+    else return;
+    event.preventDefault();
+    const next = SETTINGS_TABS[index]!.id;
+    selectTab(next);
+    document.getElementById(`settings-tab-${next}`)?.focus();
+  };
   const container = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous =
@@ -158,14 +265,16 @@ export function WorkspaceDialog({
           ? 'Make this Dot yours.'
           : 'Meet your next specialist.'
         : dialog.type === 'settings'
-          ? 'Your workspace, your rules.'
+          ? 'Settings'
           : dialog.type === 'memory'
             ? 'Something to remember.'
             : 'Let your Dot keep time.';
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <section
-        className="modal"
+        className={
+          dialog.type === 'settings' ? 'modal modal-settings' : 'modal'
+        }
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
@@ -179,9 +288,10 @@ export function WorkspaceDialog({
         >
           <X size={18} />
         </button>
-        <span className="eyebrow">OPENDOTS TEMPLATE</span>
+        <span className="eyebrow">FULLDOTS</span>
         <h2 id="dialog-title">{title}</h2>
         <form
+          className={dialog.type === 'settings' ? 'ss-form' : undefined}
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -390,37 +500,13 @@ export function WorkspaceDialog({
               </select>
             </fieldset>
           )}
-          {(dialog.type === 'dot' || dialog.type === 'settings') && (
-            <>
-              <label className="permission-row">
-                <input
-                  type="checkbox"
-                  checked={research}
-                  onChange={(e) => setResearch(e.target.checked)}
-                />
-                <span>
-                  <strong>Public-page research</strong>
-                  <small>
-                    Allow the server-side read-only browser tool. Global
-                    settings always take precedence.
-                  </small>
-                </span>
-              </label>
-              <label className="permission-row">
-                <input
-                  type="checkbox"
-                  checked={memory}
-                  onChange={(e) => setMemory(e.target.checked)}
-                />
-                <span>
-                  <strong>Use saved memories</strong>
-                  <small>
-                    Include your preferences in new turns. Changing permission
-                    stops active work.
-                  </small>
-                </span>
-              </label>
-            </>
+          {dialog.type === 'dot' && (
+            <PermissionRows
+              research={research}
+              memory={memory}
+              onResearch={setResearch}
+              onMemory={setMemory}
+            />
           )}
           {dialog.type === 'schedule' && (
             <>
@@ -444,54 +530,101 @@ export function WorkspaceDialog({
             </>
           )}
           {dialog.type === 'settings' && (
-            <div className="config-note">
-              <strong>Service setup</strong>
-              <p>
-                {workspace.setup.missing.length
-                  ? `Add ${workspace.setup.missing.join(', ')} to the server environment, then restart.`
-                  : 'Text configuration is present. A successful conversation confirms connectivity.'}
-              </p>
-              <p>
-                Web search: {workspace.setup.search ? 'on' : 'off'}. Page
-                reader: {workspace.setup.browser ? 'on' : 'off'}. Voice:{' '}
-                {workspace.setup.voice
-                  ? 'configuration present'
-                  : 'needs VOICE_API_KEY and VOICE_MODEL'}
-                .
-              </p>
-              <a
-                href="https://github.com/asasemahmed/FullDots/blob/main/docs/SETUP.md"
-                target="_blank"
-                rel="noreferrer"
+            <div className="ss-shell">
+              <div
+                className="ss-tabs"
+                role="tablist"
+                aria-label="Settings"
+                aria-orientation="vertical"
+                onKeyDown={onTabKeyDown}
               >
-                Template setup guide ↗
-              </a>
-            </div>
-          )}
-          {dialog.type === 'settings' && (
-            <div className="config-note">
-              <strong>Connectors</strong>
-              <p>
-                Let Dots use other services through MCP servers. Secrets stay in
-                the server environment; nothing secret is stored here.
-              </p>
-              <ConnectorsSettings />
-            </div>
-          )}
-          {dialog.type === 'settings' && (
-            <div className="config-note">
-              <strong>About</strong>
-              <p>
-                FullDots is an open source template <span>v0.1</span>. Fork it
-                and make it your own.
-              </p>
-              <a
-                href="https://github.com/asasemahmed/FullDots"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Make it your own ↗
-              </a>
+                {SETTINGS_TABS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    className="ss-tab"
+                    id={`settings-tab-${item.id}`}
+                    aria-selected={tab === item.id}
+                    aria-controls={`settings-panel-${item.id}`}
+                    tabIndex={tab === item.id ? 0 : -1}
+                    onClick={() => selectTab(item.id)}
+                  >
+                    <item.icon size={17} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="ss-panels">
+                <div
+                  className="ss-panel"
+                  role="tabpanel"
+                  id="settings-panel-general"
+                  aria-labelledby="settings-tab-general"
+                  hidden={tab !== 'general'}
+                >
+                  <PermissionRows
+                    research={research}
+                    memory={memory}
+                    onResearch={setResearch}
+                    onMemory={setMemory}
+                  />
+                  <div className="config-note">
+                    <strong>Service setup</strong>
+                    <p>
+                      {workspace.setup.missing.length
+                        ? `Add ${workspace.setup.missing.join(', ')} to the server environment, then restart.`
+                        : 'Text configuration is present. A successful conversation confirms connectivity.'}
+                    </p>
+                    <p>
+                      Web search: {workspace.setup.search ? 'on' : 'off'}. Page
+                      reader: {workspace.setup.browser ? 'on' : 'off'}. Voice:{' '}
+                      {workspace.setup.voice
+                        ? 'configuration present'
+                        : 'needs VOICE_API_KEY and VOICE_MODEL'}
+                      .
+                    </p>
+                    <a
+                      href="https://github.com/asasemahmed/FullDots/blob/main/docs/SETUP.md"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Template setup guide ↗
+                    </a>
+                  </div>
+                </div>
+                <div
+                  className="ss-panel ss-panel-connectors"
+                  role="tabpanel"
+                  id="settings-panel-connectors"
+                  aria-labelledby="settings-tab-connectors"
+                  hidden={tab !== 'connectors'}
+                >
+                  {connectorsSeen && <ConnectorsSettings />}
+                </div>
+                <div
+                  className="ss-panel"
+                  role="tabpanel"
+                  id="settings-panel-about"
+                  aria-labelledby="settings-tab-about"
+                  hidden={tab !== 'about'}
+                >
+                  <div className="config-note">
+                    <strong>About</strong>
+                    <p>
+                      FullDots is an open source template <span>v0.1</span>.
+                      Fork it and make it your own.
+                    </p>
+                    <a
+                      href="https://github.com/asasemahmed/FullDots"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Make it your own ↗
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           {dialog.type === 'memory' && (
@@ -505,9 +638,11 @@ export function WorkspaceDialog({
               {error}
             </p>
           )}
-          <button className="primary full" disabled={busy}>
-            {busy ? 'Saving…' : 'Save'}
-          </button>
+          {(dialog.type !== 'settings' || tab === 'general') && (
+            <button className="primary full" disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          )}
         </form>
       </section>
     </div>

@@ -1,0 +1,620 @@
+/* Approval and handoff cards (chat) and the Approvals page.
+   Surfaces are white on a soft page, ink text, one calm accent per state:
+   amber waiting, green done, red denied, grey expired. */
+
+.approval-card,
+.approvals-view {
+  --ap-ink: #242424;
+  --ap-muted: #707070;
+  --ap-line: #e7e7e7;
+  --ap-soft: #f6f6f5;
+  --ap-amber: #b7791f;
+  --ap-amber-bg: #fdf6e7;
+  --ap-green: #2f7d4f;
+  --ap-green-bg: #eaf6ef;
+  --ap-red: #b42318;
+  --ap-red-bg: #fdecea;
+  --ap-grey-bg: #efefed;
+}
+
+/* ---- Card ---------------------------------------------------------- */
+
+.approval-card {
+  align-self: stretch;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 720px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--ap-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 6px 18px rgba(0, 0, 0, 0.04);
+  color: var(--ap-ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+  list-style: none;
+}
+.approval-card.is-pending,
+.approval-card.is-handoff {
+  border-color: #eadfc4;
+}
+.approval-card.is-denied,
+.approval-card.is-expired {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.approval-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.approval-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.approval-title strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.approval-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  color: var(--ap-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.approval-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Icon tile */
+.approval-tile {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--ap-soft);
+  color: var(--ap-ink);
+}
+.approval-tile.is-pending {
+  background: var(--ap-amber-bg);
+  color: var(--ap-amber);
+}
+.approval-tile.is-done {
+  background: var(--ap-green-bg);
+  color: var(--ap-green);
+}
+.approval-tile.is-denied {
+  background: var(--ap-red-bg);
+  color: var(--ap-red);
+}
+.approval-tile.is-expired {
+  background: var(--ap-grey-bg);
+  color: var(--ap-muted);
+}
+.approval-tile.is-handoff {
+  background: var(--ap-soft);
+  color: var(--ap-ink);
+  box-shadow: inset 0 0 0 1px var(--ap-line);
+}
+
+/* Chips */
+.approval-badge,
+.approval-advisory,
+.approval-kind {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--ap-grey-bg);
+  color: var(--ap-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.approval-badge.is-pending {
+  background: var(--ap-amber-bg);
+  color: var(--ap-amber);
+}
+.approval-badge.is-done {
+  background: var(--ap-green-bg);
+  color: var(--ap-green);
+}
+.approval-badge.is-denied {
+  background: var(--ap-red-bg);
+  color: var(--ap-red);
+}
+.approval-badge.is-expired {
+  background: var(--ap-grey-bg);
+  color: var(--ap-muted);
+}
+.approval-advisory {
+  background: var(--ap-soft);
+  box-shadow: inset 0 0 0 1px var(--ap-line);
+  cursor: help;
+  font-weight: 500;
+}
+.approval-kind {
+  background: var(--ap-soft);
+  box-shadow: inset 0 0 0 1px var(--ap-line);
+  font-weight: 500;
+}
+.approval-title .approval-advisory {
+  margin-top: 2px;
+}
+
+/* ---- Body ---------------------------------------------------------- */
+
+.approval-parts {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+.approval-parts dt {
+  margin: 0 0 4px;
+  color: var(--ap-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.approval-parts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.approval-summary {
+  color: var(--ap-ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.approval-none {
+  color: var(--ap-muted);
+}
+
+.approval-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--ap-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.approval-connector .connector-logo {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.approval-exact {
+  max-height: 240px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: var(--ap-soft);
+  box-shadow: inset 0 0 0 1px #eeeeec;
+  color: var(--ap-ink);
+  font:
+    12.5px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.approval-exact.inline {
+  display: block;
+}
+
+.approval-reason {
+  margin: 0;
+  color: var(--ap-ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.approval-hint,
+.approval-note {
+  margin: 12px 0 0;
+  color: var(--ap-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.approval-reason + .approval-hint {
+  margin-top: 6px;
+}
+.approval-note {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--ap-soft);
+  color: var(--ap-ink);
+}
+
+/* ---- Footer and buttons ------------------------------------------- */
+
+.approval-decision {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.approval-note-field {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+.approval-note-label {
+  color: var(--ap-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.approval-card .approval-note-field textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px 24px;
+  border: 1px solid var(--ap-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.approval-card .approval-note-field textarea::placeholder {
+  color: #a3a3a3;
+}
+.approval-card .approval-note-field textarea:focus {
+  border-color: var(--ap-ink);
+}
+.approval-counter {
+  position: absolute;
+  right: 12px;
+  bottom: 7px;
+  color: #a3a3a3;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.approval-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.approval-reason + .approval-hint + .approval-footer,
+.approval-hint + .approval-footer {
+  margin-top: 14px;
+}
+.approval-decision .approval-footer {
+  padding-top: 12px;
+  border-top: 1px solid #efefed;
+}
+.approval-footer-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  min-width: 0;
+}
+.approval-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.approval-card .approval-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 16px;
+  border: 1px solid var(--ap-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ap-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.approval-card .approval-btn.is-secondary:hover:not(:disabled) {
+  border-color: #d4d4d2;
+  background: var(--ap-soft);
+}
+.approval-card .approval-btn.is-primary {
+  border-color: var(--ap-ink);
+  background: var(--ap-ink);
+  color: #fff;
+}
+.approval-card .approval-btn.is-primary:hover:not(:disabled) {
+  border-color: #000;
+  background: #000;
+}
+.approval-card .approval-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.approval-card .approval-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ap-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition:
+    color 0.15s,
+    text-decoration-color 0.15s;
+}
+.approval-card .approval-link.has-icon {
+  text-decoration: none;
+}
+.approval-card .approval-link:hover:not(:disabled) {
+  background: none;
+  color: var(--ap-ink);
+  text-decoration-color: currentcolor;
+}
+.approval-parts .approval-link {
+  margin-top: 6px;
+}
+
+.approval-card button:focus-visible {
+  outline: 2px solid var(--ap-ink);
+  outline-offset: 2px;
+}
+.approval-card button:active:not(:disabled) {
+  transform: none;
+}
+
+.approval-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--ap-red-bg);
+  color: var(--ap-red);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.approval-spin {
+  animation: approval-spin 0.9s linear infinite;
+}
+@keyframes approval-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .approval-spin {
+    animation-duration: 2.4s;
+  }
+  .approval-card .approval-btn,
+  .approval-card .approval-link {
+    transition: none;
+  }
+}
+
+/* ---- Approvals page ------------------------------------------------ */
+
+main.approvals-view {
+  max-width: 820px;
+  color: var(--ap-ink);
+}
+.approvals-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 28px;
+}
+.approvals-header h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.approvals-header p {
+  margin: 0;
+  color: var(--ap-muted);
+  font-size: 14px;
+}
+.approvals-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.approvals-section + .approvals-section {
+  margin-top: 32px;
+}
+.approvals-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.approvals-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ap-grey-bg);
+  color: var(--ap-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.approvals-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.approvals-view .approval-card {
+  max-width: none;
+}
+
+/* Empty state */
+.approvals-empty {
+  display: grid;
+  justify-items: center;
+  max-width: 420px;
+  margin: 56px auto 0;
+  text-align: center;
+}
+.approvals-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 22px;
+  border-radius: 50%;
+  background: var(--ap-green-bg);
+  box-shadow: 0 0 0 12px #f4faf6;
+  color: var(--ap-green);
+}
+.approvals-empty h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.approvals-empty p {
+  max-width: 340px;
+  margin: 0;
+  color: var(--ap-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Recently decided */
+.approvals-recent {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ap-line);
+  border-radius: 14px;
+  background: #fff;
+  list-style: none;
+}
+.approvals-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  color: var(--ap-muted);
+  font-size: 13px;
+}
+.approvals-recent-row + .approvals-recent-row {
+  border-top: 1px solid #efefed;
+}
+.approvals-recent-row .approval-tile {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.approvals-recent-row .approval-tile svg {
+  width: 15px;
+  height: 15px;
+}
+.approvals-recent-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.approvals-recent-summary {
+  overflow: hidden;
+  color: var(--ap-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.approvals-recent-text .approval-meta {
+  font-size: 12px;
+}
+
+/* ---- Small screens: one column ------------------------------------ */
+
+@media (max-width: 640px) {
+  .approval-card {
+    padding: 14px;
+  }
+  .approval-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .approval-head .approval-title {
+    flex: 1 1 calc(100% - 100px);
+  }
+  .approval-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .approval-footer-start {
+    justify-content: flex-start;
+  }
+  .approval-buttons {
+    margin-left: 0;
+  }
+  .approval-buttons .approval-btn {
+    flex: 1 1 0;
+  }
+  .approvals-header h1 {
+    font-size: 26px;
+  }
+  .approvals-empty {
+    margin-top: 32px;
+  }
+  .approvals-recent-row {
+    flex-wrap: wrap;
+  }
+}

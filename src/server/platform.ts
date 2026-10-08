@@ -15,6 +15,7 @@ import { validateRuntimeScope } from './runtime-scope.js';
 import { SqliteAgentRunner } from './sqlite-runner.js';
 import { TurnRegistry } from './turn-registry.js';
 import { ConnectorRegistry } from './connectors.js';
+import { ConnectorOAuthService } from './connector-oauth.js';
 import { ResumeQueue } from './resume-queue.js';
 import { ApprovalService } from './approval-service.js';
 import { HandoffService } from './handoff-service.js';
@@ -28,6 +29,8 @@ export class Platform {
   readonly runner: SqliteAgentRunner;
   readonly handler: CopilotHonoApp;
   readonly connectors: ConnectorRegistry;
+  /** Browser sign-in for connectors; tokens live encrypted in workspace.connectorAuth. */
+  readonly oauth: ConnectorOAuthService;
   readonly resumes: ResumeQueue;
   readonly approvals: ApprovalService;
   readonly handoffs: HandoffService;
@@ -48,7 +51,17 @@ export class Platform {
       waitingHandoffDots: () => workspace.handoffs.waitingDotIds(),
     });
     this.computers.setHandoffs(workspace.handoffs);
+    this.oauth = new ConnectorOAuthService({
+      store: workspace.connectorAuth,
+      publicOrigin: config.publicOrigin ?? 'http://127.0.0.1:4310',
+      serverUrlFor: (id) => workspace.connectors.get(id)?.url,
+    });
     this.connectors = new ConnectorRegistry(workspace.connectors, {
+      oauth: this.oauth,
+      authInfo: (id) => {
+        const record = workspace.connectorAuth.get(id);
+        return record ? { authorizedAt: record.authorizedAt } : undefined;
+      },
       allowStdio: !!config.connectorsAllowStdio,
       resultMaxChars: config.connectorResultMaxChars ?? 20_000,
     });

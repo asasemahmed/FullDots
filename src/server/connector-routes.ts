@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { validateConnectorConfig } from '../shared/connector-config.js';
 import { connectorPresets } from '../shared/connector-presets.js';
 import type { Connector, ConnectorConfig } from '../shared/types.js';
+import type { ConnectorAuthStore } from './connector-auth-store.js';
 import type { ConnectorStore } from './connector-store.js';
 import type { ConnectorRegistry } from './connectors.js';
 import type { WorkspaceStore } from './workspace.js';
@@ -11,6 +12,8 @@ export interface ConnectorRoutesDeps {
   store: ConnectorStore;
   registry: ConnectorRegistry;
   workspace: Pick<WorkspaceStore, 'dot'>;
+  /** Changing a connector's url or auth drops its stored authorization. */
+  connectorAuth: Pick<ConnectorAuthStore, 'clear'>;
   allowStdio: boolean;
 }
 
@@ -28,6 +31,7 @@ const PATCHABLE = new Set([
   'callTimeoutMs',
   'enabled',
   'presetId',
+  'auth',
 ]);
 
 const toolName = z.string().min(1).max(200);
@@ -65,6 +69,7 @@ function configOf(connector: Connector): Record<string, unknown> {
     env: connector.env,
     callTimeoutMs: connector.callTimeoutMs,
     enabled: connector.enabled,
+    auth: connector.auth,
   };
   if (connector.url !== null) config.url = connector.url;
   if (connector.command !== null) config.command = connector.command;
@@ -83,7 +88,7 @@ const invalidMessage = (error: z.ZodError) =>
     .join('; ')}`.slice(0, 400);
 
 export function connectorRoutes(deps: ConnectorRoutesDeps) {
-  const { store, registry, workspace, allowStdio } = deps;
+  const { store, registry, workspace, connectorAuth, allowStdio } = deps;
   const app = new Hono();
 
   // Every body goes through the registry's redaction: no resolved secret leaves this module.
@@ -120,6 +125,11 @@ export function connectorRoutes(deps: ConnectorRoutesDeps) {
       200,
     ),
   );
+
+  app.get('/connectors/:id', (c) => {
+    const view = registry.view(c.req.param('id'));
+    return view ? send(c, view, 200) : fail(c, 404, 'Connector not found.');
+  });
 
   app.post('/connectors', async (c) => {
     const result = validateConnectorConfig(await readBody(c), { allowStdio });
@@ -184,6 +194,11 @@ export function connectorRoutes(deps: ConnectorRoutesDeps) {
         return fail(c, 400, error.message, [error.message], result.warnings);
       throw error;
     }
+    if (
+      ('url' in changes && changes.url !== existing.url) ||
+      ('auth' in changes && changes.auth !== existing.auth)
+    )
+      connectorAuth.clear(id, 'all');
     registry.invalidate(id);
     const view = registry.view(id);
     return send(

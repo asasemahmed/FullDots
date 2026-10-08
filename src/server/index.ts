@@ -9,6 +9,7 @@ import { Runner } from './runner.js';
 import { createApp } from './app.js';
 import { attachComputerStream, type UpgradeServer } from './computer-stream.js';
 import { WorkspaceStore } from './workspace.js';
+import { loadConnectorKey } from './connector-crypto.js';
 import { Platform } from './platform.js';
 import type { PlatformConfig } from './platform-config.js';
 import { TurnRegistry } from './turn-registry.js';
@@ -29,9 +30,15 @@ const appOrigin =
     : undefined);
 const database = process.env.DATABASE_PATH ?? 'data/opendots.sqlite';
 const store = new Store(database);
+// Fails fast on a malformed CONNECTOR_SECRET_KEY; otherwise reads or creates data/connector.key.
+const connectorKey = loadConnectorKey({
+  env: process.env,
+  databasePath: database,
+});
 const workspace = new WorkspaceStore(
   database,
   process.env.OWNER_ID ?? 'opendots-owner',
+  { connectorKey },
 );
 const config: PlatformConfig = {
   apiKey: process.env.OPENAI_API_KEY,

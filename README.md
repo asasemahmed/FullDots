@@ -107,7 +107,7 @@ This is a single-owner starting point. Shared editing, invitations, and file upl
 
 ### Connectors and approvals
 
-Connectors give a Dot tools from outside FullDots through the Model Context Protocol. Add one in **Settings → Connectors**, from a preset or as a custom server. Local programs (stdio) stay off until `CONNECTORS_ALLOW_STDIO=true`. Each Dot gets only the connector tools you grant it. Read-only tools are granted by default; tools that change data stay off until you tick them.
+Connectors give a Dot tools from outside FullDots through the Model Context Protocol. Add one in **Settings → Connectors**, from a preset or as a custom server. Most hosted presets sign in with your browser; others take a token from `.env`. Local programs (stdio) stay off until `CONNECTORS_ALLOW_STDIO=true`. Each Dot gets only the connector tools you grant it. Read-only tools are granted by default; tools that change data stay off until you tick them.
 
 By default, a Dot pauses before sensitive actions, such as sending, submitting, paying, or deleting, and before destructive shell commands. The **Approvals** setting on each Dot can ask before more actions. You approve the exact action shown on the card, once. When a page needs a password, a code, or a human check, the Dot hands the computer to you and stops. It never types those values.
 

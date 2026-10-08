@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type {
+  ConnectorAuth,
   ConnectorConfig,
   ConnectorValue,
   ConnectorValueView,
@@ -33,6 +34,37 @@ function httpUrl(value: string): boolean {
   }
 }
 
+function hasAuthorizationHeader(headers: ConnectorConfig['headers']): boolean {
+  return Object.keys(headers ?? {}).some(
+    (name) => name.toLowerCase() === 'authorization',
+  );
+}
+
+/**
+ * The auth mode of a config that does not name one: 'token' when an
+ * Authorization header is configured, else 'none'. Applied by
+ * validateConnectorConfig to the config it returns, so everything downstream
+ * of validation sees a concrete value. Stored rows that predate `auth` default
+ * to 'token' in the store.
+ */
+export function defaultAuth(
+  config: Pick<ConnectorConfig, 'auth' | 'headers'>,
+): ConnectorAuth {
+  return (
+    config.auth ?? (hasAuthorizationHeader(config.headers) ? 'token' : 'none')
+  );
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '::1' ||
+    /^127(\.\d{1,3}){3}$/.test(host)
+  );
+}
+
 export const connectorConfigSchema = z
   .object({
     name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9 _-]{0,39}$/),
@@ -50,6 +82,7 @@ export const connectorConfigSchema = z
     cwd: z.string().max(1024).optional(),
     headers: valueRecord.optional(),
     env: valueRecord.optional(),
+    auth: z.enum(['oauth', 'token', 'none']).optional(),
     callTimeoutMs: z.number().int().min(1000).max(600_000).default(30_000),
     enabled: z.boolean().default(true),
     presetId: z.string().nullable().optional(),
@@ -105,7 +138,10 @@ export function validateConnectorConfig(
     }
     return { config: input as ConnectorConfig, errors, warnings };
   }
-  const config: ConnectorConfig = parsed.data;
+  const config: ConnectorConfig = {
+    ...parsed.data,
+    auth: defaultAuth(parsed.data),
+  };
   if (config.transport === 'stdio' && !options.allowStdio)
     errors.push(
       'stdio connectors are off. Set CONNECTORS_ALLOW_STDIO=true on the server to allow a process on this host.',
@@ -114,6 +150,21 @@ export function validateConnectorConfig(
     errors.push('url: required for http connectors');
   if (config.transport === 'stdio' && !config.command)
     errors.push('command: required for stdio connectors');
+  if (config.auth === 'oauth') {
+    if (config.transport === 'stdio')
+      errors.push('auth: browser authorization needs an http connector');
+    if (hasAuthorizationHeader(config.headers))
+      errors.push(
+        'Browser authorization sets the Authorization header itself; remove it or switch to token.',
+      );
+    if (config.url && httpUrl(config.url)) {
+      const url = new URL(config.url);
+      if (url.protocol === 'http:' && !isLoopbackHost(url.hostname))
+        warnings.push(
+          'url: this connector uses http, so authorization tokens would travel unencrypted. Use https.',
+        );
+    }
+  }
   for (const record of [config.headers, config.env])
     for (const [name, value] of Object.entries(record ?? {})) {
       if (!('literal' in value)) continue;

@@ -1,5 +1,7 @@
 import { computerRoutes } from './computer-routes.js';
 import { connectorRoutes } from './connector-routes.js';
+import { connectorAuthRoutes } from './connector-auth-routes.js';
+import { connectorPresets } from '../shared/connector-presets.js';
 import { approvalRoutes } from './approval-routes.js';
 import { turnRoutes } from './turn-routes.js';
 import { Hono } from 'hono';
@@ -54,13 +56,18 @@ export function createApp({
     ]);
     if (!ownerToken && !allowedHosts.has(requestUrl.hostname))
       return c.json({ error: 'Unrecognized host.' }, 403);
+    // The OAuth provider redirects the owner's browser here: a cross-site navigation that cannot
+    // carry a Bearer header. Exact method and path; the route only consumes a pending state.
+    const callback =
+      c.req.method === 'GET' &&
+      requestUrl.pathname === '/api/connectors/oauth/callback';
     const requestOrigin = c.req.header('origin');
     const expectedOrigin = origin ?? new URL(c.req.url).origin;
     if (requestOrigin && !originAllowed(requestOrigin, expectedOrigin))
       return c.json({ error: 'Cross-origin requests are not allowed.' }, 403);
-    if (c.req.header('sec-fetch-site') === 'cross-site')
+    if (!callback && c.req.header('sec-fetch-site') === 'cross-site')
       return c.json({ error: 'Cross-site requests are not allowed.' }, 403);
-    if (ownerToken) {
+    if (ownerToken && !callback) {
       const expected = Buffer.from(ownerToken);
       const supplied = Buffer.from(
         c.req.header('authorization')?.replace(/^Bearer /, '') ?? '',
@@ -104,7 +111,20 @@ export function createApp({
         store: platform.workspace.connectors,
         registry: platform.connectors,
         workspace: platform.workspace,
+        connectorAuth: platform.workspace.connectorAuth,
         allowStdio: !!platform.config.connectorsAllowStdio,
+      }),
+    );
+    app.route(
+      '/api',
+      connectorAuthRoutes({
+        store: platform.workspace.connectors,
+        registry: platform.connectors,
+        oauth: platform.oauth,
+        auth: platform.workspace.connectorAuth,
+        presets: connectorPresets,
+        publicOrigin:
+          platform.config.publicOrigin ?? origin ?? 'http://127.0.0.1:4310',
       }),
     );
     app.route(

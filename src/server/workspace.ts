@@ -1,5 +1,7 @@
 import { ApprovalStore } from './approval-store.js';
 import { ComputerStore } from './computer-store.js';
+import { ConnectorAuthStore } from './connector-auth-store.js';
+import { loadConnectorKey } from './connector-crypto.js';
 import { ConnectorStore } from './connector-store.js';
 import { HandoffStore } from './handoff-store.js';
 import { ResumeStore } from './resume-store.js';
@@ -23,12 +25,14 @@ export class WorkspaceStore {
   readonly pages: Pages;
   readonly computers: ComputerStore;
   readonly connectors: ConnectorStore;
+  readonly connectorAuth: ConnectorAuthStore;
   readonly approvals: ApprovalStore;
   readonly handoffs: HandoffStore;
   readonly resumes: ResumeStore;
   constructor(
     path: string,
     readonly ownerId: string,
+    options: { connectorKey?: Buffer } = {},
   ) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
@@ -69,6 +73,11 @@ export class WorkspaceStore {
     }
     this.computers = new ComputerStore(this.db);
     this.connectors = new ConnectorStore(this.db);
+    this.connectorAuth = new ConnectorAuthStore(
+      this.db,
+      options.connectorKey ??
+        loadConnectorKey({ env: process.env, databasePath: path }),
+    );
     this.approvals = new ApprovalStore(this.db);
     this.handoffs = new HandoffStore(this.db);
     this.resumes = new ResumeStore(this.db);
