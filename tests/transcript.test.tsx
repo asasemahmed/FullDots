@@ -5,6 +5,8 @@ import {
   isInternalVoiceReceipt,
 } from '../src/client/ChatTranscript';
 import { ComputerAutoOpen } from '../src/client/chat-turns';
+import { ComputerActivity } from '../src/client/ComputerActivity';
+import { describeComputerSteps } from '../src/client/ComputerToolCard';
 import type { Message } from '@ag-ui/core';
 it('keeps call receipts between the anchored message and later conversation turns', () => {
   const html = renderToStaticMarkup(
@@ -367,4 +369,202 @@ it('hides only marked receipt prompts while retaining summaries and prior unmark
   expect(html).toContain('Earlier unmarked receipt prompt');
   expect(html).toContain('Confirmed call summary');
   expect(html).toContain('My next question');
+});
+
+it('renders a server-started turn as an event line instead of the owner bubble', () => {
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[
+        {
+          id: 'task-turn',
+          role: 'user',
+          content: 'Check the inbox',
+          metadata: { source: 'task', ref: 't1' },
+        },
+      ]}
+      calls={[]}
+    />,
+  );
+  expect(html).toContain('chat-event');
+  expect(html).toContain('Scheduled task');
+  expect(html).toContain('Check the inbox');
+  expect(html).not.toContain('chat-bubble user');
+});
+
+it('keeps a plain user message rendered as the owner bubble', () => {
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={[{ id: 'typed', role: 'user', content: 'Hello there' }]}
+      calls={[]}
+    />,
+  );
+  expect(html).toContain('chat-bubble user');
+  expect(html).toContain('Hello there');
+  expect(html).not.toContain('chat-event');
+});
+
+it('draws the approval card after the activity block of the call it paused', () => {
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Clean up' },
+    {
+      id: 'run',
+      role: 'assistant',
+      content: 'I need your approval first.',
+      toolCalls: [toolCall('computer_exec', { command: 'rm -rf build' })],
+    },
+    toolResult('computer_exec', {
+      status: 'pending_approval',
+      approvalId: 'a1',
+      summary: 'Delete the folder',
+      exact: 'rm -rf build',
+    }),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+      onDecide={async () => {}}
+    />,
+  );
+  expect(blocks(html)).toBe(1);
+  expect(html.indexOf('chat-activity')).toBeLessThan(
+    html.indexOf('approval-card'),
+  );
+  expect(html).toMatch(/Dot(&#x27;|&apos;|')s description/);
+  expect(html).toContain('Delete the folder');
+  expect(html).toContain('Exact action');
+  expect(html).toContain('rm -rf build</pre>');
+  expect(html).toContain('>Approve<');
+  expect(html).toContain('>Deny<');
+  expect(html).toContain('Waiting for you');
+});
+
+it('shows the status of an approval from its live row', () => {
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Clean up' },
+    {
+      id: 'run',
+      role: 'assistant',
+      toolCalls: [toolCall('request_approval', {}, 'ask')],
+    },
+    toolResult('ask', {
+      status: 'pending_approval',
+      approvalId: 'a2',
+      summary: 'Send the email',
+      exact: '',
+      advisory: true,
+    }),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+      onDecide={async () => {}}
+      approvals={
+        new Map([
+          [
+            'a2',
+            {
+              id: 'a2',
+              threadId: 't',
+              dotId: 'd',
+              toolCallId: 'ask',
+              tool: 'request_approval',
+              argsHash: null,
+              summary: 'Send the email',
+              argsRedacted: '',
+              status: 'denied',
+              note: 'Not today',
+              createdAt: 1,
+              expiresAt: 2,
+              decidedAt: 1,
+              consumedAt: null,
+            },
+          ],
+        ])
+      }
+    />,
+  );
+  expect(blocks(html)).toBe(0);
+  expect(html).toContain('(advisory)');
+  expect(html).toContain('Denied');
+  expect(html).toContain('Not today');
+  expect(html).not.toContain('>Approve<');
+});
+
+it('renders a handoff result as a card with a View live button', () => {
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Sign in' },
+    {
+      id: 'run',
+      role: 'assistant',
+      toolCalls: [toolCall('computer_type', { ref: 'r1', text: 'x' })],
+    },
+    toolResult('computer_type', {
+      status: 'handoff',
+      handoffId: 'h1',
+      kind: 'credential',
+      reason: 'Enter your password',
+    }),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+      onViewComputer={() => {}}
+    />,
+  );
+  expect(html).toContain('Your turn on the computer: Enter your password');
+  expect(html).toContain('never paste it into the chat');
+  expect(html).toContain('>View live</button>');
+});
+
+it('folds connector tool calls into the activity block with a connector label', () => {
+  const messages: Message[] = [
+    { id: 'request', role: 'user', content: 'Check the issue' },
+    {
+      id: 'run',
+      role: 'assistant',
+      content: 'Done.',
+      toolCalls: [
+        toolCall('mcp__github__get_issue', { number: 4 }, 'issue'),
+        toolCall('computer_snapshot', {}, 'snap'),
+      ],
+    },
+    toolResult('issue', { content: 'Issue 4: crash on start' }),
+    toolResult('snap', { elements: [] }),
+  ];
+  const html = renderToStaticMarkup(
+    <ChatTranscript
+      messages={withoutResults(messages)}
+      allMessages={messages}
+      calls={[]}
+    />,
+  );
+  expect(blocks(html)).toBe(1);
+  expect(html).toContain('Used the computer');
+  expect(html).toContain('2 steps');
+  const open = renderToStaticMarkup(
+    <ComputerActivity
+      steps={describeComputerSteps(
+        [
+          {
+            id: 'issue',
+            name: 'mcp__github__get_issue',
+            arguments: '{"number":4}',
+          },
+        ],
+        new Map([['issue', JSON.stringify({ content: 'Issue 4: crash' })]]),
+        false,
+      )}
+      live={false}
+      dotName="Scout"
+      defaultExpanded
+    />,
+  );
+  expect(open).toContain('Using github');
+  expect(open).toContain('Issue 4: crash');
 });

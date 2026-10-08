@@ -4,7 +4,7 @@ import {
   LoaderCircle,
   MessageCircle,
 } from 'lucide-react';
-import type { Task } from '../shared/types';
+import type { Approval, Handoff, Task } from '../shared/types';
 import { Mascot } from './Mascot';
 export const relative = (value: number) => {
   const minutes = Math.floor((Date.now() - value) / 60000);
@@ -29,12 +29,37 @@ export function Status({ task }: { task: Task }) {
   );
 }
 
+/** A task as the server lists it: `threadId` is the conversation it runs in, when it has one. */
+export type ListedTask = Task & { threadId?: string | null };
+
+/** What the owner has to do before this task's conversation can go on. */
+export function taskWaits(
+  task: ListedTask,
+  approvals: Approval[],
+  handoffs: Handoff[],
+): string[] {
+  const threadId = task.threadId;
+  if (!threadId) return [];
+  return [
+    ...(approvals.some((a) => a.threadId === threadId && a.status === 'pending')
+      ? ['Waiting for your approval']
+      : []),
+    ...(handoffs.some((h) => h.threadId === threadId && h.status === 'waiting')
+      ? ['Waiting for you on the computer']
+      : []),
+  ];
+}
+
 export function TaskRow({
   task,
   onClick,
+  waits = [],
+  onWaitingClick,
 }: {
   task: Task;
   onClick: () => void;
+  waits?: string[];
+  onWaitingClick?: () => void;
 }) {
   return (
     <button className="task-row" onClick={onClick}>
@@ -55,6 +80,26 @@ export function TaskRow({
             : ''}
           {relative(task.updatedAt)}
         </span>
+        {waits.map((text) => (
+          <span
+            key={text}
+            className="task-wait"
+            role="link"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onWaitingClick?.();
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              event.stopPropagation();
+              onWaitingClick?.();
+            }}
+          >
+            {text}
+          </span>
+        ))}
       </div>
       <Status task={task} />
       <ChevronRight size={16} />

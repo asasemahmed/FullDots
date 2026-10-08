@@ -1,6 +1,7 @@
 import type { AbstractAgent, Message } from '@ag-ui/client';
 import { EventType, type RunAgentInput } from '@ag-ui/core';
 import { randomUUID } from 'node:crypto';
+import type { TurnMetadata } from '../shared/types.js';
 import { voiceReceiptMessagePrefix } from '../shared/voice-receipt.js';
 import type { SqliteAgentRunner } from './sqlite-runner.js';
 
@@ -22,7 +23,7 @@ export function runThreadTurn(
   threadId: string,
   prompt: string,
   signal: AbortSignal,
-  metadata?: Record<string, unknown>,
+  metadata?: TurnMetadata | Record<string, unknown>,
 ): Promise<string> {
   signal.throwIfAborted();
   const history = runner.getThreadMessages(threadId);

@@ -43,6 +43,14 @@ export class FakeComputer {
   failSnapshots = 0;
   /** The next N actions fail with HTTP 502. */
   failActions = 0;
+  /** The owner-control request, which outlives its end like the real computer's last request. */
+  request?: {
+    id: string;
+    status: 'waiting' | 'taken' | 'completed' | 'cancelled';
+  };
+  private requests = 0;
+  /** The next call to this path (for example '/control/cancel') fails with HTTP 500. */
+  failNext?: string;
 
   private count(path: string, body: unknown) {
     this.calls.push(path);
@@ -55,7 +63,32 @@ export class FakeComputer {
     this.title = page.title;
     this.elements = page.elements.map((element) => ({ ...element }));
   }
+  private controlState() {
+    return {
+      holder: this.holder,
+      requested: this.request?.status === 'waiting',
+      transitioning: false,
+      resumeSnapshotRequired: this.resumeSnapshotRequired,
+      request: this.request,
+    };
+  }
+  private requestError(message: string) {
+    return Response.json(
+      { error: message, controlRequestError: true },
+      { status: 409 },
+    );
+  }
   private gate(mutates: boolean): Response | undefined {
+    if (this.request?.status === 'waiting')
+      return Response.json(
+        {
+          error:
+            'A person has been asked to take control. Wait for them before acting.',
+          humanHasControl: true,
+          requestId: this.request.id,
+        },
+        { status: 409 },
+      );
     if (this.holder === 'human')
       return Response.json(
         {
@@ -98,6 +131,10 @@ export class FakeComputer {
     this.count(path.slice(1), body);
     const ref = typeof body.ref === 'string' ? body.ref : undefined;
     const typed = body as { ref?: string; snapshotId?: number };
+    if (this.failNext === path) {
+      this.failNext = undefined;
+      return Response.json({ error: 'The call failed.' }, { status: 500 });
+    }
     const acting = ['/navigate', '/click', '/type', '/key', '/scroll'];
     if (acting.includes(path) || path === '/exec' || path === '/files/write') {
       const refused = this.gate(acting.includes(path));
@@ -108,6 +145,54 @@ export class FakeComputer {
       }
     }
     switch (path) {
+      case '/control':
+        return Response.json(this.controlState());
+      case '/control/request': {
+        if (
+          !this.request ||
+          !['waiting', 'taken'].includes(this.request.status)
+        )
+          this.request = {
+            id: `request-${(this.requests += 1)}`,
+            status: 'waiting',
+          };
+        return Response.json(this.controlState());
+      }
+      case '/control/take': {
+        if (
+          this.request?.status !== 'waiting' ||
+          body.requestId !== this.request.id
+        )
+          return this.requestError('That request is no longer active.');
+        this.request.status = 'taken';
+        this.holder = 'human';
+        return Response.json(this.controlState());
+      }
+      case '/control/release': {
+        if (
+          this.holder !== 'human' ||
+          !this.request ||
+          body.requestId !== this.request.id ||
+          !['taken', 'cancelled'].includes(this.request.status)
+        )
+          return this.requestError(
+            'That request is no longer held by a person.',
+          );
+        this.request.status = 'completed';
+        this.holder = 'bot';
+        this.resumeSnapshotRequired = true;
+        return Response.json(this.controlState());
+      }
+      case '/control/cancel': {
+        if (
+          !this.request ||
+          body.requestId !== this.request.id ||
+          !['waiting', 'taken'].includes(this.request.status)
+        )
+          return this.requestError('That request is no longer active.');
+        this.request.status = 'cancelled';
+        return Response.json(this.controlState());
+      }
       case '/snapshot': {
         if (this.failSnapshots > 0) {
           this.failSnapshots -= 1;

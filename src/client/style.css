@@ -3274,3 +3274,269 @@ h3 {
   font-size: 14px;
   color: #c9e8dd;
 }
+
+/* connectors */
+.modal:has(.cn-root),
+.modal:has(.cn-grants) {
+  max-width: 600px;
+}
+.cn-root {
+  margin-top: 8px;
+}
+.cn-list,
+.cn-presets,
+.cn-values,
+.cn-problems,
+.cn-warnings {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.cn-row,
+.cn-preset {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  font-size: 11px;
+  color: var(--ink);
+}
+.cn-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cn-row-head strong {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink);
+}
+.cn-row-head button {
+  margin-left: auto;
+}
+.cn-transport,
+.cn-count {
+  font-size: 10px;
+  color: var(--muted);
+}
+.cn-count {
+  margin-left: auto;
+}
+.cn-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cn-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #f0f0f3;
+  color: #6f7280;
+}
+.cn-pill-ok {
+  background: #eaf4f0;
+  color: #4f8a7e;
+}
+.cn-pill-bad {
+  background: #faeee8;
+  color: #b1573f;
+}
+.cn-pill-warn {
+  background: #fbf3df;
+  color: #8f6f1f;
+}
+.cn-detail {
+  font-size: 10px;
+}
+.cn-detail-bad {
+  color: #b1573f;
+}
+.cn-detail-warn {
+  color: #8f6f1f;
+}
+.cn-values {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.cn-row code,
+.cn-preset code,
+.cn-fieldset code {
+  font-size: 10px;
+  background: var(--lavender);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.cn-set {
+  color: #4f8a7e;
+}
+.cn-unset {
+  color: #b1573f;
+}
+.cn-tools {
+  font-size: 10px;
+  margin: 6px 0;
+}
+.cn-tools ul {
+  list-style: none;
+  padding: 0 0 0 4px;
+  margin: 6px 0 0;
+}
+.cn-tag {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 9px;
+  background: var(--lavender);
+  color: var(--muted);
+}
+.cn-tag-destructive {
+  background: #faeee8;
+  color: #b1573f;
+}
+.cn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cn-actions button,
+.cn-row-head button,
+.cn-add button:not(.primary),
+.cn-fieldset button {
+  font-size: 10px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+}
+.cn-actions .primary {
+  padding: 6px 12px;
+  color: white;
+  border-color: #7689d3;
+}
+.cn-actions .cn-danger {
+  color: #b1573f;
+}
+.cn-add {
+  margin-top: 10px;
+}
+.cn-add > summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--blue-dark);
+}
+.cn-note {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 6px 0;
+}
+.cn-note-warn {
+  color: #8f6f1f;
+}
+.cn-form {
+  margin-top: 10px;
+}
+.cn-fieldset {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 14px 0;
+  padding: 10px 12px;
+}
+.cn-fieldset legend {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+.cn-value-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr) auto;
+  gap: 6px;
+  margin: 6px 0;
+}
+.cn-value-row input,
+.cn-value-row select {
+  padding: 7px 8px;
+}
+.cn-problems {
+  background: #faeee8;
+  color: #b1573f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.cn-warnings {
+  background: #fbf3df;
+  color: #8f6f1f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.cn-grants {
+  margin: 14px 0;
+}
+.cn-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 8px 0;
+  font-size: 11px;
+}
+.cn-check input {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  padding: 0;
+  accent-color: #8799d4;
+  flex-shrink: 0;
+}
+.cn-tool {
+  padding-left: 12px;
+}
+.cn-warn {
+  display: block;
+  font-size: 10px;
+  color: #8f6f1f;
+  margin-top: 2px;
+}
+.cn-approval-warning {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #b3261e;
+  background: #fdecea;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+@media (max-width: 520px) {
+  .cn-value-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.task-row > div > .task-wait {
+  display: inline-block;
+  margin: 6px 6px 0 0;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #f7f3eb;
+  color: #8d7a58;
+  font-size: 9px;
+  cursor: pointer;
+}
+.task-row > div > .task-wait:hover,
+.task-row > div > .task-wait:focus-visible {
+  background: #efe7d6;
+}

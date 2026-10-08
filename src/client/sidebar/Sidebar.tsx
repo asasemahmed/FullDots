@@ -15,6 +15,7 @@ import {
   Plus,
   Search,
   Settings2,
+  ShieldQuestion,
   SquarePen,
   X,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ import { MOBILE_QUERY, useMediaQuery, useStoredFlag } from './hooks';
 import { RowMenu } from './RowMenu';
 import '../sidebar.css';
 
-export type NavView = 'chat' | 'tasks' | 'memories' | 'space';
+export type NavView = 'chat' | 'tasks' | 'memories' | 'space' | 'approvals';
 
 export interface SidebarProps {
   workspace: WorkspaceState;
@@ -39,6 +40,8 @@ export interface SidebarProps {
   pageId?: string;
   taskCount: number;
   memoryCount: number;
+  /** Pending approvals plus waiting handoffs. */
+  approvalCount?: number;
   configured: boolean;
   /** Desktop slim icon-only mode. Ignored on phones, which use the drawer. */
   collapsed: boolean;
@@ -53,7 +56,7 @@ export interface SidebarProps {
   onRenameThread: (id: string, title: string) => Promise<boolean>;
   onDeleteThreads: (ids: string[]) => Promise<boolean>;
   onOpenPage: (spaceId: string, pageId?: string) => void;
-  onView: (view: 'tasks' | 'memories') => void;
+  onView: (view: 'tasks' | 'memories' | 'approvals') => void;
   onDialog: (dialog: Dialog) => void;
 }
 
@@ -120,6 +123,7 @@ export function Sidebar({
   pageId,
   taskCount,
   memoryCount,
+  approvalCount = 0,
   configured,
   collapsed: collapsedPreference,
   onToggleCollapsed,
@@ -417,6 +421,26 @@ export function Sidebar({
           onClick={() => onView('memories')}
         >
           <BookOpen size={17} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={`sb-icon sb-foot-button ${view === 'approvals' ? 'active' : ''}`}
+          aria-label={
+            approvalCount > 0 ? `Approvals (${approvalCount})` : 'Approvals'
+          }
+          title="Approvals"
+          aria-current={view === 'approvals' ? 'page' : undefined}
+          onClick={() => onView('approvals')}
+        >
+          <ShieldQuestion size={17} aria-hidden />
+          {approvalCount > 0 && (
+            <span
+              className="sb-badge"
+              aria-label={`${approvalCount} waiting for you`}
+            >
+              {approvalCount > 99 ? '99+' : approvalCount}
+            </span>
+          )}
         </button>
         <span className="sb-foot-gap" />
         <button

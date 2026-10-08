@@ -14,6 +14,7 @@ import type {
 } from '../shared/types.js';
 
 export type Claim = Task & { lease: string };
+const MAX_BOUND_EXCLUDES = 30_000;
 const defaults: Settings = {
   name: 'Dot',
   paused: false,
@@ -189,24 +190,47 @@ export class Store {
     );
     return this.task(id);
   }
-  claim(now = Date.now(), leaseMs = 180_000): Claim | null {
+  /**
+   * Claims the next due task. `excludeTaskIds` are skipped this tick: they are neither
+   * claimed nor lease-recovered (a task whose turn is live in this process keeps its row as is).
+   */
+  claim(
+    now = Date.now(),
+    leaseMs = 180_000,
+    excludeTaskIds: string[] = [],
+  ): Claim | null {
+    const excludedSet = new Set(excludeTaskIds);
+    // SQLite binds at most 32766 variables; a longer list is filtered in JS instead.
+    const bound = excludeTaskIds.length <= MAX_BOUND_EXCLUDES;
+    const notExcluded =
+      bound && excludeTaskIds.length
+        ? ` AND id NOT IN (${excludeTaskIds.map(() => '?').join(', ')})`
+        : '';
     return this.transaction(() => {
       const settings = this.settings();
       if (settings.paused || !settings.researchAllowed) return null;
-      const expired = this.db
-        .prepare("SELECT * FROM tasks WHERE status='running' AND leaseUntil<=?")
-        .all(now) as unknown as Task[];
+      const expired = (
+        this.db
+          .prepare(
+            "SELECT * FROM tasks WHERE status='running' AND leaseUntil<=?",
+          )
+          .all(now) as unknown as Task[]
+      ).filter((task) => !excludedSet.has(task.id));
       for (const task of expired)
         this.invalidate(
           task,
           'queued',
           'Previous worker lease expired; safely retrying.',
         );
-      const task = this.db
-        .prepare(
-          "SELECT * FROM tasks WHERE status='queued' OR (status='completed' AND nextRunAt IS NOT NULL AND nextRunAt<=?) ORDER BY createdAt LIMIT 1",
-        )
-        .get(now) as unknown as Task | undefined;
+      const due = this.db.prepare(
+        `SELECT * FROM tasks WHERE (status='queued' OR (status='completed' AND nextRunAt IS NOT NULL AND nextRunAt<=?))${notExcluded} ORDER BY createdAt${bound ? ' LIMIT 1' : ''}`,
+      );
+      const task = (bound
+        ? due.get(now, ...excludeTaskIds)
+        : due
+            .all(now)
+            .find((row) => !excludedSet.has(String(row.id)))) as unknown as
+        Task | undefined;
       if (!task) return null;
       const lease = randomUUID();
       this.db

@@ -1,17 +1,31 @@
+import { ApprovalStore } from './approval-store.js';
 import { ComputerStore } from './computer-store.js';
+import { ConnectorStore } from './connector-store.js';
+import { HandoffStore } from './handoff-store.js';
+import { ResumeStore } from './resume-store.js';
 import { Pages } from './pages.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { validateLearningSettings } from '../shared/learning.js';
-import type { CallReceipt, Conversation, Dot, Space } from '../shared/types.js';
+import type {
+  ApprovalMode,
+  CallReceipt,
+  Conversation,
+  Dot,
+  Space,
+} from '../shared/types.js';
 /** A call still marked active after this long is treated as abandoned. */
 const LIVE_CALL_MS = 60 * 60 * 1000;
 export class WorkspaceStore {
   private db: DatabaseSync;
   readonly pages: Pages;
   readonly computers: ComputerStore;
+  readonly connectors: ConnectorStore;
+  readonly approvals: ApprovalStore;
+  readonly handoffs: HandoffStore;
+  readonly resumes: ResumeStore;
   constructor(
     path: string,
     readonly ownerId: string,
@@ -30,6 +44,7 @@ export class WorkspaceStore {
       ['dots', 'skillDeliveryEnabled', 'INTEGER NOT NULL DEFAULT 0'],
       ['thread_bindings', 'learningContainerId', 'TEXT'],
       ['dots', 'model', 'TEXT'],
+      ['dots', 'approvalMode', 'TEXT'],
     ]) {
       if (
         !this.db
@@ -53,6 +68,10 @@ export class WorkspaceStore {
         COMMIT;`);
     }
     this.computers = new ComputerStore(this.db);
+    this.connectors = new ConnectorStore(this.db);
+    this.approvals = new ApprovalStore(this.db);
+    this.handoffs = new HandoffStore(this.db);
+    this.resumes = new ResumeStore(this.db);
     this.pages = new Pages(this.db, (id) =>
       this.spaces().some((space) => space.id === id),
     );
@@ -112,6 +131,7 @@ export class WorkspaceStore {
         researchAllowed: !!row.researchAllowed,
         memoryAllowed: !!row.memoryAllowed,
         skillDeliveryEnabled: !!row.skillDeliveryEnabled,
+        approvalMode: row.approvalMode ?? 'sensitive',
       })) as unknown as Dot[];
   }
   dot(id: string) {
@@ -127,6 +147,7 @@ export class WorkspaceStore {
     learningContainerId: string | null = null,
     skillDeliveryEnabled = false,
     model: string | null = null,
+    approvalMode: ApprovalMode = 'sensitive',
   ): Dot {
     this.validateSpaceAccess(spaceId, spaceIds);
     validateLearningSettings(learningContainerId, skillDeliveryEnabled);
@@ -141,13 +162,14 @@ export class WorkspaceStore {
       learningContainerId,
       skillDeliveryEnabled,
       model,
+      approvalMode,
       createdAt: Date.now(),
     };
     this.db.exec('BEGIN');
     try {
       this.db
         .prepare(
-          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, learningContainerId, skillDeliveryEnabled, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, learningContainerId, skillDeliveryEnabled, model, approvalMode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(
           dot.id,
@@ -160,6 +182,7 @@ export class WorkspaceStore {
           learningContainerId,
           +skillDeliveryEnabled,
           model,
+          approvalMode,
         );
       for (const id of dot.spaceIds)
         this.db.prepare('INSERT INTO dot_spaces VALUES (?, ?)').run(dot.id, id);
@@ -193,6 +216,7 @@ export class WorkspaceStore {
       learningContainerId?: string | null;
       skillDeliveryEnabled?: boolean;
       model?: string | null;
+      approvalMode?: ApprovalMode | null;
     },
   ): Dot {
     const current = this.dot(id);
@@ -209,11 +233,13 @@ export class WorkspaceStore {
     validateLearningSettings(learningContainerId, skillDeliveryEnabled);
     const model =
       patch.model === undefined ? (current.model ?? null) : patch.model;
+    const approvalMode =
+      patch.approvalMode ?? current.approvalMode ?? 'sensitive';
     this.db.exec('BEGIN');
     try {
       this.db
         .prepare(
-          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, learningContainerId=?, skillDeliveryEnabled=?, model=? WHERE id=?',
+          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, learningContainerId=?, skillDeliveryEnabled=?, model=?, approvalMode=? WHERE id=?',
         )
         .run(
           patch.name,
@@ -223,6 +249,7 @@ export class WorkspaceStore {
           learningContainerId,
           +skillDeliveryEnabled,
           model,
+          approvalMode,
           id,
         );
       this.db
@@ -321,6 +348,9 @@ export class WorkspaceStore {
         'DELETE FROM page_threads WHERE threadId=?',
         'DELETE FROM page_reviews WHERE threadId=?',
         'UPDATE pages SET sourceThreadId=NULL WHERE sourceThreadId=?',
+        'DELETE FROM approvals WHERE threadId=?',
+        'DELETE FROM handoffs WHERE threadId=?',
+        'DELETE FROM resume_markers WHERE threadId=?',
       ])
         this.db.prepare(sql).run(id);
       this.db
@@ -337,6 +367,26 @@ export class WorkspaceStore {
     this.db
       .prepare('INSERT INTO task_threads VALUES (?, ?)')
       .run(taskId, threadId);
+  }
+  /** Task ids bound to any of the threads, or to any conversation of any of the Dots. */
+  taskIdsFor(exclusions: { threadIds: string[]; dotIds: string[] }): string[] {
+    const { threadIds, dotIds } = exclusions;
+    if (!threadIds.length && !dotIds.length) return [];
+    const marks = (values: string[]) => values.map(() => '?').join(', ');
+    return this.db
+      .prepare(
+        `SELECT taskId FROM task_threads WHERE threadId IN (${marks(threadIds)})
+         OR threadId IN (SELECT id FROM thread_bindings WHERE dotId IN (${marks(dotIds)}))`,
+      )
+      .all(...threadIds, ...dotIds)
+      .map((row) => String(row.taskId));
+  }
+  /** The scheduled task bound to a conversation, if any. */
+  threadTask(threadId: string): string | undefined {
+    const row = this.db
+      .prepare('SELECT taskId FROM task_threads WHERE threadId=? LIMIT 1')
+      .get(threadId);
+    return typeof row?.taskId === 'string' ? row.taskId : undefined;
   }
   taskThread(taskId: string): string | undefined {
     const row = this.db

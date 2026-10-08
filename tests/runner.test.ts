@@ -96,3 +96,58 @@ it('requeues active work on graceful shutdown instead of losing it', async () =>
   expect(store.claim()).toBeTruthy();
   store.close();
 });
+it('never runs a task listed by excluded()', async () => {
+  const store = new Store(':memory:');
+  const task = store.createTask('Excluded work');
+  const execute = vi
+    .fn()
+    .mockResolvedValue({ text: 'done', sources: [], sample: true });
+  const runner = new Runner(store, config, execute, 90_000, {
+    excluded: () => [task.id],
+  });
+  await runner.tick();
+  expect(execute).not.toHaveBeenCalled();
+  expect(store.task(task.id)?.status).toBe('queued');
+  store.close();
+});
+it('puts a task back in the queue when its Dot turned out to be busy', async () => {
+  const store = new Store(':memory:');
+  const task = store.createTask('Busy race');
+  const execute = vi
+    .fn()
+    .mockRejectedValue(
+      new Error(
+        'This Dot is busy with another conversation. Stop it or wait for it to finish.',
+      ),
+    );
+  const runner = new Runner(store, config, execute, 90_000);
+  await runner.tick();
+  expect(execute).toHaveBeenCalledTimes(1);
+  expect(store.task(task.id)?.status).toBe('queued');
+  expect(store.task(task.id)?.error).toBeNull();
+  store.close();
+});
+it('still claims when excluded() throws, and logs once', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const store = new Store(':memory:');
+  const first = store.createTask('First');
+  store.createTask('Second');
+  const execute = vi
+    .fn()
+    .mockResolvedValue({ text: 'done', sources: [], sample: true });
+  const runner = new Runner(store, config, execute, 90_000, {
+    excluded: () => {
+      throw new Error('registry down');
+    },
+  });
+  await runner.tick();
+  await runner.tick();
+  expect(execute).toHaveBeenCalledTimes(2);
+  expect(store.task(first.id)?.status).toBe('completed');
+  const failures = error.mock.calls.filter((call) =>
+    String(call[0]).startsWith('Runner exclusions failed: registry down'),
+  );
+  expect(failures).toHaveLength(1);
+  error.mockRestore();
+  store.close();
+});

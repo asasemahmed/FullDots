@@ -123,6 +123,12 @@ export const PHASE_PILL: Record<PanelPhase, { label: string; tone: PillTone }> =
     running: { label: 'Running', tone: 'ok' },
   };
 
+/** Shown instead of "Running" while the Dot waits for the owner. */
+export const HANDOFF_PILL: { label: string; tone: PillTone } = {
+  label: 'Needs you',
+  tone: 'warn',
+};
+
 /** How the panel shows a running computer whose access switch is off: not at all, like a stopped one. */
 export function isUsable(status: ComputerStatus | undefined): boolean {
   return status?.state === 'running' && !!status.permissions.enabled;
@@ -146,7 +152,7 @@ const PRESENT_VERBS: Record<string, string> = {
   exec: 'running a command',
 };
 /** The same events, as the activity list records them after the fact. */
-const PAST_LABELS: Record<string, string> = {
+export const PAST_LABELS: Record<string, string> = {
   navigate: 'Opened a page',
   snapshot: 'Looked at the page',
   read: 'Read the page',
@@ -168,6 +174,8 @@ const PAST_LABELS: Record<string, string> = {
   start: 'Started the computer',
   stop: 'Stopped the computer',
   permissions: 'Changed permissions',
+  request_control: 'Asked for your help',
+  cancel_control: 'Dismissed the handoff',
 };
 
 /** Newest first, whichever way the server happened to order them. */
@@ -217,6 +225,7 @@ export function currentActivity(
 ): Activity | undefined {
   const latest = newestFirst(audit).find((entry) => entry.actor === 'agent');
   if (!latest) return undefined;
+  // `request_control` (asking the owner for help) has no verb: it is the Dot stopping, not acting.
   const verb = PRESENT_VERBS[latest.action];
   if (!verb) return undefined;
   const age = now - latest.createdAt;

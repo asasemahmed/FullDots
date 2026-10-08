@@ -12,6 +12,7 @@ import {
   type ComputerStreamTicket,
 } from '../shared/computer-types.js';
 import type { WorkspaceStore } from './workspace.js';
+import type { HandoffStore } from './handoff-store.js';
 import { defaultLimits } from './limits.js';
 import type { PlatformConfig } from './platform-config.js';
 import {
@@ -71,6 +72,11 @@ export class ComputerService {
     string,
     { dotId: string; expires: number }
   >();
+  /**
+   * Where waiting owner handoffs are read from. The platform attaches it with {@link setHandoffs};
+   * a workspace that exposes its own `handoffs` store is used when none was attached.
+   */
+  private handoffs?: Pick<HandoffStore, 'waitingFor'>;
   readonly inputs: ComputerInputs;
   readonly streamInput: ReturnType<typeof computerStreamInputSchema>;
   constructor(
@@ -90,6 +96,9 @@ export class ComputerService {
     this.responseBytes = limits.computerResponseBytes;
     this.inputs = computerInputSchemas(this.inputLimits);
     this.streamInput = computerStreamInputSchema(this.inputLimits);
+  }
+  setHandoffs(store: Pick<HandoffStore, 'waitingFor'> | undefined) {
+    this.handoffs = store;
   }
   /** The largest live-screen input message worth reading: a paste, with JSON escaping. */
   get streamInputBytes() {
@@ -251,12 +260,26 @@ export class ComputerService {
   }
   async status(id: string): Promise<ComputerStatus> {
     this.requireDot(id);
-    const base = {
+    const base: Omit<ComputerStatus, 'state'> = {
       configured: this.configured,
       permissions: this.workspace.computers.permissions(id),
       audit: this.workspace.computers.audit(id),
       limits: this.inputLimits,
     };
+    const waiting = (
+      this.handoffs ??
+      (this.workspace as { handoffs?: Pick<HandoffStore, 'waitingFor'> })
+        .handoffs
+    )?.waitingFor(id);
+    if (waiting)
+      Object.assign(base, {
+        handoff: {
+          id: waiting.id,
+          kind: waiting.kind,
+          reason: waiting.reason,
+          createdAt: waiting.createdAt,
+        },
+      });
     if (!this.configured) return { ...base, state: 'not_configured' };
     try {
       const state = await this.existing(id);
@@ -372,6 +395,83 @@ export class ComputerService {
       );
     });
     return this.status(id);
+  }
+  private readControl(url: string, id: string): Promise<ComputerControl> {
+    return this.json(
+      `${url}/control`,
+      this.token(id),
+      undefined,
+      undefined,
+      id,
+    ).then((raw) => controlSchema.parse(raw));
+  }
+  /**
+   * Asks the owner to take the wheel. From then on the computer refuses the Dot's own actions with an
+   * owner-control conflict until the owner takes and releases control or the request is cancelled.
+   * Asking again returns the request that is already active.
+   */
+  async requestOwnerControl(
+    id: string,
+    reason: string,
+    actor: 'agent' | 'owner' = 'agent',
+  ): Promise<ComputerControl> {
+    return this.audited(id, 'request_control', actor, async () => {
+      this.allowed(id, 'browser', actor);
+      const url = await this.running(id);
+      this.allowed(id, 'browser', actor);
+      return controlSchema.parse(
+        await this.json(
+          `${url}/control/request`,
+          this.token(id),
+          { reason: reason.slice(0, 500) },
+          undefined,
+          id,
+        ),
+      );
+    });
+  }
+  /**
+   * Withdraws a request for the owner. A waiting request is cancelled, which reopens the computer to
+   * the Dot. If the owner had already taken control, the cancelled request is then released so the
+   * wheel returns to the Dot. A conflict that is not an owner-control one means the request is no
+   * longer active, which is the state we wanted, so it is not an error.
+   */
+  async cancelOwnerControl(id: string): Promise<ComputerControl> {
+    return this.audited(id, 'cancel_control', 'owner', async () => {
+      if (!this.configured)
+        throw new Error('Computer service is not configured.');
+      const url = await this.running(id);
+      const settle = async (verb: 'cancel' | 'release', requestId: string) => {
+        try {
+          await this.json(
+            `${url}/control/${verb}`,
+            this.token(id),
+            { requestId },
+            undefined,
+            id,
+          );
+        } catch (error) {
+          if (
+            !(error instanceof ComputerConflictError) ||
+            error.kind !== 'other'
+          )
+            throw error;
+        }
+      };
+      let control = await this.readControl(url, id);
+      if (
+        control.request &&
+        ['waiting', 'taken'].includes(control.request.status)
+      ) {
+        await settle('cancel', control.request.id);
+        control = await this.readControl(url, id);
+      }
+      if (control.holder === 'human' && control.request) {
+        await settle('release', control.request.id);
+        control = await this.readControl(url, id);
+      }
+      return control;
+    });
   }
   async action(
     id: string,

@@ -50,7 +50,7 @@ export interface PageView {
   truncated?: true;
   omitted?: number;
   /** A human verification step the page is showing. Tell the user; do not try to solve it. */
-  challenge?: { kind: string; reason: string };
+  challenge?: { kind: string; reason: string; requestId?: string };
 }
 
 const elementSchema = z.object({
@@ -75,11 +75,25 @@ interface Snapshot {
   title: string;
   elements: z.infer<typeof elementSchema>[];
   truncated: boolean;
-  challenge?: { kind: string; reason: string };
+  challenge?: { kind: string; reason: string; requestId?: string };
 }
-type Identity = { role: string; name: string };
+/** What the page called an element: the role and accessible name, never a ref. */
+export interface ElementIdentity {
+  role: string;
+  name: string;
+}
+type Identity = ElementIdentity;
 
-function parseSnapshot(raw: unknown): Snapshot {
+/** What the approval gate needs to know about the page. Implemented by {@link AgentComputer}. */
+export interface GateComputer {
+  /** Strict: only snapshots this instance took in this turn. */
+  identityInTurn(ref: string, snapshotId: number): ElementIdentity | undefined;
+  latestUrl(): string | undefined;
+  latestElements(): ElementIdentity[];
+  presumedFocus(): ElementIdentity | undefined;
+}
+
+export function parseSnapshot(raw: unknown): Snapshot {
   const parsed = snapshotSchema.safeParse(raw);
   if (!parsed.success)
     throw new Error(
@@ -104,6 +118,9 @@ function parseSnapshot(raw: unknown): Snapshot {
           challenge: {
             kind: typeof found.kind === 'string' ? found.kind : 'challenge',
             reason: found.reason,
+            ...(typeof found.requestId === 'string'
+              ? { requestId: found.requestId }
+              : {}),
           },
         }
       : {}),
@@ -115,7 +132,7 @@ function clip(text: string, max: number): string {
   const chars = Array.from(flat);
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : flat;
 }
-const SENSITIVE =
+export const SENSITIVE =
   /pass(word|code)|secret|\bpin\b|cvv|card number|one[- ]time|\botp\b/i;
 function compact(element: Snapshot['elements'][number]): PageElement {
   const out: PageElement = {
@@ -252,9 +269,11 @@ export interface AgentComputerOptions {
   settleMs?: number;
 }
 
-export class AgentComputer {
+export class AgentComputer implements GateComputer {
   private readonly known = new Map<number, Map<string, Identity>>();
   private latest?: Snapshot;
+  /** Inferred, not read from the page: the element the agent last clicked or typed into. */
+  private focus?: Identity;
   private readonly settleMs: number;
 
   constructor(
@@ -412,6 +431,32 @@ export class AgentComputer {
     }
   }
 
+  /** The element a ref meant in a snapshot this instance took, or undefined: no fallback to the latest page. */
+  identityInTurn(ref: string, snapshotId: number): ElementIdentity | undefined {
+    return this.known.get(snapshotId)?.get(ref);
+  }
+
+  /** The address of the latest page the agent saw. */
+  latestUrl(): string | undefined {
+    return this.latest?.url;
+  }
+
+  /** What the latest page offers, by role and name. */
+  latestElements(): ElementIdentity[] {
+    return (this.latest?.elements ?? []).map((element) => ({
+      role: element.role,
+      name: element.name,
+    }));
+  }
+
+  /**
+   * The element that probably has keyboard focus. Inferred, not read from the page: the last element
+   * the agent clicked or typed into, cleared by navigation.
+   */
+  presumedFocus(): ElementIdentity | undefined {
+    return this.focus;
+  }
+
   /** What the page called this element when the agent last saw it. */
   private identity(ref: string, snapshotId: number): Identity | undefined {
     return (
@@ -468,6 +513,24 @@ export class AgentComputer {
   ): Promise<Record<string, unknown>> {
     const usesRef = action === 'click' || action === 'type';
     const asked = typeof input.snapshotId === 'number' ? input.snapshotId : -1;
+    // Never act blind: a ref from a snapshot this instance did not take may point at another element,
+    // and a ref that snapshot does not list was never classified by the approval gate.
+    if (usesRef) {
+      const knownSnapshot = this.known.get(asked);
+      const refused = !knownSnapshot
+        ? 'that snapshotId is not from this turn, so the ref may now point at a different element.'
+        : !knownSnapshot.has(String(input.ref))
+          ? 'that ref is not on the page you saw in this turn.'
+          : undefined;
+      if (refused) {
+        const fresh = await this.takeSnapshot(call);
+        return {
+          error: `Nothing was clicked or typed: ${refused} The page below is current; find the element and repeat the action with its ref and snapshotId.`,
+          retry: true,
+          page: toPage(fresh),
+        };
+      }
+    }
     let current = usesRef ? this.adopt(input) : input;
     let refreshes = 0;
     for (;;) {
@@ -476,6 +539,8 @@ export class AgentComputer {
         const element = usesRef
           ? this.identity(String(current.ref), Number(current.snapshotId))
           : undefined;
+        if (usesRef) this.focus = element;
+        else if (action === 'navigate') this.focus = undefined;
         return {
           ...record(result),
           ...(element
@@ -558,7 +623,10 @@ export class AgentComputer {
 
     let snapshot = await this.afterOpening(call);
     const role = snapshot.elements.find((item) => item.ref === input.ref)?.role;
+    const dropdown = this.identityInTurn(input.ref, input.snapshotId);
     const finish = async (method: string, chosen?: string) => {
+      // Clicking an option moved the presumed focus onto it; the dropdown is what the agent worked on.
+      this.focus = dropdown;
       await this.pause(this.settleMs);
       const after = await this.takeSnapshot(call);
       const selected = shows(after, input.ref, want);

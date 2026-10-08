@@ -2,7 +2,7 @@ import type { Ref } from 'react';
 import { Power, Settings, X } from 'lucide-react';
 import type { Dot } from '../../shared/types';
 import { Mascot } from '../Mascot';
-import { PHASE_PILL, type PanelPhase } from './model';
+import { HANDOFF_PILL, PHASE_PILL, type PanelPhase } from './model';
 
 export type Working = 'start' | 'stop' | 'take' | 'release';
 
@@ -11,6 +11,7 @@ export function PanelHeader({
   dot,
   phase,
   working,
+  needsYou = false,
   settingsOpen,
   settingsDisabled = false,
   settingsId,
@@ -22,6 +23,8 @@ export function PanelHeader({
   dot: Dot;
   phase: PanelPhase;
   working?: Working;
+  /** The Dot has asked for the owner's help and nobody has answered yet. */
+  needsYou?: boolean;
   settingsOpen: boolean;
   /** Nothing to set until the computer's state is known. */
   settingsDisabled?: boolean;
@@ -36,7 +39,9 @@ export function PanelHeader({
       ? { label: 'Starting', tone: 'warn' }
       : working === 'stop'
         ? { label: 'Stopping', tone: 'warn' }
-        : PHASE_PILL[phase];
+        : needsYou
+          ? HANDOFF_PILL
+          : PHASE_PILL[phase];
   return (
     <header className="cp-header">
       <span className="cp-avatar">

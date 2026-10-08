@@ -1,6 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
 import { computerTools } from '../src/server/computer-tools.js';
-import { withoutBinary } from '../src/server/computer-agent.js';
+import {
+  AgentComputer,
+  parseSnapshot,
+  toPage,
+  withoutBinary,
+} from '../src/server/computer-agent.js';
 import {
   computerFixture,
   page,
@@ -659,4 +664,194 @@ it('lets the owner open a page right after handing control back', async () => {
     service.action(id, 'click', { ref: 'e2', snapshotId: 1 }, 'owner'),
   ).rejects.toThrow();
   workspace.close();
+});
+
+// A fake whose current snapshot id is 1 and whose page this instance has never looked at.
+function unseen(elements: FakeElement[]) {
+  const f = setup();
+  f.fake.show(page('Form', elements));
+  f.fake.snapshotId = 1;
+  return f;
+}
+
+it('a ref with a snapshotId not from this turn is never executed blind', async () => {
+  const f = unseen(form);
+  const click = await f.run('click', { ref: 'e2', snapshotId: 1 });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(click).toMatchObject({ retry: true });
+  expect(click.error).toMatch(/not from this turn/);
+  expect(click.page.snapshotId).toBe(f.fake.snapshotId);
+  expect(click.page.elements).toHaveLength(2);
+
+  f.fake.calls.length = 0;
+  const typed = await f.run('type', {
+    ref: 'e1',
+    snapshotId: 1,
+    text: 'Ada',
+  });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(typed).toMatchObject({ retry: true });
+  expect(f.fake.elements[0]).not.toHaveProperty('value');
+
+  // The fresh page it returned is from this turn, so the same action now goes through.
+  f.fake.calls.length = 0;
+  const again = await f.run('click', {
+    ref: 'e2',
+    snapshotId: typed.page.snapshotId,
+  });
+  expect(again).not.toHaveProperty('error');
+  expect(f.fake.calls[0]).toBe('click');
+});
+
+it('a known snapshotId with a ref the page did not list is never executed blind', async () => {
+  const f = setup();
+  f.fake.pages['https://form.test/'] = page('Form', form);
+  const nav = await f.run('navigate', { url: 'https://form.test/' });
+  const id = nav.page.snapshotId;
+  f.fake.calls.length = 0;
+  const click = await f.run('click', { ref: 'e99', snapshotId: id });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(click).toMatchObject({ retry: true });
+  expect(click.error).toMatch(/not on the page you saw in this turn/);
+  expect(click.page.elements).toHaveLength(2);
+
+  f.fake.calls.length = 0;
+  const typed = await f.run('type', { ref: 'e99', snapshotId: id, text: 'x' });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(typed).toMatchObject({ retry: true });
+
+  f.fake.calls.length = 0;
+  const select = await f.run('select', {
+    ref: 'e99',
+    snapshotId: id,
+    option: 'France',
+  });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(select).toMatchObject({ action: 'select', retry: true });
+});
+
+it('a dropdown whose snapshotId is not from this turn is never opened blind', async () => {
+  const f = unseen([country]);
+  const result = await f.run('select', {
+    ref: 'e1',
+    snapshotId: 1,
+    option: 'France',
+  });
+  expect(f.fake.calls).toEqual(['snapshot']);
+  expect(result).toMatchObject({ action: 'select', retry: true });
+  expect(result.page.snapshotId).toBe(f.fake.snapshotId);
+});
+
+it('presumed focus follows the last typed/clicked element and clears on navigate', async () => {
+  const f = setup();
+  const computer = new AgentComputer(
+    f.service,
+    f.id,
+    new AbortController().signal,
+    { settleMs: 0 },
+  );
+  expect(computer.presumedFocus()).toBeUndefined();
+  f.fake.pages['https://form.test/'] = page('Form', form);
+  const nav = (await computer.act('navigate', {
+    url: 'https://form.test/',
+  })) as Result;
+  expect(computer.presumedFocus()).toBeUndefined();
+  expect(computer.latestUrl()).toBe('https://form.test/');
+  expect(computer.latestElements()).toEqual([
+    { role: 'textbox', name: 'Name' },
+    { role: 'button', name: 'Submit' },
+  ]);
+
+  const typed = (await computer.act('type', {
+    ref: 'e1',
+    snapshotId: nav.page.snapshotId,
+    text: 'Ada',
+  })) as Result;
+  expect(computer.presumedFocus()).toEqual({ role: 'textbox', name: 'Name' });
+  await computer.act('click', {
+    ref: 'e2',
+    snapshotId: typed.page.snapshotId,
+  });
+  expect(computer.presumedFocus()).toEqual({ role: 'button', name: 'Submit' });
+  // A key press does not say where focus went.
+  await computer.act('key', { key: 'Tab' });
+  expect(computer.presumedFocus()).toEqual({ role: 'button', name: 'Submit' });
+  await computer.act('navigate', { url: 'https://form.test/' });
+  expect(computer.presumedFocus()).toBeUndefined();
+});
+
+it('presumed focus after a select is the dropdown, not the option', async () => {
+  const f = setup();
+  const computer = new AgentComputer(
+    f.service,
+    f.id,
+    new AbortController().signal,
+    { settleMs: 0 },
+  );
+  f.fake.pages['https://form.test/'] = page('Form', [country]);
+  const nav = (await computer.act('navigate', {
+    url: 'https://form.test/',
+  })) as Result;
+  f.fake.onClick = (ref, fake) => {
+    if (ref === 'e1')
+      fake.show(
+        page('Form', [country, { ref: 'e10', role: 'option', name: 'France' }]),
+      );
+    if (ref === 'e10')
+      fake.show(page('Form', [{ ...country, value: 'France' }]));
+  };
+  const result = (await computer.act('select', {
+    ref: 'e1',
+    snapshotId: nav.page.snapshotId,
+    option: 'France',
+  })) as Result;
+  expect(result.selected).toBe(true);
+  expect(computer.presumedFocus()).toEqual({
+    role: country.role,
+    name: country.name,
+  });
+});
+
+it('identityInTurn returns undefined for an unknown snapshot, the identity otherwise', async () => {
+  const f = setup();
+  const computer = new AgentComputer(
+    f.service,
+    f.id,
+    new AbortController().signal,
+    { settleMs: 0 },
+  );
+  f.fake.pages['https://form.test/'] = page('Form', form);
+  const nav = (await computer.act('navigate', {
+    url: 'https://form.test/',
+  })) as Result;
+  const id = nav.page.snapshotId as number;
+  expect(computer.identityInTurn('e2', id)).toEqual({
+    role: 'button',
+    name: 'Submit',
+  });
+  expect(computer.identityInTurn('e2', id + 50)).toBeUndefined();
+  expect(computer.identityInTurn('nope', id)).toBeUndefined();
+});
+
+it('challenge requestId survives parsing', () => {
+  const raw = {
+    snapshotId: 3,
+    url: 'https://x.test/',
+    title: 'Check',
+    elements: [],
+    challenge: { kind: 'captcha', reason: 'A CAPTCHA', requestId: 'req-1' },
+  };
+  expect(toPage(parseSnapshot(raw)).challenge).toEqual({
+    kind: 'captcha',
+    reason: 'A CAPTCHA',
+    requestId: 'req-1',
+  });
+  expect(
+    toPage(
+      parseSnapshot({
+        ...raw,
+        challenge: { reason: 'A CAPTCHA', requestId: 7 },
+      }),
+    ).challenge,
+  ).toEqual({ kind: 'challenge', reason: 'A CAPTCHA' });
 });

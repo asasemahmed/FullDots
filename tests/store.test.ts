@@ -61,6 +61,30 @@ describe('durable task lifecycle', () => {
     expect(store.claim(now + 60_001)?.id).toBe(task.id);
     expect(store.detail(task.id)?.runs).toHaveLength(2);
   });
+  it('honours every excluded task id, however long the list', () => {
+    const { store } = fixture();
+    const ids = Array.from(
+      { length: 550 },
+      (_, i) => store.createTask(`Job ${i}`).id,
+    );
+    const padding = Array.from({ length: 50 }, (_, i) => `other-${i}`);
+    expect(store.claim(Date.now(), 180_000, [...ids, ...padding])).toBeNull();
+    expect(store.claim(Date.now(), 180_000, ids.slice(0, 549))?.id).toBe(
+      ids[549],
+    );
+  });
+  it('filters in JS when the exclusion list is too long to bind', () => {
+    const { store } = fixture();
+    const first = store.createTask('First').id;
+    const second = store.createTask('Second').id;
+    const padding = Array.from({ length: 31_000 }, (_, i) => `other-${i}`);
+    expect(store.claim(Date.now(), 180_000, [first, ...padding])?.id).toBe(
+      second,
+    );
+    expect(
+      store.claim(Date.now(), 180_000, [first, second, ...padding]),
+    ).toBeNull();
+  });
   it('global pause invalidates running leases and blocks queued jobs', () => {
     const { store } = fixture();
     const task = store.createTask('Research one');
@@ -87,5 +111,29 @@ describe('durable task lifecycle', () => {
     expect(
       store.finish(recovered, { text: 'New', sources: [], sample: true }),
     ).toBe(true);
+  });
+});
+describe('claim exclusions', () => {
+  it('skips an excluded task and claims another claimable one', () => {
+    const { store } = fixture();
+    const first = store.createTask('First');
+    const second = store.createTask('Second');
+    expect(store.claim(Date.now(), 180_000, [first.id])?.id).toBe(second.id);
+    expect(store.task(first.id)?.status).toBe('queued');
+  });
+  it('returns null when the only claimable task is excluded', () => {
+    const { store } = fixture();
+    const task = store.createTask('Only');
+    expect(store.claim(Date.now(), 180_000, [task.id])).toBeNull();
+    expect(store.claim(Date.now())?.id).toBe(task.id);
+  });
+  it('does not recover or claim an excluded task whose lease expired', () => {
+    const { store } = fixture();
+    const task = store.createTask('Live elsewhere');
+    const now = Date.now();
+    store.claim(now);
+    expect(store.claim(now + 180_001, 180_000, [task.id])).toBeNull();
+    expect(store.task(task.id)?.status).toBe('running');
+    expect(store.claim(now + 180_001)?.id).toBe(task.id);
   });
 });

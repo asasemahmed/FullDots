@@ -32,6 +32,7 @@ const dotSchema = z
       .transform((value) => value || null)
       .nullable()
       .optional(),
+    approvalMode: z.enum(['sensitive', 'writes', 'off']).optional(),
   })
   .strict();
 const conversationPatch = z
@@ -216,6 +217,7 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
         data.data.learningContainerId,
         data.data.skillDeliveryEnabled,
         data.data.model ?? null,
+        data.data.approvalMode ?? 'sensitive',
       ),
       201,
     );

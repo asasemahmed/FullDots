@@ -439,6 +439,33 @@
 .cp-control-human .cp-hint {
   text-align: center;
 }
+.cp-control-handoff {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--cp-warn) 35%, transparent);
+  border-radius: 12px;
+  background: var(--cp-warn-bg);
+  color: var(--cp-warn);
+}
+.cp-control-handoff .cp-handoff-text,
+.cp-control-handoff .cp-hint {
+  margin: 0;
+  color: inherit;
+}
+.cp-control-handoff .cp-hint {
+  opacity: 0.85;
+}
+.cp-handoff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cp-control-handoff .cp-btn-quiet {
+  color: inherit;
+}
 .cp-control-waiting {
   justify-content: center;
   padding: 11px 12px;

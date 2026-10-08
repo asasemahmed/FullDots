@@ -41,6 +41,8 @@ export interface PanelActions {
   enable: () => void;
   take: () => void;
   release: () => void;
+  /** Turns down the Dot's request for help, so it carries on without it. */
+  dismissHandoff: (id: string) => void;
   navigate: (url: string) => Promise<boolean>;
   act: Act;
   setPermission: (key: PermissionKey, value: boolean) => void;
@@ -127,6 +129,8 @@ export function PanelView({
           ? 'release'
           : 'take'
         : undefined;
+  const handoff = status?.handoff;
+  const needsYou = !!handoff && control?.holder !== 'human';
   const openSettings = () => setSettingsOpen(true);
   const blockedFor = (
     permission: 'files' | 'shell',
@@ -163,6 +167,7 @@ export function PanelView({
         dot={dot}
         phase={phase}
         working={working}
+        needsYou={needsYou && phase === 'running'}
         settingsOpen={settingsOpen}
         settingsDisabled={!status}
         settingsId={settingsId}
@@ -217,8 +222,14 @@ export function PanelView({
                       : undefined
                   }
                   disabled={busy}
+                  handoff={handoff}
                   onTake={actions.take}
                   onRelease={actions.release}
+                  onDismiss={
+                    handoff
+                      ? () => actions.dismissHandoff(handoff.id)
+                      : undefined
+                  }
                 />
                 <AddressBar
                   disabled={busy || human}

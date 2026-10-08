@@ -1,4 +1,7 @@
 import { computerRoutes } from './computer-routes.js';
+import { connectorRoutes } from './connector-routes.js';
+import { approvalRoutes } from './approval-routes.js';
+import { turnRoutes } from './turn-routes.js';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { timingSafeEqual } from 'node:crypto';
@@ -78,13 +81,52 @@ export function createApp({
       return c.json({ error: 'Use application/json.' }, 415);
     await next();
   });
-  if (platform) app.route('/api', computerRoutes(platform.computers));
+  if (platform) {
+    app.route(
+      '/api',
+      computerRoutes(platform.computers, {
+        onRelease: (dotId) => {
+          try {
+            platform.handoffs.released(dotId);
+          } catch (error) {
+            console.error(
+              'Handoff release failed:',
+              error instanceof Error ? error.message : 'unknown error',
+            );
+          }
+        },
+      }),
+    );
+    app.route('/api', turnRoutes(platform.turns, platform.workspace));
+    app.route(
+      '/api',
+      connectorRoutes({
+        store: platform.workspace.connectors,
+        registry: platform.connectors,
+        workspace: platform.workspace,
+        allowStdio: !!platform.config.connectorsAllowStdio,
+      }),
+    );
+    app.route(
+      '/api',
+      approvalRoutes({
+        approvals: platform.approvals,
+        approvalStore: platform.workspace.approvals,
+        handoffs: platform.handoffs,
+        handoffStore: platform.workspace.handoffs,
+      }),
+    );
+  }
   const voice = platform ? new VoiceService(platform) : undefined;
   if (platform && voice) app.route('/api', workspaceRoutes(platform, voice));
   app.get('/api/state', (c) =>
     c.json({
       settings: store.settings(),
-      tasks: store.tasks(),
+      // The conversation a task runs in, so the task list can show what it waits for.
+      tasks: store.tasks().map((task) => ({
+        ...task,
+        threadId: platform?.workspace.taskThread(task.id) ?? null,
+      })),
       memories: store.memories(),
       mode: config.mode,
       configured: configured(config),

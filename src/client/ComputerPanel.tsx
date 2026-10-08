@@ -199,8 +199,9 @@ export function ComputerPanel({
       for (const handle of Object.values(timers)) clearTimeout(handle);
     };
   }, [refresh]);
-  const run = async (
-    endpoint: string,
+  /** Sends one request on the panel's busy lock, then refreshes. `path` is relative to `/api`. */
+  const send = async (
+    path: string,
     body: unknown = {},
     method = 'POST',
   ): Promise<Outcome> => {
@@ -212,7 +213,7 @@ export function ComputerPanel({
     setActionError('');
     try {
       const result = await api<unknown>(
-        `${base}${endpoint}`,
+        path,
         method,
         body,
         controller.current?.signal,
@@ -231,6 +232,8 @@ export function ComputerPanel({
       if (lifecycle.current.active) setBusy(false);
     }
   };
+  const run = (endpoint: string, body?: unknown, method?: string) =>
+    send(`${base}${endpoint}`, body, method);
   /** Runs `run` and shows what it is doing in the header and the control bar. */
   const doing = async <T,>(kind: Working, work: () => Promise<T>) => {
     setWorking(kind);
@@ -345,6 +348,9 @@ export function ComputerPanel({
         },
         take: () => void doing('take', () => run('/take')),
         release: () => void doing('release', () => run('/release')),
+        // Handoffs live beside the Dot's computer, not under it.
+        dismissHandoff: (id) =>
+          void send(`/handoffs/${encodeURIComponent(id)}/dismiss`, {}),
         navigate: async (url) => {
           const outcome = await run('/actions', {
             action: 'navigate',

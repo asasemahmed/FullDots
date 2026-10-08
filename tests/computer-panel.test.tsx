@@ -12,6 +12,8 @@ import { PanelHeader } from '../src/client/computer-panel/PanelHeader';
 import { SettingsSheet } from '../src/client/computer-panel/SettingsSheet';
 import {
   MORE_OPEN_KEY,
+  PAST_LABELS,
+  auditLabel,
   currentActivity,
   newestFirst,
   normalizeUrl,
@@ -76,6 +78,7 @@ const actions = (): PanelActions => ({
   enable: vi.fn(),
   take: vi.fn(),
   release: vi.fn(),
+  dismissHandoff: vi.fn(),
   navigate: vi.fn(async () => true),
   act: vi.fn(async () => ({})),
   setPermission: vi.fn(),
@@ -707,5 +710,135 @@ describe('addresses and phases', () => {
       ),
     ).toBe('disabled');
     expect(panelPhase(running(), false)).toBe('running');
+  });
+});
+
+describe('handoff', () => {
+  const props = {
+    dotName: 'Dot',
+    disabled: false,
+    onTake: vi.fn(),
+    onRelease: vi.fn(),
+  };
+  const handoff = {
+    id: 'h1',
+    kind: 'credential',
+    reason: 'Sign in to GitHub',
+  };
+
+  it('asks for the owner and offers Take control and Dismiss', () => {
+    const onTake = vi.fn();
+    const onDismiss = vi.fn();
+    const bar = ControlBar({
+      ...props,
+      human: false,
+      handoff,
+      onTake,
+      onDismiss,
+    });
+    const text = textOf(bar);
+    expect(text).toContain('Your turn:');
+    expect(text).toContain('Sign in to GitHub');
+    expect(tag(renderToStaticMarkup(bar), 'cp-control-handoff')).toContain(
+      'role="status"',
+    );
+    (button(bar, 'Take control')?.props.onClick as () => void)();
+    (button(bar, 'Dismiss')?.props.onClick as () => void)();
+    expect(onTake).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(button(bar, 'Take control')?.props.className).toContain(
+      'cp-btn-primary',
+    );
+    expect(button(bar, 'Dismiss')?.props.className).toContain('cp-btn-quiet');
+  });
+
+  it('disables both buttons while another request is running', () => {
+    const bar = ControlBar({
+      ...props,
+      human: false,
+      disabled: true,
+      handoff,
+      onDismiss: vi.fn(),
+    });
+    expect(button(bar, 'Take control')?.props.disabled).toBe(true);
+    expect(button(bar, 'Dismiss')?.props.disabled).toBe(true);
+  });
+
+  it('hints at what to do, by kind of handoff', () => {
+    const hint = (kind: string) =>
+      textOf(
+        ControlBar({ ...props, human: false, handoff: { ...handoff, kind } }),
+      );
+    expect(hint('credential')).toContain(
+      'Sign in on the screen yourself; the Dot never sees what you type.',
+    );
+    expect(hint('two_factor')).toContain(
+      'Enter the code on the screen yourself.',
+    );
+    expect(hint('captcha')).toContain('Complete the check on the screen.');
+    expect(hint('other')).toBe(
+      'Your turn: Sign in to GitHubTake controlDismiss',
+    );
+  });
+
+  it('reminds the owner that the secret stays off the Dot while they hold control', () => {
+    const bar = ControlBar({ ...props, human: true, handoff });
+    expect(button(bar, 'Give control back')).toBeDefined();
+    expect(textOf(bar)).toContain(
+      'Type the secret on the screen; the Dot never sees it.',
+    );
+    expect(button(bar, 'Dismiss')).toBeUndefined();
+  });
+
+  it('is unchanged without a handoff', () => {
+    const bot = ControlBar({ ...props, human: false });
+    expect(textOf(bot)).toBe('Dot is in controlTake control');
+    expect(button(bot, 'Dismiss')).toBeUndefined();
+    const human = ControlBar({ ...props, human: true });
+    expect(textOf(human)).toBe(
+      'Give control backClick and type directly on the screen. Shift+Esc to stop typing.',
+    );
+    expect(renderToStaticMarkup(bot)).not.toContain('Your turn');
+  });
+
+  it('shows "Needs you" in the header and the handoff bar in the view', () => {
+    const waiting = running({
+      handoff: { id: 'h1', kind: 'captcha', reason: 'Solve it', createdAt: 1 },
+    });
+    const pill = (html: string) => /cp-pill[^>]*>.*?<\/span>/.exec(html)?.[0];
+    const html = body(view({ status: waiting }));
+    expect(pill(html)).toContain('cp-pill-warn');
+    expect(pill(html)).toContain('Needs you');
+    expect(html).toContain('Your turn:');
+    expect(html).toContain('Complete the check on the screen.');
+    expect(pill(body(view()))).toContain('Running');
+    expect(body(view())).not.toContain('Needs you');
+    // Once the owner holds control the Dot no longer needs them.
+    const taken = running({
+      handoff: waiting.handoff,
+      control: control('human'),
+    });
+    expect(body(view({ status: taken }))).not.toContain('Needs you');
+    expect(body(view({ status: taken }))).toContain('never sees it');
+  });
+
+  it('labels the handoff requests in the activity list and does not call them live work', () => {
+    expect(PAST_LABELS.request_control).toBe('Asked for your help');
+    expect(PAST_LABELS.cancel_control).toBe('Dismissed the handoff');
+    expect(auditLabel(entry({ action: 'request_control' }))).toBe(
+      'Asked for your help',
+    );
+    expect(
+      currentActivity(
+        [
+          entry({
+            action: 'request_control',
+            outcome: 'pending',
+            createdAt: 1000,
+          }),
+        ],
+        1000,
+      ),
+    ).toBeUndefined();
   });
 });

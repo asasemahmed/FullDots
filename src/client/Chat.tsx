@@ -1,9 +1,10 @@
+import { z } from 'zod';
 import { PageReviewCard } from './PageReviewCard';
 import { pageReviewSchema, pageReviewTool } from '../shared/page-review';
 import { contextualMessage, type PageContext } from './page-context';
 import { api } from './api';
 import type { Page } from '../server/pages';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CopilotChatToolCallsView,
   useRenderTool,
@@ -22,11 +23,26 @@ import {
   X,
 } from 'lucide-react';
 import { ChatTranscript, isInternalVoiceReceipt } from './ChatTranscript';
-import { ComputerAutoOpen, isComputerTool } from './chat-turns';
-import type { CallReceipt, Conversation, Dot } from '../shared/types';
+import {
+  ComputerAutoOpen,
+  approvalIds,
+  handoffIds,
+  isActivityTool,
+  isComputerTool,
+  toolResults,
+} from './chat-turns';
+import type {
+  Approval,
+  CallReceipt,
+  Conversation,
+  Dot,
+  Handoff,
+} from '../shared/types';
 import { Mascot } from './Mascot';
 import { useVoice } from './useVoice';
 import { CallView } from './CallView';
+// These tools draw no UI of their own, so their arguments are not inspected.
+const anyArguments = z.looseObject({});
 export function Chat({
   thread,
   dot,
@@ -124,6 +140,12 @@ export function Chat({
       active = false;
     };
   }, [agent, copilotkit, isReady]);
+  // Connecting replays the whole stored conversation, so start from an empty list
+  // instead of appending the replayed text to the messages already on screen.
+  const reconnect = () => {
+    agent.setMessages([]);
+    return copilotkit.connectAgent({ agent });
+  };
   const send = async (text: string) => {
     if (!text.trim() || running || !loaded || !contextReady || paused) return;
     setError('');
@@ -195,6 +217,97 @@ export function Chat({
   useEffect(() => {
     if (paused && voice.status !== 'idle') void voice.end();
   }, [paused]);
+  // Approval cards show the live state of their approval. Fetch once when the
+  // transcript has any, and keep polling while one is still waiting for the owner.
+  const [approvals, setApprovals] = useState<Map<string, Approval>>(
+    () => new Map(),
+  );
+  const askedIds = approvalIds(toolResults(agent.messages));
+  const idsKey = askedIds.join(',');
+  const refreshApprovals = useCallback(async () => {
+    try {
+      const data = await api<{ approvals: Approval[] }>(
+        `/approvals?threadId=${encodeURIComponent(thread.id)}`,
+      );
+      setApprovals(new Map(data.approvals.map((row) => [row.id, row])));
+    } catch {
+      // The cards keep their last known state; the next poll retries.
+    }
+  }, [thread.id]);
+  const waitingOnOwner = askedIds.some(
+    (id) => (approvals.get(id)?.status ?? 'pending') === 'pending',
+  );
+  useEffect(() => {
+    if (!idsKey) return;
+    void refreshApprovals();
+    if (!waitingOnOwner) return;
+    const timer = setInterval(() => void refreshApprovals(), 3000);
+    return () => clearInterval(timer);
+  }, [idsKey, waitingOnOwner, refreshApprovals]);
+  const decide = async (
+    id: string,
+    decision: 'approve' | 'deny',
+    note?: string,
+  ) => {
+    try {
+      await api(`/approvals/${id}`, 'POST', {
+        decision,
+        ...(note ? { note } : {}),
+      });
+      // The server resumes the Dot in this conversation; reconnecting streams that turn live.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await reconnect().catch((e: unknown) =>
+        setError(
+          e instanceof Error ? e.message : 'Conversation could not connect.',
+        ),
+      );
+    } finally {
+      await refreshApprovals();
+    }
+  };
+  // A "Your turn" card waits for the owner on the computer panel. When that handoff
+  // finishes (control given back, or dismissed) the server resumes the Dot here, so
+  // reconnect to stream the resumed turn.
+  const latestHandoff = handoffIds(toolResults(agent.messages)).at(-1);
+  const handoffWaiting = useRef(false);
+  useEffect(() => {
+    if (!latestHandoff) return;
+    handoffWaiting.current = false;
+    let active = true;
+    const poll = async () => {
+      try {
+        const data = await api<{ handoffs: Handoff[] }>(
+          `/handoffs?status=waiting&dotId=${encodeURIComponent(dot.id)}`,
+        );
+        if (!active) return;
+        const waiting = data.handoffs.some((row) => row.id === latestHandoff);
+        if (handoffWaiting.current && !waiting) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (active) await reconnect().catch(() => {});
+        }
+        handoffWaiting.current = waiting;
+      } catch {
+        // The next poll retries.
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [latestHandoff, dot.id, agent, copilotkit]);
+  const busyWithOther = /busy with/.test(error);
+  const stopBackground = async () => {
+    try {
+      await api(`/dots/${dot.id}/turn/stop`, 'POST', {});
+      setError('');
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Could not stop the background work.',
+      );
+    }
+  };
   useHumanInTheLoop(
     {
       name: pageReviewTool.name,
@@ -210,6 +323,15 @@ export function Chat({
   // this keeps every other tool without its own renderer from being reported
   // as unrendered.
   useRenderTool({ name: '*', render: () => null }, []);
+  // Approval and handoff requests are drawn by ChatTranscript as an owner card.
+  useRenderTool(
+    { name: 'request_approval', parameters: anyArguments, render: () => null },
+    [],
+  );
+  useRenderTool(
+    { name: 'request_handoff', parameters: anyArguments, render: () => null },
+    [],
+  );
   const visible = agent.messages.filter(
     (message) =>
       !isInternalVoiceReceipt(message) &&
@@ -218,7 +340,9 @@ export function Chat({
         (message.role === 'assistant' &&
           message.toolCalls?.some(
             (call) =>
-              isComputerTool(call.function.name) ||
+              isActivityTool(call.function.name) ||
+              call.function.name === 'request_approval' ||
+              call.function.name === 'request_handoff' ||
               call.function.name === pageReviewTool.name,
           ))),
   );
@@ -333,6 +457,8 @@ export function Chat({
           running={running}
           dotName={dot.name}
           onViewComputer={onComputer}
+          approvals={approvals}
+          onDecide={decide}
           renderTools={(message) => (
             <CopilotChatToolCallsView
               message={message}
@@ -361,12 +487,16 @@ export function Chat({
       {(error || voice.error) && (
         <div className="chat-error" role="alert">
           {error || voice.error}
-          {error && (
+          {error && busyWithOther && (
+            <button onClick={() => void stopBackground()}>
+              Stop background work
+            </button>
+          )}
+          {error && !busyWithOther && (
             <button
               onClick={() => {
                 setError('');
-                void copilotkit
-                  .connectAgent({ agent })
+                void reconnect()
                   .then(() => setLoaded(true))
                   .catch((e) => setError(e.message));
               }}

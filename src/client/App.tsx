@@ -1,3 +1,4 @@
+import { parseAppHash } from './app-hash';
 import { openPageLink } from './page-navigation';
 import { SpaceWorkspace } from './SpaceWorkspace';
 import { useCallback, useEffect, useState, useRef } from 'react';
@@ -20,9 +21,11 @@ import {
   X,
 } from 'lucide-react';
 import type {
+  Approval,
   Conversation,
   Detail,
   Dot,
+  Handoff,
   Result,
   State,
   WorkspaceState,
@@ -31,11 +34,12 @@ import { api, ApiError, authHeaders, setToken } from './api';
 import { deriveTitle } from '../shared/conversation-title';
 import { Mascot } from './Mascot';
 import { Chat } from './Chat';
+import { ApprovalsView } from './ApprovalsView';
 import { Sidebar } from './sidebar/Sidebar';
 import { readFlag, writeFlag } from './sidebar/hooks';
 import { latestChat } from './sidebar/chat-groups';
 import { ResultPane } from './ResultPane';
-import { TaskRow } from './TaskPresentation';
+import { TaskRow, taskWaits, type ListedTask } from './TaskPresentation';
 import { TaskActions } from './TaskActions';
 import { WorkspaceDialog, type Dialog } from './WorkspaceDialog';
 
@@ -44,9 +48,9 @@ export function App() {
   const [workspace, setWorkspace] = useState<WorkspaceState>();
   const [selectedDot, setSelectedDot] = useState('');
   const [selectedThread, setSelectedThread] = useState<string>();
-  const [view, rawSetView] = useState<'chat' | 'tasks' | 'memories' | 'space'>(
-    'chat',
-  );
+  const [view, rawSetView] = useState<
+    'chat' | 'tasks' | 'memories' | 'space' | 'approvals'
+  >('chat');
   const dirtyPage = useRef(false);
   const [spaceId, setSpaceId] = useState('');
   const [pageId, setPageId] = useState<string>();
@@ -64,10 +68,8 @@ export function App() {
   useEffect(() => {
     let acceptedHash = location.hash;
     const navigate = () => {
-      const match = location.hash.match(
-        /^#\/spaces\/([^/]+)(?:\/pages\/([^/]+))?$/,
-      );
-      if (!match) return;
+      const target = parseAppHash(location.hash);
+      if (!target) return;
       if (dirtyPage.current && location.hash === acceptedHash) return;
       if (
         dirtyPage.current &&
@@ -78,9 +80,21 @@ export function App() {
       }
       acceptedHash = location.hash;
       dirtyPage.current = false;
-      setSpaceId(match[1]);
-      setPageId(match[2]);
-      rawSetView('space');
+      if (target.view === 'space') {
+        setSpaceId(target.spaceId);
+        setPageId(target.pageId);
+        rawSetView('space');
+      } else {
+        // Notification links: show the view, then drop the hash so a later reload does not repeat it.
+        if (target.view === 'thread') {
+          setSelectedDot(target.dotId);
+          setSelectedThread(target.threadId);
+          setPane(true);
+          rawSetView('chat');
+        } else rawSetView('approvals');
+        history.replaceState(null, '', location.pathname + location.search);
+        acceptedHash = '';
+      }
       setMobile(false);
     };
     navigate();
@@ -117,14 +131,25 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [taskDetail, setTaskDetail] = useState<Detail>();
+  const [pendingApprovals, setPendingApprovals] = useState<Approval[]>([]);
+  const [waitingHandoffs, setWaitingHandoffs] = useState<Handoff[]>([]);
   const refresh = useCallback(async () => {
     try {
-      const [s, w] = await Promise.all([
+      // The approval lists fail soft: an older server may not have the routes.
+      const [s, w, approvals, handoffs] = await Promise.all([
         api<State>('/state'),
         api<WorkspaceState>('/workspace'),
+        api<{ approvals: Approval[] }>('/approvals?status=pending').catch(
+          () => ({ approvals: [] as Approval[] }),
+        ),
+        api<{ handoffs: Handoff[] }>('/handoffs?status=waiting').catch(() => ({
+          handoffs: [] as Handoff[],
+        })),
       ]);
       setState(s);
       setWorkspace(w);
+      setPendingApprovals(approvals.approvals ?? []);
+      setWaitingHandoffs(handoffs.handoffs ?? []);
       setNeedsAuth(false);
       setSelectedDot((previous) => previous || w.dots[0]?.id || '');
     } catch (e) {
@@ -234,6 +259,29 @@ export function App() {
     await refresh();
     return ok;
   };
+  const decideApproval = async (
+    id: string,
+    decision: 'approve' | 'deny',
+    note?: string,
+  ) => {
+    try {
+      await api(`/approvals/${id}`, 'POST', {
+        decision,
+        ...(note ? { note } : {}),
+      });
+    } finally {
+      await refresh();
+    }
+  };
+  const dismissHandoff = async (id: string) => {
+    setError('');
+    try {
+      await api(`/handoffs/${id}/dismiss`, 'POST', {});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not dismiss.');
+    }
+    await refresh();
+  };
   const newConversation = async (text?: string) => {
     if (!dot || !configured || busy) return;
     setBusy(true);
@@ -342,6 +390,7 @@ export function App() {
         pageId={pageId}
         taskCount={state.tasks.length}
         memoryCount={state.memories.length}
+        approvalCount={pendingApprovals.length + waitingHandoffs.length}
         configured={configured}
         collapsed={navCollapsed}
         onToggleCollapsed={toggleCollapsed}
@@ -383,7 +432,9 @@ export function App() {
                   ? 'Activity'
                   : view === 'space'
                     ? 'Pages'
-                    : 'Memories'}
+                    : view === 'approvals'
+                      ? 'Approvals'
+                      : 'Memories'}
             </strong>
           </div>
           <div className="top-actions">
@@ -594,6 +645,21 @@ export function App() {
               />
             )}
           </div>
+        ) : view === 'approvals' ? (
+          <ApprovalsView
+            approvals={pendingApprovals}
+            handoffs={waitingHandoffs}
+            dots={workspace.dots}
+            conversations={workspace.conversations}
+            onDecide={decideApproval}
+            onOpenThread={selectThread}
+            onOpenComputer={(handoff) => {
+              selectThread(handoff.threadId);
+              setSelectedDot(handoff.dotId);
+              setPane(true);
+            }}
+            onDismissHandoff={dismissHandoff}
+          />
         ) : (
           <main className="main-content">
             <div className="page-heading">
@@ -684,6 +750,12 @@ export function App() {
                       <TaskRow
                         key={task.id}
                         task={task}
+                        waits={taskWaits(
+                          task as ListedTask,
+                          pendingApprovals,
+                          waitingHandoffs,
+                        )}
+                        onWaitingClick={() => setView('approvals')}
                         onClick={() =>
                           void api<Detail>(`/tasks/${task.id}`)
                             .then(setTaskDetail)

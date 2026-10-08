@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from './api';
-import type { Dot, Memory, State, WorkspaceState } from '../shared/types';
+import { ConnectorsSettings } from './ConnectorsSettings';
+import {
+  ApprovalModeField,
+  DotConnectorGrants,
+  type GrantInput,
+} from './DotConnectorGrants';
+import type {
+  ApprovalMode,
+  ConnectorView,
+  Dot,
+  DotConnectorGrant,
+  Memory,
+  State,
+  WorkspaceState,
+} from '../shared/types';
 export type Dialog =
   | { type: 'space' }
   | { type: 'dot'; dot?: Dot; spaceId: string }
@@ -58,6 +72,44 @@ export function WorkspaceDialog({
     void api<{ models: string[] }>('/models')
       .then((result) => {
         if (active) setModelOptions(result.models);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [dialog.type]);
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>(
+    dialog.type === 'dot'
+      ? (dialog.dot?.approvalMode ?? 'sensitive')
+      : 'sensitive',
+  );
+  const [connectors, setConnectors] = useState<ConnectorView[]>([]);
+  const [grants, setGrants] = useState<GrantInput[]>([]);
+  const [grantsDirty, setGrantsDirty] = useState(false);
+  const savedDotId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (dialog.type !== 'dot') return;
+    let active = true;
+    void Promise.all([
+      api<{ connectors: ConnectorView[] }>('/connectors'),
+      dialog.dot
+        ? api<{ grants: DotConnectorGrant[] }>(
+            `/dots/${dialog.dot.id}/connectors`,
+          )
+        : Promise.resolve({ grants: [] as DotConnectorGrant[] }),
+    ])
+      .then(([list, existing]) => {
+        if (!active) return;
+        setConnectors(list.connectors);
+        setGrants(
+          existing.grants.map((grant) => ({
+            connectorId: grant.connectorId,
+            tools: grant.tools,
+            ...(Object.keys(grant.overrides ?? {}).length
+              ? { overrides: grant.overrides }
+              : {}),
+          })),
+        );
       })
       .catch(() => {});
     return () => {
@@ -152,6 +204,7 @@ export function WorkspaceDialog({
                 researchAllowed: research,
                 memoryAllowed: memory,
                 model: model.trim() || null,
+                approvalMode,
               };
             }
             if (dialog.type === 'settings') {
@@ -174,7 +227,31 @@ export function WorkspaceDialog({
                 intervalSeconds: Number(interval),
               };
             }
-            if (await mutate(path, method, body)) onClose();
+            let saved: boolean;
+            if (dialog.type === 'dot' && grantsDirty) {
+              try {
+                // A new Dot needs its id before the grants can be saved. The
+                // last step goes through mutate so the workspace refreshes.
+                let dotId = dialog.dot?.id ?? savedDotId.current;
+                if (dotId) saved = await mutate(`/dots/${dotId}`, 'PUT', body);
+                else {
+                  dotId = (await api<Dot>('/dots', 'POST', body)).id;
+                  savedDotId.current = dotId;
+                  saved = true;
+                }
+                if (saved)
+                  saved = await mutate(`/dots/${dotId}/connectors`, 'PUT', {
+                    grants: grants.filter((grant) =>
+                      connectors.some((item) => item.id === grant.connectorId),
+                    ),
+                  });
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Could not save.');
+                setBusy(false);
+                return;
+              }
+            } else saved = await mutate(path, method, body);
+            if (saved) onClose();
             else
               setError('Could not save. Review the workspace error and retry.');
             setBusy(false);
@@ -251,6 +328,22 @@ export function WorkspaceDialog({
                 faster one for quick tasks.
               </p>
             </>
+          )}
+          {dialog.type === 'dot' && (
+            <DotConnectorGrants
+              connectors={connectors}
+              value={grants}
+              onChange={(next) => {
+                setGrants(next);
+                setGrantsDirty(true);
+              }}
+            />
+          )}
+          {dialog.type === 'dot' && (
+            <ApprovalModeField
+              value={approvalMode}
+              onChange={setApprovalMode}
+            />
           )}
           {dialog.type === 'dot' && (
             <fieldset className="space-access-fields">
@@ -373,6 +466,16 @@ export function WorkspaceDialog({
               >
                 Template setup guide ↗
               </a>
+            </div>
+          )}
+          {dialog.type === 'settings' && (
+            <div className="config-note">
+              <strong>Connectors</strong>
+              <p>
+                Let Dots use other services through MCP servers. Secrets stay in
+                the server environment; nothing secret is stored here.
+              </p>
+              <ConnectorsSettings />
             </div>
           )}
           {dialog.type === 'settings' && (

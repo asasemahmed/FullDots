@@ -15,6 +15,7 @@ import {
   ListChecks,
   Monitor,
   MousePointerClick,
+  Plug,
   ScanSearch,
   Terminal,
   TextCursorInput,
@@ -54,10 +55,20 @@ const icons: Record<string, LucideIcon> = {
 export function computerActionName(toolName: string): string {
   return toolName.replace(/^computer_/, '');
 }
+/** `mcp__<connector>__<tool>` split into its connector and tool, or undefined for other tools. */
+export function mcpToolParts(
+  toolName: string,
+): { connector: string; tool: string } | undefined {
+  const match = /^mcp__(.+?)__(.+)$/.exec(toolName);
+  return match ? { connector: match[1], tool: match[2] } : undefined;
+}
 export function computerStepLabel(toolName: string): string {
+  const mcp = mcpToolParts(toolName);
+  if (mcp) return `Using ${mcp.connector}`;
   return labels[computerActionName(toolName)] ?? 'Using computer';
 }
 export function computerStepIcon(toolName: string): LucideIcon {
+  if (mcpToolParts(toolName)) return Plug;
   return icons[computerActionName(toolName)] ?? Monitor;
 }
 export function computerToolResult(raw: unknown): Record<string, unknown> {
@@ -140,6 +151,19 @@ function parseResult(raw: unknown): Record<string, unknown> {
   if (parsedResults.size > CACHE_LIMIT)
     parsedResults.delete(parsedResults.keys().next().value as string);
   return parsed;
+}
+/** A connector result: usually JSON with a `content` string, but plain text is fine too. */
+function parseMcpResult(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== 'string') return computerToolResult(raw);
+  if (raw.length > PARSE_LIMIT) return { content: raw.slice(0, 4000) };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      return parseResult(raw);
+  } catch {
+    // plain text
+  }
+  return { content: raw };
 }
 function parseArgs(raw: unknown): Record<string, unknown> {
   if (typeof raw === 'string') {
@@ -237,9 +261,10 @@ export function describeComputerStep(
   options: { live: boolean; elements?: ComputerElementIndex },
 ): ComputerStep {
   const action = computerActionName(call.name);
+  const mcp = mcpToolParts(call.name);
   const args = parseArgs(call.arguments);
   const hasResult = result !== undefined && result !== null;
-  const data = hasResult ? parseResult(result) : {};
+  const data = hasResult ? (mcp ? parseMcpResult : parseResult)(result) : {};
   const interrupted =
     data.status === 'stopped' || data.reason === 'stop_requested';
   const error =
@@ -271,64 +296,71 @@ export function describeComputerStep(
   let detail = '';
   let full = '';
   const url = text(args.url) || text(data.url);
-  switch (action) {
-    case 'navigate':
-      full = url;
-      detail = formatUrl(url);
-      break;
-    case 'snapshot':
-    case 'read':
-      full = text(data.title) || url;
-      detail = clipText(text(data.title)) || formatUrl(url);
-      break;
-    case 'screenshot':
-      full = url;
-      detail = formatUrl(url);
-      break;
-    case 'click': {
-      const element = describeElement(text(args.ref), data, options.elements);
-      full = detail = element.label;
-      break;
+  if (mcp) {
+    // Connector results are text for the model; show the start of it, or the
+    // tool name while the call is still running.
+    const content = text(data.content);
+    full = content || mcp.tool;
+    detail = clipText(content) || mcp.tool;
+  } else
+    switch (action) {
+      case 'navigate':
+        full = url;
+        detail = formatUrl(url);
+        break;
+      case 'snapshot':
+      case 'read':
+        full = text(data.title) || url;
+        detail = clipText(text(data.title)) || formatUrl(url);
+        break;
+      case 'screenshot':
+        full = url;
+        detail = formatUrl(url);
+        break;
+      case 'click': {
+        const element = describeElement(text(args.ref), data, options.elements);
+        full = detail = element.label;
+        break;
+      }
+      case 'select':
+        full = detail = clipText(text(args.option));
+        break;
+      case 'type': {
+        const element = describeElement(text(args.ref), data, options.elements);
+        const typed = text(args.text);
+        const shown = element.sensitive
+          ? typed
+            ? '••••••'
+            : ''
+          : clipText(typed, 50);
+        const submit = args.submit === true || data.submitted === true;
+        const target = element.label && !element.label.startsWith('element ');
+        detail = shown
+          ? `“${shown}”${target ? ` in ${element.label}` : ''}${submit ? ' + Enter' : ''}`
+          : element.label;
+        full = element.sensitive ? detail : clipText(typed, TITLE_LIMIT);
+        break;
+      }
+      case 'key':
+        full = detail = text(args.key);
+        break;
+      case 'scroll':
+        full = detail =
+          typeof args.deltaY === 'number' && Number.isFinite(args.deltaY)
+            ? `${args.deltaY < 0 ? 'Up' : 'Down'} ${Math.abs(Math.round(args.deltaY))}px`
+            : '';
+        break;
+      case 'files_list':
+      case 'files_read':
+      case 'files_write':
+        full = text(args.path) || '/';
+        detail = clipText(full);
+        break;
+      case 'exec':
+        full = text(args.command);
+        detail = clipText(full);
+        break;
     }
-    case 'select':
-      full = detail = clipText(text(args.option));
-      break;
-    case 'type': {
-      const element = describeElement(text(args.ref), data, options.elements);
-      const typed = text(args.text);
-      const shown = element.sensitive
-        ? typed
-          ? '••••••'
-          : ''
-        : clipText(typed, 50);
-      const submit = args.submit === true || data.submitted === true;
-      const target = element.label && !element.label.startsWith('element ');
-      detail = shown
-        ? `“${shown}”${target ? ` in ${element.label}` : ''}${submit ? ' + Enter' : ''}`
-        : element.label;
-      full = element.sensitive ? detail : clipText(typed, TITLE_LIMIT);
-      break;
-    }
-    case 'key':
-      full = detail = text(args.key);
-      break;
-    case 'scroll':
-      full = detail =
-        typeof args.deltaY === 'number' && Number.isFinite(args.deltaY)
-          ? `${args.deltaY < 0 ? 'Up' : 'Down'} ${Math.abs(Math.round(args.deltaY))}px`
-          : '';
-      break;
-    case 'files_list':
-    case 'files_read':
-    case 'files_write':
-      full = text(args.path) || '/';
-      detail = clipText(full);
-      break;
-    case 'exec':
-      full = text(args.command);
-      detail = clipText(full);
-      break;
-  }
   detail = clipText(detail);
   const title = clipText(full, TITLE_LIMIT);
   return {

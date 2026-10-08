@@ -1,6 +1,6 @@
 import './privacy.js';
 import { webSearchProvider } from './web-search.js';
-import { readLimits } from './limits.js';
+import { readIntegrationSettings, readLimits } from './limits.js';
 import { createShutdown } from './shutdown.js';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -11,6 +11,7 @@ import { attachComputerStream, type UpgradeServer } from './computer-stream.js';
 import { WorkspaceStore } from './workspace.js';
 import { Platform } from './platform.js';
 import type { PlatformConfig } from './platform-config.js';
+import { TurnRegistry } from './turn-registry.js';
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 4310);
 const ownerToken = process.env.OWNER_TOKEN;
@@ -21,6 +22,11 @@ if (
   throw new Error(
     'External binding requires an OWNER_TOKEN of at least 24 characters.',
   );
+const appOrigin =
+  process.env.APP_ORIGIN ??
+  (process.env.NODE_ENV === 'development'
+    ? 'http://127.0.0.1:5173'
+    : undefined);
 const database = process.env.DATABASE_PATH ?? 'data/opendots.sqlite';
 const store = new Store(database);
 const workspace = new WorkspaceStore(
@@ -43,8 +49,12 @@ const config: PlatformConfig = {
   voiceName: process.env.VOICE_NAME ?? 'marin',
   ownerToken,
   limits: readLimits(),
+  ...readIntegrationSettings(),
+  publicOrigin: appOrigin ?? `http://${host}:${port}`,
 };
-const platform = new Platform(store, workspace, config, database);
+// One registry for every turn source, so the scheduler skips busy and waiting work.
+const turns = new TurnRegistry();
+const platform = new Platform(store, workspace, config, database, turns);
 const researchConfig = {
   mode: 'live' as const,
   apiKey: config.apiKey,
@@ -64,16 +74,15 @@ const runner = new Runner(
         'This legacy task has no conversation. Create a new scheduled task from a conversation.',
       );
     progress('Running this task in its conversation.');
-    const text = await platform.turn(threadId, claim.prompt, signal);
+    const text = await platform.turn(threadId, claim.prompt, signal, {
+      source: 'task',
+      ref: claim.id,
+    });
     return { text, sources: [], sample: false };
   },
   config.limits!.taskTimeoutMs,
+  { excluded: () => workspace.taskIdsFor(turns.exclusions()) },
 );
-const appOrigin =
-  process.env.APP_ORIGIN ??
-  (process.env.NODE_ENV === 'development'
-    ? 'http://127.0.0.1:5173'
-    : undefined);
 const app = createApp({
   store,
   runner,

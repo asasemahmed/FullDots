@@ -35,14 +35,20 @@ const descriptions: Record<string, string> = {
 const fallback =
   "Use this Dot's isolated persistent computer. Requires the owner's enabled permission and a running computer.";
 
+export interface ComputerToolsOptions extends AgentComputerOptions {
+  /** A pre-built instance, so the caller (the approval gate) shares the one the tools use. */
+  computer?: AgentComputer;
+}
+
 export function computerTools(
   service: ComputerService,
   dotId: string,
   check: () => void,
   signal: AbortSignal,
-  options?: AgentComputerOptions,
+  options: ComputerToolsOptions = {},
 ) {
-  const computer = new AgentComputer(service, dotId, signal, options);
+  const computer =
+    options.computer ?? new AgentComputer(service, dotId, signal, options);
   const run = (action: AgentAction) => async (input: unknown) => {
     check();
     return computer.act(action, input);

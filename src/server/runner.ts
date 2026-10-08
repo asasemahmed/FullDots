@@ -2,6 +2,7 @@ import { Store } from './store.js';
 import type { Result, Memory } from '../shared/types.js';
 import type { Claim } from './store.js';
 import { research, type Config } from './research.js';
+import { isDotBusy } from './turn-registry.js';
 export class Runner {
   private timer?: ReturnType<typeof setInterval>;
   private active = new Map<string, AbortController>();
@@ -15,7 +16,9 @@ export class Runner {
       progress: (text: string) => void,
     ) => Promise<Result>,
     private timeoutMs = 90_000,
+    private options: { excluded?: () => string[] } = {},
   ) {}
+  private exclusionsFailed = false;
   start() {
     if (!this.timer) {
       this.timer = setInterval(() => void this.tick(), 1000);
@@ -41,10 +44,28 @@ export class Runner {
     for (const controller of this.active.values())
       controller.abort(new Error('Run stopped because settings changed.'));
   }
+  private excludedTaskIds(): string[] {
+    try {
+      return this.options.excluded?.() ?? [];
+    } catch (error) {
+      if (!this.exclusionsFailed) {
+        this.exclusionsFailed = true;
+        console.error(
+          'Runner exclusions failed: ' +
+            (error instanceof Error ? error.message : 'unknown error'),
+        );
+      }
+      return [];
+    }
+  }
   async tick() {
     if (this.active.size) return;
     // The lease must outlive the run so a slow task is never claimed twice.
-    const claim = this.store.claim(Date.now(), this.timeoutMs + 90_000);
+    const claim = this.store.claim(
+      Date.now(),
+      this.timeoutMs + 90_000,
+      this.excludedTaskIds(),
+    );
     if (!claim) return;
     const controller = new AbortController();
     this.active.set(claim.id, controller);
@@ -82,10 +103,19 @@ export class Runner {
       controller.signal.throwIfAborted();
       this.store.finish(claim, result);
     } catch (error) {
-      this.store.fail(
-        claim,
-        error instanceof Error ? error.message : 'Unexpected research failure.',
-      );
+      // A chat turn took the Dot between the claim and the turn: try again later, not a failure.
+      if (isDotBusy(error))
+        this.store.release(
+          claim,
+          'Waiting: the Dot was busy with another turn.',
+        );
+      else
+        this.store.fail(
+          claim,
+          error instanceof Error
+            ? error.message
+            : 'Unexpected research failure.',
+        );
     } finally {
       clearInterval(ownershipCheck);
       clearTimeout(timeout);

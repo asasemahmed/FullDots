@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { ComputerService } from './computer-service.js';
 import type { ComputerAction } from '../shared/computer-types.js';
-export function computerRoutes(computers: ComputerService) {
+export function computerRoutes(
+  computers: ComputerService,
+  options: { onRelease?: (dotId: string) => void } = {},
+) {
   const app = new Hono();
   app.onError((error, c) =>
     c.json(
@@ -30,9 +33,12 @@ export function computerRoutes(computers: ComputerService) {
   app.post('/dots/:id/computer/take', async (c) =>
     c.json(await computers.control(c.req.param('id'), 'take')),
   );
-  app.post('/dots/:id/computer/release', async (c) =>
-    c.json(await computers.control(c.req.param('id'), 'release')),
-  );
+  app.post('/dots/:id/computer/release', async (c) => {
+    const control = await computers.control(c.req.param('id'), 'release');
+    // A waiting handoff is done once the owner hands the computer back; the Dot resumes.
+    options.onRelease?.(c.req.param('id'));
+    return c.json(control);
+  });
   // Mints a one-time ticket for the live-screen WebSocket; see computer-stream.ts.
   app.post('/dots/:id/computer/stream', (c) =>
     c.json(computers.streamTicket(c.req.param('id'))),

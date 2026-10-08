@@ -30,6 +30,13 @@ export interface ComputerStatus {
   control?: ComputerControl;
   error?: string;
   limits?: ComputerInputLimits;
+  /** A waiting owner handoff for this Dot, if any. */
+  handoff?: {
+    id: string;
+    kind: 'credential' | 'two_factor' | 'captcha' | 'other';
+    reason: string;
+    createdAt: number;
+  };
 }
 const path = z
   .string()

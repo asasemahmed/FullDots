@@ -127,3 +127,35 @@ export function readLimits(env: Env = process.env): Limits {
       number(env, 'COMPUTER_RESPONSE_MAX_MB', 4, 1, 64) * 1_000_000,
   };
 }
+
+export interface IntegrationSettings {
+  connectorsAllowStdio: boolean;
+  connectorResultMaxChars: number;
+  approvalTtlMs: number;
+  notifyWebhookUrl?: string;
+}
+
+/** Connector, approval and notification settings from the environment. */
+export function readIntegrationSettings(
+  env: Env = process.env,
+): IntegrationSettings {
+  const stdio = env.CONNECTORS_ALLOW_STDIO?.trim().toLowerCase();
+  if (stdio && !['true', 'false', '1', '0'].includes(stdio))
+    throw new Error('CONNECTORS_ALLOW_STDIO must be true or false.');
+  const webhook = env.NOTIFY_WEBHOOK_URL?.trim();
+  if (webhook && !/^https?:\/\//i.test(webhook))
+    throw new Error('NOTIFY_WEBHOOK_URL must be an http(s) URL.');
+  return {
+    connectorsAllowStdio: stdio === 'true' || stdio === '1',
+    connectorResultMaxChars: number(
+      env,
+      'CONNECTOR_RESULT_MAX_CHARS',
+      20_000,
+      1000,
+      1_000_000,
+    ),
+    approvalTtlMs:
+      number(env, 'APPROVAL_TTL', 7 * 24 * 3600, 60, 31_536_000) * 1000,
+    ...(webhook ? { notifyWebhookUrl: webhook } : {}),
+  };
+}
