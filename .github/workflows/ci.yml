@@ -1,9 +1,13 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -20,3 +24,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Validate compose files
+        env:
+          OWNER_TOKEN: ci-only-token-0123456789abcdef
+          COMPUTER_SUPERVISOR_TOKEN: ci-only-supervisor-token
+          COMPUTER_TOKEN: ci-only-computer-token
+        run: |
+          docker compose -f compose.yml config -q
+          docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.yml config -q

@@ -110,12 +110,17 @@ export function Chat({
   const bottom = useRef<HTMLDivElement>(null);
   const followOutput = useRef(true);
   const autoOpen = useRef(new ComputerAutoOpen());
+  // The reason a turn failed, as the server reported it (for example "401 API key expired.").
+  const runError = useRef('');
   useEffect(() => {
     const subscription = copilotkit.subscribe({
       onError: ({ error }) => setError(error.message),
     });
     const events = agent.subscribe({
-      onRunErrorEvent: ({ event }) => setError(event.message),
+      onRunErrorEvent: ({ event }) => {
+        runError.current = event.message;
+        setError(event.message);
+      },
     });
     return () => {
       subscription.unsubscribe();
@@ -149,6 +154,7 @@ export function Chat({
   const send = async (text: string) => {
     if (!text.trim() || running || !loaded || !contextReady || paused) return;
     setError('');
+    runError.current = '';
     setRunning(true);
     agent.addMessage({
       id: crypto.randomUUID(),
@@ -163,8 +169,11 @@ export function Chat({
     try {
       const result = await copilotkit.runAgent({ agent });
       if (!result.newMessages.some((message) => message.role === 'assistant'))
+        // Keep the server's reason when it sent one; it is more useful than a generic line.
         throw new Error(
-          'The current turn returned no response. Check the runtime connection and retry.',
+          runError.current
+            ? `The model could not answer: ${runError.current}`
+            : 'The current turn returned no response. Check the runtime connection and retry.',
         );
       onSaved();
     } catch (e) {

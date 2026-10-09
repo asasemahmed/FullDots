@@ -15,7 +15,10 @@
   max-width: 480px;
   max-height: min(860px, 92vh);
   padding: 0;
+  /* clip, not hidden: a hidden box can still be scrolled by focus or scrollIntoView,
+     which would push the header out and leave the footer floating. */
   overflow: hidden;
+  overflow: clip;
   background: #fff;
   border: 1px solid #e7e7e7;
   border-radius: 18px;

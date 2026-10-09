@@ -39,7 +39,7 @@ Model keys can now be added in **Settings → Models**, for several providers at
 
 Keys added in Settings → Models are encrypted with `CONNECTOR_SECRET_KEY` or `data/connector.key`. A database backup can restore them only with that same key.
 
-Any OpenAI-compatible provider works; for OpenRouter set `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. Provider credentials belong in `.env`, not client-side variables or source code. Conversation history is stored in the same SQLite file (`chat_runs` and `chat_threads` tables), so backing up `DATABASE_PATH` backs up everything. CopilotKit telemetry is disabled in code.
+Any OpenAI-compatible provider works; for OpenRouter set `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. Provider credentials belong in `.env`, not client-side variables or source code. Conversation history is stored in the same SQLite file (`chat_runs` and `chat_threads` tables), so backing up `DATABASE_PATH` backs up everything. Telemetry is disabled in code: FullDots sets CopilotKit's telemetry opt-out flags before anything loads.
 
 ## Pages and page conversations
 
@@ -100,7 +100,11 @@ Set `OWNER_TOKEN` and `BROWSER_SECRET` to different random secrets of at least 2
 docker compose up --build -d
 ```
 
-Open http://localhost:4310. The app port binds to loopback. The browser service is optional: set a 24+ character `BROWSER_SECRET` and run `docker compose --profile browser up --build` to enable it; it has no published port. Application data, including conversations, lives in the `opendots-data` volume.
+Open http://localhost:4310. The app port binds to loopback. The browser service is optional: set a 24+ character `BROWSER_SECRET` and run `docker compose --profile browser up --build` to enable it; it has no published port. Application data lives in the `opendots-data` volume, mounted at `/data`: the SQLite database (conversations, pages, workspace) and, unless you set `CONNECTOR_SECRET_KEY`, the generated `connector.key` that encrypts saved model keys and connector sign-ins. Keep both together when you back up. Set `APP_ORIGIN` if you open FullDots at an address other than `http://localhost:4310`; browser sign-in for connectors redirects there.
+
+`compose.yml` passes through the variables listed in `.env.example` (model, voice, search, connector, approval, and limit settings). A connector's own secret, such as `GITHUB_TOKEN`, is passed through only if you add a line for it under `environment:` in `compose.yml`.
+
+Inside a container, `localhost` is the container itself. To use Ollama or LM Studio running on the host, set the provider's base URL to `http://host.docker.internal:11434/v1` (or the LM Studio port) and set `MODEL_PROVIDERS_ALLOW_LAN=true` in `.env`.
 
 ```sh
 # Stop services while retaining saved data.

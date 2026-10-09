@@ -1,7 +1,7 @@
 {
   "name": "fulldots",
   "version": "0.1.0",
-  "description": "A self-hosted personal-agent workspace with local conversations, per-Dot computers, and keyless web search. Based on CopilotKit OpenDots.",
+  "description": "Self-hosted, local-first AI coworkers with their own computers. A fork of CopilotKit OpenDots.",
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -19,7 +19,19 @@
     "format": "prettier --write src tests *.json *.ts *.js index.html public .github Dockerfile \"compose*.yml\" deployment README.md docs .env.example --ignore-unknown",
     "check-format": "prettier --check src tests *.json *.ts *.js index.html public .github Dockerfile \"compose*.yml\" deployment README.md docs .env.example --ignore-unknown"
   },
-  "keywords": [],
+  "keywords": [
+    "ai-agents",
+    "ai-coworkers",
+    "self-hosted",
+    "local-first",
+    "mcp",
+    "computer-use",
+    "copilotkit",
+    "openrouter",
+    "ollama",
+    "sqlite",
+    "opendots"
+  ],
   "author": "asemabdallah",
   "license": "MIT",
   "type": "module",
@@ -78,6 +90,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/asasemahmed/FullDots.git"
+  },
+  "homepage": "https://github.com/asasemahmed/FullDots#readme",
+  "bugs": {
+    "url": "https://github.com/asasemahmed/FullDots/issues"
   },
   "overrides": {
     "undici": "^6.29.0"

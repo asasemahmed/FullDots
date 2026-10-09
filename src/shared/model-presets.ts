@@ -40,6 +40,11 @@ export interface ModelPreset {
     auth: 'bearer' | 'x-api-key';
     headers?: Record<string, string>;
   };
+  /**
+   * A path that answers 401 for a bad or expired key. Needed where the model list is public
+   * (OpenRouter), so a working list does not prove the key works.
+   */
+  keyCheckPath?: string;
   /** Top-level request fields the provider rejects (removed before sending). */
   dropFields?: string[];
   defaultHeaders?: Record<string, string>;
@@ -157,6 +162,8 @@ export const modelPresets: ModelPreset[] = [
     // OpenRouter's optional attribution headers (HTTP-Referer, X-Title) are not sent: FullDots
     // identifies itself to no one.
     models: openaiList,
+    // The model list is public, so the key is checked separately.
+    keyCheckPath: '/key',
   },
   {
     id: 'groq',

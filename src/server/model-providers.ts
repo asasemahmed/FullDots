@@ -777,12 +777,17 @@ export class ModelProviderRegistry {
       if (preset.models.auth === 'x-api-key') headers.set('x-api-key', key);
       else headers.set('authorization', `Bearer ${key}`);
     }
-    const url = `${record.baseUrl.replace(/\/+$/, '')}${preset.models.path}`;
-    const response = await this.fetchFor(
-      entry,
-      'list',
-      this.headersOf(entry),
-    )(url, {
+    const base = record.baseUrl.replace(/\/+$/, '');
+    const fetchList = this.fetchFor(entry, 'list', this.headersOf(entry));
+    // Where the model list is public, a working list says nothing about the key: check it first.
+    if (key && preset.keyCheckPath) {
+      const check = await fetchList(`${base}${preset.keyCheckPath}`, {
+        method: 'GET',
+        headers,
+      });
+      if (!check.ok) throw new Error(await this.httpError(check));
+    }
+    const response = await fetchList(`${base}${preset.models.path}`, {
       method: 'GET',
       headers,
     });

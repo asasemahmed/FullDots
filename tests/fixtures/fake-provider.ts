@@ -43,6 +43,8 @@ export interface FakeProvider {
     rateLimit: boolean;
     /** Text echoed in the 401 body (to prove redaction). */
     echoKeyInErrors: boolean;
+    /** The OpenRouter-style /key check answers 401. */
+    keyExpired: boolean;
   };
 }
 
@@ -110,6 +112,7 @@ export function createFakeProvider(
     models: options.models ?? [...MODEL_DEFAULTS],
     rateLimit: false,
     echoKeyInErrors: false,
+    keyExpired: false,
   };
   const app = new Hono();
   app.all('*', async (c) => {
@@ -147,6 +150,12 @@ export function createFakeProvider(
         },
         401,
       );
+    }
+    // OpenRouter-style key check: 401 when the test marks the key expired.
+    if (url.pathname.endsWith('/key') && c.req.method === 'GET') {
+      if (state.keyExpired)
+        return c.json({ error: { message: 'API key expired.' } }, 401);
+      return c.json({ data: { label: 'fake' } });
     }
     if (url.pathname.endsWith('/models') && c.req.method === 'GET') {
       if (state.modelsStatus)

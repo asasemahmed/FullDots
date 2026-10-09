@@ -1,20 +1,48 @@
 node_modules/
 dist/
+
+# Environment and secrets
 .env
 .env.*
 !.env.example
-.opendots/
-artifacts/
-playwright-report/
-test-results/
-docs/superpowers/
-RESEARCH.md
-.DS_Store
+connector.key
+*.key
+*.pem
 
+# Local data
 data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite3*
+*.db
+.opendots/
+artifacts/
+
+# Test and tooling output
+playwright-report/
+test-results/
+coverage/
+*.log
+.vite/
+*.tsbuildinfo
 
 # Local hosted-project selection
 .copilotkit/
+
+# Private working notes: never commit
+PLAN.md
+PLAN-REVIEW-LOG.md
+IMPLEMENTATION-P1-P2.md
+CONNECTOR-AUTH-PLAN.md
+MODEL-PROVIDERS-PLAN.md
+RESEARCH.md
+docs/superpowers/
+
+# OS and editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/

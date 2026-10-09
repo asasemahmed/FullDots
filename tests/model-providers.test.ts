@@ -358,6 +358,16 @@ describe('providerFetch and adapterFor', () => {
     expect(fake.chats()[1]?.body).toMatchObject({ tool_choice: 'auto' });
   });
 
+  it('reports an expired OpenRouter key even though its model list is public', async () => {
+    const { registry, fake } = setup();
+    fake.state.keyExpired = true;
+    const result = await registry.test('env');
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/expired/i);
+    const listed = await registry.models('env', { refresh: true });
+    expect(listed.error).toMatch(/expired/i);
+  });
+
   it('sends no attribution headers to OpenRouter (FullDots identifies itself to no one)', async () => {
     const { registry, fake } = setup();
     const resolved = registry.resolve({});
