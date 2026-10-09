@@ -14,6 +14,11 @@ npm run dev
 
 Open http://127.0.0.1:5173. The API runs on port 4310. Without a model key, the app shows its setup state; it does not generate simulated replies.
 
+On Windows, copy the environment template with `Copy-Item .env.example .env` in
+PowerShell or `copy .env.example .env` in Command Prompt. The same `npm run dev`
+command works in either shell: its server entry sets development mode before
+loading the API, so no shell-specific `NODE_ENV` assignment is needed.
+
 For a built local app:
 
 ```sh

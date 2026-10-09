@@ -8,7 +8,7 @@
     "test": "tests"
   },
   "scripts": {
-    "dev": "concurrently -k \"NODE_ENV=development node --env-file-if-exists=.env --import tsx --watch src/server/index.ts\" \"vite\"",
+    "dev": "concurrently -k \"node --env-file-if-exists=.env --import tsx --watch src/server/dev.ts\" \"vite\"",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node --env-file-if-exists=.env dist/server/server/index.js",
     "browser": "node --env-file-if-exists=.env --import tsx src/browser/index.ts",
