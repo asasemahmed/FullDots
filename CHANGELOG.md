@@ -4,7 +4,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ## 0.1.0 — first public release (2026-10-09)
 
-FullDots was forked from CopilotKit OpenDots at commit `c2569bb` (2 October 2026). This release covers the 13 commits made on top of that point. Later upstream changes are not merged. See [Relationship to OpenDots](README.md#relationship-to-opendots).
+FullDots was forked from CopilotKit OpenDots at commit `c2569bb` (2 October 2026). This release covers the 13 commits made on top of that point. Later upstream changes are not merged. See [FullDots and OpenDots](README.md#fulldots-and-opendots).
 
 ### Added
 
