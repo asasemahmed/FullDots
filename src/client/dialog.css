@@ -1,0 +1,575 @@
+/* Workspace dialog: shared modal shell (sticky header, scrolling body, sticky footer)
+   and the Dot form. WorkspaceDialog imports this before style.css loads, so every rule
+   is scoped under `.modal.dlg` to win over the global element and .modal rules.
+   Palette: ink #242424, muted #707070, faint #9a9a9a, line #e7e7e7, soft #f7f7f6. */
+
+/* ---------- shell ---------- */
+.modal-backdrop.dlg-backdrop {
+  padding: 24px;
+  background: #24242438;
+}
+.modal.dlg {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(860px, 92vh);
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e7e7e7;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 80px #24242424,
+    0 2px 8px #2424240d;
+  color: #242424;
+}
+.modal.dlg.dlg-dot {
+  max-width: 680px;
+}
+.modal.dlg.modal-settings {
+  max-width: 880px;
+  padding: 0;
+}
+
+/* ---------- header ---------- */
+.modal.dlg .dlg-header {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 18px 16px 28px;
+  background: #fff;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.modal.dlg .dlg-header[data-scrolled='true'] {
+  border-bottom-color: #e7e7e7;
+}
+.modal.dlg .dlg-heading {
+  min-width: 0;
+}
+.modal.dlg .eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #9a9a9a;
+}
+.modal.dlg h2 {
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #242424;
+}
+.modal.dlg .dlg-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #707070;
+}
+.modal.dlg .dlg-close:hover:not(:disabled) {
+  background: #f4f4f3;
+  color: #242424;
+}
+.modal.dlg .dlg-close:focus-visible {
+  outline: 2px solid #242424;
+  outline-offset: 2px;
+}
+
+/* ---------- form, scrolling body ---------- */
+.modal.dlg .dlg-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+}
+.modal.dlg .dlg-body {
+  flex: 1;
+  min-height: 0;
+  /* The right margin keeps the scrollbar thumb off the rounded edge. */
+  margin-right: 6px;
+  padding: 8px 22px 28px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #d6d6d6 transparent;
+}
+@supports selector(::-webkit-scrollbar) {
+  .modal.dlg .dlg-body {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  .modal.dlg .dlg-body::-webkit-scrollbar {
+    width: 10px;
+    background: transparent;
+  }
+  .modal.dlg .dlg-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .modal.dlg .dlg-body::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: #d9d9d9;
+    background-clip: padding-box;
+  }
+  .modal.dlg .dlg-body::-webkit-scrollbar-thumb:hover {
+    background: #bdbdbd;
+    background-clip: padding-box;
+  }
+}
+/* Settings scrolls inside its own panels, so the body only hosts the tab layout. */
+.modal.dlg.modal-settings .dlg-body {
+  display: flex;
+  flex-direction: column;
+  margin-right: 0;
+  padding: 0 28px 16px;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.modal.dlg.modal-settings .ss-shell {
+  margin-top: 8px;
+}
+.modal.dlg .permission-row input {
+  accent-color: #242424;
+}
+
+/* ---------- footer ---------- */
+.modal.dlg .dlg-footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 28px 16px;
+  background: #fff;
+  border-top: 1px solid #e7e7e7;
+}
+.modal.dlg .dlg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal.dlg .dlg-btn {
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #242424;
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
+}
+.modal.dlg .dlg-btn:hover:not(:disabled) {
+  background: #f4f4f3;
+}
+.modal.dlg .dlg-btn:focus-visible {
+  outline: 2px solid #242424;
+  outline-offset: 2px;
+}
+.modal.dlg .dlg-primary {
+  border-color: #242424;
+  background: #242424;
+  color: #fff;
+}
+.modal.dlg .dlg-primary:hover:not(:disabled) {
+  border-color: #000;
+  background: #000;
+}
+.modal.dlg .dlg-primary:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.modal.dlg .dlg-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f3c7c2;
+  border-radius: 12px;
+  background: #fdeeec;
+  color: #8f2018;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.modal.dlg .dlg-error svg {
+  flex: none;
+  margin-top: 2px;
+  color: #c4352c;
+}
+
+/* ---------- sections ---------- */
+.modal.dlg .dlg-section {
+  padding-top: 12px;
+}
+.modal.dlg .dlg-section + .dlg-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #eeeeed;
+}
+.modal.dlg .dlg-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.modal.dlg .dlg-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f7f7f6;
+  color: #242424;
+}
+.modal.dlg .dlg-section-head h3 {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 28px;
+  color: #242424;
+}
+.modal.dlg .dlg-section-head p {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #707070;
+}
+
+/* ---------- fields ---------- */
+.modal.dlg .dlg-label,
+.modal.dlg .field-label {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #242424;
+}
+.modal.dlg .dlg-body > .field-label:first-child,
+.modal.dlg .dlg-identity-fields > .dlg-label {
+  margin-top: 0;
+}
+.modal.dlg .dlg-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #707070;
+}
+.modal.dlg .dlg-hint-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.modal.dlg .dlg-hint-row .dlg-hint {
+  margin: 0;
+}
+.modal.dlg .dlg-count {
+  margin-left: auto;
+  color: #9a9a9a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.modal.dlg .dlg-vh,
+.modal.dlg .dlg-section .dp-root > .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.modal.dlg .dlg-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+  background: #fff;
+  color: #242424;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.modal.dlg .dlg-input:hover {
+  border-color: #d0d0d0;
+}
+.modal.dlg .dlg-input:focus,
+.modal.dlg .dlg-input:focus-visible {
+  border-color: #242424;
+  outline: none;
+  box-shadow: 0 0 0 3px #24242414;
+}
+.modal.dlg .dlg-input::placeholder {
+  color: #a3a3a3;
+}
+.modal.dlg .dlg-input-lg {
+  height: 48px;
+  font-size: 16px;
+  font-weight: 550;
+}
+.modal.dlg .dlg-textarea {
+  height: auto;
+  min-height: 124px;
+  padding: 12px 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.modal.dlg .dlg-select {
+  padding-right: 40px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 14px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+/* ---------- identity ---------- */
+.modal.dlg .dlg-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #f7f7f6;
+}
+.modal.dlg .dlg-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+}
+.modal.dlg .dlg-avatar .mascot {
+  width: 72px;
+  height: 72px;
+}
+.modal.dlg .dlg-identity-fields {
+  flex: 1;
+  min-width: 0;
+}
+.modal.dlg .dlg-identity-fields .dlg-hint {
+  margin-top: 6px;
+}
+
+/* ---------- connectors + approvals (owned by DotConnectorGrants) ---------- */
+.modal.dlg .dp-root.dp-grants {
+  margin: 0;
+}
+
+/* ---------- access ---------- */
+.modal.dlg .dlg-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+.modal.dlg .dlg-list .dlg-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.modal.dlg .dlg-check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  color: #242424;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.modal.dlg .dlg-check-row:hover {
+  border-color: #d0d0d0;
+}
+.modal.dlg .dlg-check-row:has(input:checked) {
+  border-color: #242424;
+  background: #f7f7f6;
+}
+.modal.dlg .dlg-check-row:has(input:focus-visible) {
+  outline: 2px solid #242424;
+  outline-offset: 2px;
+}
+.modal.dlg .dlg-check-row input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  accent-color: #242424;
+  cursor: pointer;
+}
+.modal.dlg .dlg-check-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- switches ---------- */
+.modal.dlg .dlg-switches {
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+}
+.modal.dlg .dlg-switch-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.modal.dlg .dlg-switch-row + .dlg-switch-row {
+  border-top: 1px solid #e7e7e7;
+}
+.modal.dlg .dlg-switch-row:hover {
+  background: #fafafa;
+}
+.modal.dlg .dlg-switch-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.modal.dlg .dlg-switch-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #242424;
+}
+.modal.dlg .dlg-switch-text small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #707070;
+}
+.modal.dlg input.dlg-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  opacity: 0;
+}
+.modal.dlg .dlg-switch-track {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d4d4d4;
+  transition: background 0.15s;
+}
+.modal.dlg .dlg-switch-track::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #00000033;
+  transition: transform 0.15s;
+  content: '';
+}
+.modal.dlg input.dlg-sr:checked + .dlg-switch-track {
+  background: #242424;
+}
+.modal.dlg input.dlg-sr:checked + .dlg-switch-track::after {
+  transform: translateX(16px);
+}
+.modal.dlg input.dlg-sr:focus-visible + .dlg-switch-track {
+  outline: 2px solid #242424;
+  outline-offset: 2px;
+}
+
+/* ---------- small screens: the Dot form and Settings fill the screen ---------- */
+@media (max-width: 640px) {
+  .modal-backdrop.dlg-backdrop:has(.dlg-dot, .modal-settings) {
+    padding: 0;
+  }
+  .modal.dlg.dlg-dot,
+  .modal.dlg.modal-settings {
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .modal.dlg .dlg-header {
+    padding: 16px 12px 12px 16px;
+  }
+  .modal.dlg .dlg-body {
+    margin-right: 0;
+    padding: 4px 10px 24px 16px;
+  }
+  .modal.dlg.modal-settings .dlg-body {
+    padding: 0 16px 12px;
+  }
+  .modal.dlg .dlg-footer {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .modal.dlg .dlg-btn {
+    flex: 1 1 0;
+  }
+  .modal.dlg .dlg-identity {
+    gap: 14px;
+    padding: 12px;
+  }
+  .modal.dlg .dlg-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal.dlg * {
+    transition: none !important;
+  }
+}

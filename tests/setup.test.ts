@@ -31,3 +31,15 @@ it('reports web search and the page reader from configuration', () => {
     }),
   ).toMatchObject({ search: false, browser: true });
 });
+it('takes model readiness and the default label from the model provider registry', () => {
+  expect(setupStatus({ ...config, apiKey: '' }, true, 'Groq · llama')).toEqual(
+    expect.objectContaining({
+      model: true,
+      missing: [],
+      defaultModel: 'Groq · llama',
+    }),
+  );
+  const notReady = setupStatus(config, false);
+  expect(notReady).toMatchObject({ model: false, missing: ['model provider'] });
+  expect(notReady.defaultModel).toBeUndefined();
+});

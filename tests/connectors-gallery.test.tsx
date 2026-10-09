@@ -15,12 +15,16 @@ import {
   prettyName,
 } from '../src/client/ConnectorGallery';
 import {
+  ConnectorForm,
   ConnectorSheet,
+  connectorToDraft,
   draftToBody,
   emptyDraft,
   groupTools,
+  nameFromUrl,
   presetToDraft,
   tokenDraft,
+  urlProblem,
   validateDraft,
   type SheetTarget,
 } from '../src/client/ConnectorSheet';
@@ -167,7 +171,7 @@ describe('ConnectorGallery', () => {
   it('renders a card with a logo for every connector, preset and the custom card', () => {
     const html = renderGallery(mine);
     // The 4-space gap in the logo count: connectors + presets + custom.
-    expect(countOf(html, 'class="connector-logo"')).toBe(
+    expect(html.match(/class="connector-logo[ "]/g)?.length ?? 0).toBe(
       mine.length + connectorPresets.length + 1,
     );
     for (const item of mine)
@@ -301,7 +305,7 @@ describe('ConnectorGallery', () => {
     );
     expect(html).toContain('class="connector-logo"');
     expect(html).toContain('data-connector="linear"');
-    expect(html).not.toContain('role="dialog"');
+    expect(html).not.toContain('cs-page');
   });
 });
 
@@ -318,11 +322,15 @@ describe('ConnectorSheet', () => {
 
   it('an OAuth preset offers Connect with browser and shows no header rows', () => {
     const html = renderSheet({ kind: 'preset', preset: preset('linear') });
-    expect(html).toContain('role="dialog"');
+    // A page that replaces the gallery, with the way back and a sticky footer.
+    expect(html).toContain('class="cs-page"');
+    expect(html).toContain('Back to connectors');
+    expect(html).toContain('cs-footer');
+    expect(html).not.toContain('role="dialog"');
     expect(html).toContain('Connect with browser');
     expect(html).toContain('Use a token instead');
     expect(html).toContain('class="connector-logo"');
-    expect(html).toContain('width:64px;height:64px');
+    expect(html).toContain('width:56px;height:56px');
     expect(html).toContain('Docs');
     expect(html).not.toContain('cn-value-row');
     expect(html).not.toContain('>Headers<');
@@ -517,17 +525,34 @@ describe('ConnectorSheet', () => {
     ).not.toContain('PLANTEDSECRET');
   });
 
-  it('a custom connector has the Authorization choice; a stdio preset the plain form', () => {
+  it('a custom connector is a set of numbered steps with a sign-in choice', () => {
     const custom = renderSheet({ kind: 'custom' });
-    expect(custom).toContain('Authorization');
+    for (const step of [
+      'Where does it run?',
+      'Connection',
+      'How does it sign in?',
+    ])
+      expect(custom).toContain(step);
+    expect(custom).toContain('Remote server (URL)');
+    expect(custom).toContain('Local program');
+    expect(custom).toContain('https://example.com/mcp');
     expect(custom).toContain('Browser sign-in');
-    expect(custom).toContain('Token header');
+    expect(custom).toContain('>Token<');
     expect(custom).toContain('>None<');
     expect(custom).toContain('type="radio"');
+    expect(custom).toContain('Advanced');
     expect(custom).toContain('Add connector');
+    expect(custom).toContain('>Cancel<');
+    // No native select, fieldset or amber note; the local option stays enabled.
+    expect(custom).not.toContain('<select');
+    expect(custom).not.toContain('<fieldset');
+    expect(custom).not.toContain(STDIO_OFF_NOTE);
+    expect(custom).not.toMatch(/<input[^>]*disabled=""[^>]*value="stdio"/);
     const stdio = renderSheet({ kind: 'preset', preset: preset('filesystem') });
     expect(stdio).toContain('Command');
     expect(stdio).toContain('server-filesystem');
+    // A preset has its transport fixed: no "Where does it run?" step.
+    expect(stdio).not.toContain('Where does it run?');
     const off = renderSheet(
       { kind: 'preset', preset: preset('filesystem') },
       [],
@@ -535,6 +560,76 @@ describe('ConnectorSheet', () => {
       false,
     );
     expect(off).toContain(STDIO_OFF_NOTE);
+  });
+
+  it('locks the local option, with a muted explanation, when stdio is off', () => {
+    const html = renderSheet({ kind: 'custom' }, [], idle, false);
+    expect(html).toMatch(/<input[^>]*disabled=""[^>]*value="stdio"/);
+    expect(html).toContain(STDIO_OFF_NOTE);
+    expect(html).toContain('cs-hint');
+    expect(html).not.toContain('cn-note-warn');
+  });
+
+  it('shows the token fields, with the set state, once Token is chosen', () => {
+    const gh = connector(
+      'github',
+      { state: 'connected', tools: [] },
+      {
+        presetId: 'github',
+        auth: 'token',
+        headers: { Authorization: { env: 'GITHUB_TOKEN', set: true } },
+      },
+    );
+    const form = renderToStaticMarkup(
+      <ConnectorForm
+        draft={connectorToDraft(gh)}
+        allowStdio
+        busy={false}
+        problems={[]}
+        warnings={[]}
+        envStatus={new Map([['GITHUB_TOKEN', true]])}
+        onChange={noop}
+        onSave={noop}
+        onCancel={noop}
+      />,
+    );
+    expect(form).toContain('Environment variable');
+    expect(form).toContain('value="GITHUB_TOKEN"');
+    expect(form).toContain('cn-set');
+    expect(form).toContain('Change header');
+    expect(form).toContain('<strong>Authorization</strong>');
+    // The token row is edited above, not listed again under Advanced.
+    expect(form).not.toContain('Remove row');
+  });
+});
+
+describe('custom connector helpers', () => {
+  it('names a connector after its host', () => {
+    expect(nameFromUrl('https://mcp.linear.app/mcp')).toBe('linear');
+    expect(nameFromUrl('https://api.example.com/v1')).toBe('example');
+    expect(nameFromUrl('https://www.example.co.uk/mcp')).toBe('example');
+    expect(nameFromUrl('http://localhost:3000/mcp')).toBe('localhost');
+    expect(nameFromUrl('http://127.0.0.1:8080')).toBe('127-0-0-1');
+    expect(nameFromUrl('not a url')).toBe('');
+    expect(nameFromUrl('')).toBe('');
+    // Always a name the server accepts.
+    for (const url of [
+      'https://mcp.linear.app/mcp',
+      'http://127.0.0.1:8080',
+      'https://my_tool.example.com',
+    ])
+      expect(
+        validateDraft({ ...emptyDraft(), name: nameFromUrl(url), url }),
+      ).toEqual([]);
+  });
+
+  it('asks for https, or http on localhost', () => {
+    expect(urlProblem('')).toBe('');
+    expect(urlProblem('https://example.com/mcp')).toBe('');
+    expect(urlProblem('http://localhost:8787/mcp')).toBe('');
+    expect(urlProblem('http://127.0.0.1/mcp')).toBe('');
+    for (const bad of ['http://example.com/mcp', 'example.com', 'ftp://x.io'])
+      expect(urlProblem(bad)).toBe('Use https:// (http only for localhost)');
   });
 });
 
@@ -828,7 +923,7 @@ describe('Settings dialog tabs', () => {
   const state = {
     settings: { researchAllowed: true, memoryAllowed: true },
   } as unknown as State;
-  const render = (tab?: 'general' | 'connectors' | 'about') =>
+  const render = (tab?: 'general' | 'models' | 'connectors' | 'about') =>
     renderToStaticMarkup(
       <WorkspaceDialog
         dialog={{ type: 'settings', ...(tab ? { tab } : {}) }}
@@ -839,12 +934,12 @@ describe('Settings dialog tabs', () => {
       />,
     );
 
-  it('renders the three tabs, General selected, with Save on General only', () => {
+  it('renders the four tabs, General selected, with Save on General only', () => {
     const html = render();
     expect(html).toContain('modal modal-settings');
     expect(html).toContain('role="tablist"');
-    expect(countOf(html, 'role="tab"')).toBe(3);
-    for (const label of ['General', 'Connectors', 'About'])
+    expect(countOf(html, 'role="tab"')).toBe(4);
+    for (const label of ['General', 'Models', 'Connectors', 'About'])
       expect(html).toContain(label);
     expect(html).toMatch(/id="settings-tab-general"[^>]*aria-selected="true"/);
     expect(html).toMatch(
@@ -855,8 +950,9 @@ describe('Settings dialog tabs', () => {
     expect(html).toMatch(/id="settings-tab-about"[^>]*tabindex="-1"/);
     expect(html).toContain('Service setup');
     expect(html).toContain('>Save<');
-    // Connectors mount lazily, so nothing loads until the tab is opened.
+    // Models and connectors mount lazily, so nothing loads until a tab is opened.
     expect(html).not.toContain('Loading connectors');
+    expect(html).not.toContain('Loading models');
   });
 
   it('opens straight on the Connectors tab without a Save button', () => {

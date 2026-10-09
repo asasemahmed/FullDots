@@ -12,7 +12,6 @@ import {
   siGmail,
   siGooglecalendar,
   siGoogledrive,
-  siHuggingface,
   siIntercom,
   siJira,
   siLinear,
@@ -37,9 +36,16 @@ import {
 
 type Mark =
   | { kind: 'brand'; icon: SimpleIcon }
-  | { kind: 'glyph'; icon: LucideIcon; hex: string };
+  | { kind: 'glyph'; icon: LucideIcon; hex: string }
+  /** The service's own full-colour logo, served from public/connectors; `hex` tints the tile. */
+  | { kind: 'image'; src: string; hex: string };
 
 const brand = (icon: SimpleIcon): Mark => ({ kind: 'brand', icon });
+const image = (src: string, hex: string): Mark => ({
+  kind: 'image',
+  src,
+  hex,
+});
 const glyph = (icon: LucideIcon, hex: string): Mark => ({
   kind: 'glyph',
   icon,
@@ -64,8 +70,8 @@ const MARKS: Record<string, Mark> = {
   stripe: brand(siStripe),
   figma: brand(siFigma),
   cloudflare: brand(siCloudflare),
-  huggingface: brand(siHuggingface),
-  'hugging-face': brand(siHuggingface),
+  huggingface: image('/connectors/huggingface.svg', '#FF9D0B'),
+  'hugging-face': image('/connectors/huggingface.svg', '#FF9D0B'),
   box: brand(siBox),
   webflow: brand(siWebflow),
   vercel: brand(siVercel),
@@ -123,6 +129,29 @@ export function ConnectorLogo({
   size?: number;
 }) {
   const mark = connectorMark(presetId, name, url, transport);
+  // A service's own full-colour logo stands on its own: no tinted tile behind it.
+  if (mark.kind === 'image')
+    return (
+      <span
+        className="connector-logo connector-logo-image"
+        aria-hidden="true"
+        style={{
+          width: size,
+          height: size,
+          display: 'inline-grid',
+          placeItems: 'center',
+        }}
+      >
+        <img
+          src={mark.src}
+          width={Math.round(size * 0.92)}
+          height={Math.round(size * 0.92)}
+          alt=""
+          draggable={false}
+          style={{ objectFit: 'contain' }}
+        />
+      </span>
+    );
   const color = markColor(mark);
   const inner = Math.round(size * 0.55);
   return (

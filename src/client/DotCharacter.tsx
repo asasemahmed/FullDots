@@ -191,14 +191,14 @@ export function DotCharacter({
   );
 }
 
-/** The FullDots logo mark (public/logo.svg, also the favicon). */
+/** The FullDots mark: the Dot, simplified to read at 16 px (public/logo.svg, also the favicon). */
 export function BrandMark({ size = 22 }: { size?: number }) {
   return (
     <img
       className="brand-mark"
       src="/logo.svg"
       width={size}
-      height={Math.round((size * 88) / 95)}
+      height={size}
       alt=""
       draggable={false}
     />

@@ -25,17 +25,30 @@ export interface PlatformConfig extends WebConfig {
   /** Where the app is opened (APP_ORIGIN, else the server address); makes notification links absolute. */
   publicOrigin?: string;
 }
-export function setupStatus(config: PlatformConfig): SetupStatus {
-  const missing = [
-    !config.apiKey && 'OPENAI_API_KEY',
-    !config.model && 'OPENAI_MODEL',
-  ].filter((item): item is string => !!item);
+/**
+ * `modelReady` and `defaultModel` come from the model provider registry (a usable `.env` or stored
+ * default). Without them the legacy `.env`-only check is used.
+ */
+export function setupStatus(
+  config: PlatformConfig,
+  modelReady?: boolean,
+  defaultModel?: string,
+): SetupStatus {
+  const missing =
+    modelReady === undefined
+      ? [
+          !config.apiKey && 'OPENAI_API_KEY',
+          !config.model && 'OPENAI_MODEL',
+        ].filter((item): item is string => !!item)
+      : modelReady
+        ? []
+        : ['model provider'];
   return {
-    model: !!(config.apiKey && config.model),
+    model: !missing.length,
     browser: !!(config.browserUrl && config.browserSecret),
     search: (config.webSearchProvider ?? 'duckduckgo') !== 'disabled',
     voice: !!(config.voiceKey && config.voiceModel && !missing.length),
     missing,
-    defaultModel: config.model,
+    defaultModel: modelReady === undefined ? config.model : defaultModel,
   };
 }

@@ -6,12 +6,15 @@ import {
 } from './web-search.js';
 import { z } from 'zod';
 import type { Memory, Result } from '../shared/types.js';
+import type { ModelProviderRegistry } from './model-providers.js';
 export { browserResponse } from './web-search.js';
 export interface Config extends WebConfig {
   mode: 'sample' | 'live';
   apiKey?: string;
   baseUrl: string;
   model?: string;
+  /** The default model provider; when present it replaces apiKey, baseUrl and model. */
+  models?: Pick<ModelProviderRegistry, 'resolveDefault' | 'hasUsableDefault'>;
 }
 const modelResponse = z.object({
   choices: z
@@ -22,8 +25,9 @@ export function configured(config: Config): boolean {
   return (
     config.mode === 'sample' ||
     Boolean(
-      config.apiKey &&
-      config.model &&
+      (config.models
+        ? config.models.hasUsableDefault()
+        : config.apiKey && config.model) &&
       (config.webSearchProvider ?? 'duckduckgo') !== 'disabled',
     )
   );
@@ -65,7 +69,7 @@ export async function research(
   }
   if (!configured(config))
     throw new Error(
-      'Live mode is not configured. Set OPENAI_API_KEY and OPENAI_MODEL, and keep WEB_SEARCH_PROVIDER enabled.',
+      'Live mode is not configured. Add a model provider in Settings → Models (or set OPENAI_API_KEY and OPENAI_MODEL), and keep WEB_SEARCH_PROVIDER enabled.',
     );
   const pages: WebSource[] = [];
   const limitations: string[] = [];
@@ -103,19 +107,20 @@ export async function research(
   const screenshot = pages.find((page) => page.screenshot)?.screenshot;
   progress('Sources captured. Writing a brief grounded in the evidence.');
   signal.throwIfAborted();
-  const completion = await fetch(
-    `${config.baseUrl.replace(/\/$/, '')}/chat/completions`,
+  const provider = config.models?.resolveDefault();
+  const completion = await (provider?.fetch ?? fetch)(
+    `${(provider?.baseURL ?? config.baseUrl).replace(/\/$/, '')}/chat/completions`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${provider?.apiKey ?? config.apiKey}`,
       },
       signal,
       body: JSON.stringify({
-        model: config.model,
+        model: provider?.model ?? config.model,
         temperature: 0.3,
-        max_tokens: 1800,
+        [provider?.maxTokensKey ?? 'max_tokens']: 1800,
         messages: [
           {
             role: 'system',

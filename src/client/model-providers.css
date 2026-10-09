@@ -1,0 +1,777 @@
+/* Settings > Models and the model picker. The gallery and the detail page reuse the
+   connectors.css classes (cg-, cs-, cn-, cx-); only what is new lives here (mp-).
+   The picker also appears in the Dot form, outside .cx-root, so it carries its own
+   palette and scopes every rule under .mp-picker to beat the global element rules. */
+
+.mp-picker,
+.mp-settings {
+  --mp-ink: #242424;
+  --mp-muted: #707070;
+  --mp-line: #e7e7e7;
+  --mp-soft: #f7f7f6;
+  --mp-green: #2f7d4f;
+  --mp-green-bg: #eaf6ef;
+  --mp-amber: #b7791f;
+  --mp-amber-bg: #fdf6e7;
+  --mp-red: #b42318;
+  --mp-red-bg: #fdecea;
+}
+
+/* ---- Badges and small gallery bits ----------------------------------------------- */
+
+.mp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--mp-muted);
+  background: var(--mp-soft);
+  box-shadow: inset 0 0 0 1px var(--mp-line);
+  white-space: nowrap;
+}
+.mp-badge-default {
+  color: var(--mp-ink);
+  font-weight: 600;
+}
+.cx-root .cg-added.mp-added {
+  margin-left: 0;
+  font-size: 12px;
+}
+.cx-root .cg-note.mp-footnote {
+  background: none;
+  padding: 0;
+  color: var(--cx-muted);
+}
+.mp-card[data-tone='bad'] {
+  border-color: #f2c4bf;
+}
+
+/* ---- Default model bar --------------------------------------------------------------- */
+
+.mp-default {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--mp-line);
+  border-radius: 14px;
+  background: var(--mp-soft);
+}
+.mp-default-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--mp-ink);
+  color: #fff;
+}
+.mp-default-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.mp-default-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-muted);
+}
+.mp-default-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mp-ink);
+}
+.mp-default-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-default-none {
+  font-weight: 500;
+  color: var(--mp-muted);
+}
+.mp-default-text small {
+  font-size: 12px;
+  color: var(--mp-muted);
+}
+.mp-default-text small.mp-default-error {
+  color: var(--mp-red);
+}
+@container cx (max-width: 520px) {
+  .mp-default {
+    flex-wrap: wrap;
+  }
+  .mp-default-text {
+    flex-basis: calc(100% - 60px);
+  }
+}
+
+/* ---- Picker ---------------------------------------------------------------------------- */
+
+.mp-picker {
+  position: relative;
+  min-width: 0;
+  color: var(--mp-ink);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.mp-picker-field {
+  width: 100%;
+}
+.mp-picker button:focus-visible,
+.mp-picker input:focus-visible,
+.mp-picker select:focus-visible,
+.mp-picker [role='option']:focus-visible {
+  outline: 2px solid var(--mp-ink);
+  outline-offset: 2px;
+}
+.mp-picker .cx-spin {
+  animation: mp-spin 0.9s linear infinite;
+}
+@keyframes mp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mp-picker .mp-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--mp-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--mp-ink);
+  font-size: 14px;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.mp-picker .mp-trigger:hover:not(:disabled) {
+  background: #fff;
+  border-color: #d0d0d0;
+}
+.mp-picker .mp-trigger[aria-expanded='true'],
+.mp-picker .mp-trigger:focus-visible {
+  border-color: var(--mp-ink);
+  box-shadow: 0 0 0 3px #24242414;
+  outline: none;
+}
+.mp-picker .mp-trigger[data-stale] {
+  border-color: #e3b76a;
+}
+.mp-trigger-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--mp-soft);
+  color: var(--mp-muted);
+}
+.mp-trigger-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-picker .mp-chevron {
+  flex: none;
+  color: var(--mp-muted);
+}
+.mp-picker .mp-trigger-btn {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--mp-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mp-ink);
+  font-size: 14px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.mp-picker .mp-trigger-btn:hover:not(:disabled) {
+  background: var(--mp-soft);
+  border-color: #d6d6d6;
+}
+.mp-stale {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mp-amber);
+}
+.mp-stale > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.mp-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 300px;
+  max-height: min(380px, 60vh);
+  border: 1px solid var(--mp-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 12px 36px #24242424,
+    0 2px 6px #2424240d;
+  overflow: hidden;
+}
+.mp-picker-button .mp-pop {
+  left: auto;
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 80px);
+}
+.mp-picker .mp-search {
+  position: relative;
+  flex: none;
+  padding: 10px;
+  border-bottom: 1px solid var(--mp-line);
+}
+.mp-search > svg {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mp-muted);
+  pointer-events: none;
+}
+.mp-picker .mp-search input {
+  display: block;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--mp-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mp-ink);
+  font-size: 14px;
+}
+.mp-picker .mp-search input:focus {
+  border-color: var(--mp-ink);
+  box-shadow: 0 0 0 3px #24242414;
+  outline: none;
+}
+.mp-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+.mp-group {
+  margin-top: 6px;
+}
+.mp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px;
+}
+.mp-group-name {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-muted);
+}
+.mp-group-count {
+  font-size: 12px;
+  color: var(--mp-muted);
+}
+.mp-picker .mp-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mp-muted);
+}
+.mp-picker .mp-icon-btn:hover:not(:disabled) {
+  background: var(--mp-soft);
+  color: var(--mp-ink);
+}
+.mp-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.mp-opt[data-active] {
+  background: var(--mp-soft);
+}
+.mp-opt[aria-selected='true'] {
+  font-weight: 600;
+}
+.mp-opt > svg {
+  flex: none;
+  color: var(--mp-ink);
+}
+.mp-opt-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--mp-soft);
+  color: var(--mp-muted);
+}
+.mp-opt[data-active] .mp-opt-icon {
+  background: #fff;
+}
+.mp-opt-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.mp-opt-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: inherit;
+}
+.mp-opt-default .mp-opt-main strong,
+.mp-opt-custom .mp-opt-main strong {
+  font-weight: 600;
+}
+.mp-opt-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mp-muted);
+}
+.mp-opt-custom {
+  margin-top: 8px;
+  border-top: 1px solid var(--mp-line);
+  border-radius: 0 0 10px 10px;
+  padding-top: 10px;
+}
+.mp-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.mp-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--mp-muted);
+  background: var(--mp-soft);
+  white-space: nowrap;
+}
+.mp-chip-ok {
+  color: var(--mp-green);
+  background: var(--mp-green-bg);
+}
+.mp-chip-warn {
+  color: var(--mp-amber);
+  background: var(--mp-amber-bg);
+}
+.mp-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mp-muted);
+}
+.mp-note-bad {
+  color: var(--mp-red);
+}
+.mp-picker .mp-linkbtn,
+.config-note .mp-linkbtn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mp-picker .mp-linkbtn:hover:not(:disabled),
+.config-note .mp-linkbtn:hover:not(:disabled) {
+  background: none;
+}
+
+/* Custom model id */
+.mp-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  overflow-y: auto;
+}
+.mp-custom-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.mp-picker .mp-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.mp-picker .mp-input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--mp-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mp-ink);
+  font-size: 14px;
+}
+.mp-picker .mp-input:focus {
+  border-color: var(--mp-ink);
+  box-shadow: 0 0 0 3px #24242414;
+  outline: none;
+}
+.mp-picker .mp-input[aria-invalid='true'] {
+  border-color: var(--mp-red);
+}
+.mp-picker .mp-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mp-muted);
+}
+.mp-picker .mp-hint-bad {
+  color: var(--mp-red);
+}
+.mp-custom-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mp-picker .mp-btn {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--mp-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mp-ink);
+  font-size: 14px;
+  font-weight: 550;
+}
+.mp-picker .mp-btn:hover:not(:disabled) {
+  background: var(--mp-soft);
+}
+.mp-picker .mp-btn-primary {
+  border-color: var(--mp-ink);
+  background: var(--mp-ink);
+  color: #fff;
+}
+.mp-picker .mp-btn-primary:hover:not(:disabled) {
+  background: #000;
+}
+
+/* The General tab's note links to the Models tab. */
+.config-note .mp-linkbtn {
+  cursor: pointer;
+}
+
+/* ---- Detail page ------------------------------------------------------------------------ */
+
+.mp-page .mp-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cx-root .cs-hint.mp-hint-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--cx-amber);
+}
+.mp-hint-warn > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.mp-keyrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cx-line);
+  border-radius: 12px;
+  background: var(--cx-soft);
+}
+.cx-root .mp-masked {
+  padding: 0;
+  background: none;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.mp-keyrow .cs-btn {
+  margin-left: auto;
+}
+.mp-secret {
+  position: relative;
+}
+.cx-root .mp-secret-input {
+  padding-right: 48px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.cx-root .mp-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cx-muted);
+  transform: translateY(-50%);
+}
+.cx-root .mp-eye:hover:not(:disabled) {
+  background: var(--cx-soft);
+  color: var(--cx-ink);
+}
+.cx-root .mp-eye:active:not(:disabled) {
+  transform: translateY(-50%);
+}
+.cx-root .mp-keep {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.cx-root .mp-mono-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.cx-root .mp-mono-input[readonly] {
+  background: var(--cx-soft);
+  color: var(--cx-muted);
+}
+.mp-test-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* Models list */
+.mp-models-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mp-models-search {
+  flex: 1 1 200px;
+}
+.cx-root .mp-models-search input {
+  height: 36px;
+}
+.mp-models {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--cx-line);
+  border-radius: 12px;
+}
+.mp-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 12px;
+}
+.mp-model + .mp-model {
+  border-top: 1px solid #eeeeed;
+}
+.mp-model-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.mp-model-id strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 550;
+}
+.mp-model-id small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--cx-muted);
+}
+.mp-model .cs-btn {
+  flex: none;
+}
+.mp-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mp-manual-row {
+  display: flex;
+  gap: 8px;
+}
+.mp-manual-row .cs-input {
+  flex: 1;
+  min-width: 0;
+}
+.mp-list-error {
+  color: var(--cx-amber);
+}
+
+/* Enabled switch */
+.mp-switch-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--cx-line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.mp-switch-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.mp-switch-text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--cx-muted);
+}
+.cx-root .mp-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.mp-switch-track {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: #d0d0d0;
+  transition: background 0.15s;
+}
+.mp-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #0003;
+  transition: transform 0.15s;
+}
+.mp-switch-input:checked + .mp-switch-track {
+  background: var(--cx-green);
+}
+.mp-switch-input:checked + .mp-switch-track::after {
+  transform: translateX(16px);
+}
+.mp-switch-row:has(.mp-switch-input:focus-visible) {
+  outline: 2px solid var(--cx-ink);
+  outline-offset: 2px;
+}
+.mp-switch-row:has(.mp-switch-input:disabled) {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-picker .cx-spin {
+    animation-duration: 2.4s;
+  }
+  .mp-switch-track,
+  .mp-switch-track::after {
+    transition: none;
+  }
+}
+
+/* In the default-model bar the list opens under the whole bar, whichever way the bar wraps. */
+.mp-default {
+  position: relative;
+}
+.mp-default .mp-picker {
+  position: static;
+}
+.mp-default .mp-picker-button .mp-pop {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+}

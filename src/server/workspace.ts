@@ -3,6 +3,7 @@ import { ComputerStore } from './computer-store.js';
 import { ConnectorAuthStore } from './connector-auth-store.js';
 import { loadConnectorKey } from './connector-crypto.js';
 import { ConnectorStore } from './connector-store.js';
+import { ModelProviderStore } from './model-provider-store.js';
 import { HandoffStore } from './handoff-store.js';
 import { ResumeStore } from './resume-store.js';
 import { Pages } from './pages.js';
@@ -26,6 +27,8 @@ export class WorkspaceStore {
   readonly computers: ComputerStore;
   readonly connectors: ConnectorStore;
   readonly connectorAuth: ConnectorAuthStore;
+  /** Model providers whose API keys are stored encrypted; Dots reference them by id. */
+  readonly modelProviders: ModelProviderStore;
   readonly approvals: ApprovalStore;
   readonly handoffs: HandoffStore;
   readonly resumes: ResumeStore;
@@ -49,6 +52,7 @@ export class WorkspaceStore {
       ['thread_bindings', 'learningContainerId', 'TEXT'],
       ['dots', 'model', 'TEXT'],
       ['dots', 'approvalMode', 'TEXT'],
+      ['dots', 'modelProviderId', 'TEXT'],
     ]) {
       if (
         !this.db
@@ -73,11 +77,11 @@ export class WorkspaceStore {
     }
     this.computers = new ComputerStore(this.db);
     this.connectors = new ConnectorStore(this.db);
-    this.connectorAuth = new ConnectorAuthStore(
-      this.db,
+    const connectorKey =
       options.connectorKey ??
-        loadConnectorKey({ env: process.env, databasePath: path }),
-    );
+      loadConnectorKey({ env: process.env, databasePath: path });
+    this.connectorAuth = new ConnectorAuthStore(this.db, connectorKey);
+    this.modelProviders = new ModelProviderStore(this.db, connectorKey);
     this.approvals = new ApprovalStore(this.db);
     this.handoffs = new HandoffStore(this.db);
     this.resumes = new ResumeStore(this.db);
@@ -141,6 +145,7 @@ export class WorkspaceStore {
         memoryAllowed: !!row.memoryAllowed,
         skillDeliveryEnabled: !!row.skillDeliveryEnabled,
         approvalMode: row.approvalMode ?? 'sensitive',
+        modelProviderId: row.modelProviderId ?? null,
       })) as unknown as Dot[];
   }
   dot(id: string) {
@@ -157,6 +162,7 @@ export class WorkspaceStore {
     skillDeliveryEnabled = false,
     model: string | null = null,
     approvalMode: ApprovalMode = 'sensitive',
+    modelProviderId: string | null = null,
   ): Dot {
     this.validateSpaceAccess(spaceId, spaceIds);
     validateLearningSettings(learningContainerId, skillDeliveryEnabled);
@@ -171,6 +177,7 @@ export class WorkspaceStore {
       learningContainerId,
       skillDeliveryEnabled,
       model,
+      modelProviderId,
       approvalMode,
       createdAt: Date.now(),
     };
@@ -178,7 +185,7 @@ export class WorkspaceStore {
     try {
       this.db
         .prepare(
-          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, learningContainerId, skillDeliveryEnabled, model, approvalMode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, learningContainerId, skillDeliveryEnabled, model, approvalMode, modelProviderId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(
           dot.id,
@@ -192,6 +199,7 @@ export class WorkspaceStore {
           +skillDeliveryEnabled,
           model,
           approvalMode,
+          modelProviderId,
         );
       for (const id of dot.spaceIds)
         this.db.prepare('INSERT INTO dot_spaces VALUES (?, ?)').run(dot.id, id);
@@ -225,6 +233,7 @@ export class WorkspaceStore {
       learningContainerId?: string | null;
       skillDeliveryEnabled?: boolean;
       model?: string | null;
+      modelProviderId?: string | null;
       approvalMode?: ApprovalMode | null;
     },
   ): Dot {
@@ -242,13 +251,17 @@ export class WorkspaceStore {
     validateLearningSettings(learningContainerId, skillDeliveryEnabled);
     const model =
       patch.model === undefined ? (current.model ?? null) : patch.model;
+    const modelProviderId =
+      patch.modelProviderId === undefined
+        ? (current.modelProviderId ?? null)
+        : patch.modelProviderId;
     const approvalMode =
       patch.approvalMode ?? current.approvalMode ?? 'sensitive';
     this.db.exec('BEGIN');
     try {
       this.db
         .prepare(
-          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, learningContainerId=?, skillDeliveryEnabled=?, model=?, approvalMode=? WHERE id=?',
+          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, learningContainerId=?, skillDeliveryEnabled=?, model=?, approvalMode=?, modelProviderId=? WHERE id=?',
         )
         .run(
           patch.name,
@@ -259,6 +272,7 @@ export class WorkspaceStore {
           +skillDeliveryEnabled,
           model,
           approvalMode,
+          modelProviderId,
           id,
         );
       this.db

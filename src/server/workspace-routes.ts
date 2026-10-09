@@ -32,6 +32,12 @@ const dotSchema = z
       .transform((value) => value || null)
       .nullable()
       .optional(),
+    modelProviderId: z
+      .string()
+      .max(100)
+      .transform((value) => value.trim() || null)
+      .nullable()
+      .optional(),
     approvalMode: z.enum(['sensitive', 'writes', 'off']).optional(),
   })
   .strict();
@@ -117,6 +123,24 @@ export async function titleFromFirstMessage(
     // The title is a convenience; the turn itself must still run.
   }
 }
+/** How long GET /api/models waits for one provider's list; a slow one is simply left out. */
+const MODEL_LIST_WAIT_MS = 5000;
+async function listWithin<T>(list: Promise<T[]>, ms: number): Promise<T[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      list,
+      new Promise<T[]>((resolve) => {
+        timer = setTimeout(() => resolve([]), ms);
+      }),
+    ]);
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+const UNKNOWN_PROVIDER = 'Unknown model provider.';
 export function workspaceRoutes(platform: Platform, voice: VoiceService) {
   const app = new Hono();
   app.route('/', pageRoutes(platform));
@@ -129,36 +153,40 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       calls: platform.workspace.calls(),
     }),
   );
-  // Model identifiers offered by the configured OpenAI-compatible provider,
-  // used as suggestions for per-Dot model selection. Cached for ten minutes.
-  let models: { at: number; ids: string[] } | undefined;
+  // Model identifiers offered by the model providers, used as suggestions for per-Dot model
+  // selection. `models` and `default` stay as they were (the default provider's list and label);
+  // `providers` adds every usable provider with its own list. Lists come from the registry's
+  // cache (ten minutes) and a provider that cannot be reached contributes an empty list.
   app.get('/models', async (c) => {
-    const config = platform.config;
-    if (!models || Date.now() - models.at > 600_000) {
-      try {
-        const response = await fetch(
-          `${config.baseUrl.replace(/\/$/, '')}/models`,
-          {
-            headers: config.apiKey
-              ? { Authorization: `Bearer ${config.apiKey}` }
-              : {},
-            signal: AbortSignal.timeout(10_000),
-          },
-        );
-        const parsed = z
-          .object({ data: z.array(z.object({ id: z.string() })) })
-          .safeParse(response.ok ? await response.json() : null);
-        models = {
-          at: Date.now(),
-          ids: parsed.success
-            ? [...new Set(parsed.data.data.map((item) => item.id))].sort()
-            : [],
-        };
-      } catch {
-        models = { at: Date.now() - 540_000, ids: [] };
-      }
-    }
-    return c.json({ default: config.model ?? null, models: models.ids });
+    const registry = platform.models;
+    const providers = await Promise.all(
+      registry
+        .list()
+        .filter((provider) => provider.enabled)
+        .map(async (provider) => {
+          const models = await listWithin(
+            registry.models(provider.id).then((result) => result.models),
+            MODEL_LIST_WAIT_MS,
+          );
+          return {
+            id: provider.id,
+            name: provider.name,
+            presetId: provider.presetId,
+            models,
+          };
+        }),
+    );
+    const defaultModel = registry.defaultModel();
+    const defaults = providers.find(
+      (provider) => provider.id === defaultModel?.providerId,
+    );
+    return c.json({
+      default: registry.defaultLabel() ?? platform.config.model ?? null,
+      models: [
+        ...new Set((defaults?.models ?? []).map((model) => model.id)),
+      ].sort(),
+      providers,
+    });
   });
   app.post('/spaces', async (c) => {
     const data = z
@@ -190,6 +218,11 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
         },
         400,
       );
+    if (
+      data.data.modelProviderId &&
+      !platform.models.get(data.data.modelProviderId)
+    )
+      return c.json({ error: UNKNOWN_PROVIDER }, 400);
     try {
       validateLearningSettings(
         data.data.learningContainerId ?? null,
@@ -218,6 +251,7 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
         data.data.skillDeliveryEnabled,
         data.data.model ?? null,
         data.data.approvalMode ?? 'sensitive',
+        data.data.modelProviderId ?? null,
       ),
       201,
     );
@@ -228,6 +262,11 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       return c.json({ error: 'Invalid specialist settings.' }, 400);
     const current = platform.workspace.dot(c.req.param('id'));
     if (!current) return c.json({ error: 'Dot not found.' }, 404);
+    if (
+      data.data.modelProviderId &&
+      !platform.models.get(data.data.modelProviderId)
+    )
+      return c.json({ error: UNKNOWN_PROVIDER }, 400);
     try {
       validateLearningSettings(
         data.data.learningContainerId === undefined

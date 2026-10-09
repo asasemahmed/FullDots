@@ -12,7 +12,8 @@ import {
   convertInputToTanStackAI,
 } from '@copilotkit/runtime/v2';
 import { chat, maxIterations } from '@tanstack/ai';
-import { openaiCompatibleText } from '@tanstack/ai-openai/compatible';
+import { randomBytes } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { tanstackTools, type ServerTool } from './tanstack-tools.js';
 import { defaultLimits, hasTimeLimit } from './limits.js';
 import { AgentComputer, withoutBinary } from './computer-agent.js';
@@ -38,12 +39,42 @@ import { z } from 'zod';
 import { Store } from './store.js';
 import { WorkspaceStore } from './workspace.js';
 import type { PlatformConfig } from './platform-config.js';
+import { ModelProviderStore } from './model-provider-store.js';
+import { ModelProviderRegistry } from './model-providers.js';
 /** Platform services a Dot's turn uses when they exist; tests construct a DotAgent without them. */
 export interface DotAgentServices {
   turns?: TurnRegistry;
   connectors?: ConnectorRegistry;
   approvals?: ApprovalService;
   handoffs?: HandoffStarter;
+  /** Where a turn's model comes from; without it only the `.env` provider is available. */
+  models?: ModelProviderRegistry;
+}
+/**
+ * The registry for a DotAgent built without services: only the provider described by the config
+ * (the `.env` one), over a throwaway in-memory store. One per config object.
+ */
+const warned = new Set<string>();
+function warnOnce(dotId: string, dotName: string, warning: string) {
+  const key = `${dotId}:${warning}`;
+  if (warned.has(key)) return;
+  warned.add(key);
+  console.warn(`Dot “${dotName}”: ${warning}`);
+}
+const standaloneRegistries = new WeakMap<
+  PlatformConfig,
+  ModelProviderRegistry
+>();
+function standaloneRegistry(config: PlatformConfig): ModelProviderRegistry {
+  let registry = standaloneRegistries.get(config);
+  if (!registry) {
+    registry = new ModelProviderRegistry(
+      new ModelProviderStore(new DatabaseSync(':memory:'), randomBytes(32)),
+      { env: config, processEnv: {} },
+    );
+    standaloneRegistries.set(config, registry);
+  }
+  return registry;
 }
 /** Who started this turn (the source tag of the last user message, else a chat turn) and its ref. */
 export function turnOrigin(messages: RunAgentInput['messages']): {
@@ -138,9 +169,13 @@ export class DotAgent extends AbstractAgent {
         const initialGrants = connectors
           ? this.workspace.connectors.grantHash(dot.id)
           : '';
-        const model = dot.model?.trim() || this.config.model;
-        if (!this.config.apiKey || !model)
-          throw new Error('Model configuration is required.');
+        // A ModelProviderError (disabled provider, missing key or model) reaches the chat as RUN_ERROR.
+        const models = this.services.models ?? standaloneRegistry(this.config);
+        const resolved = models.resolve({
+          providerId: dot.modelProviderId,
+          model: dot.model,
+        });
+        if (resolved.warning) warnOnce(dot.id, dot.name, resolved.warning);
         const initialSettings = this.store.settings();
         const check = () => {
           const settings = this.store.settings();
@@ -248,12 +283,7 @@ export class DotAgent extends AbstractAgent {
           initialSettings.memoryAllowed && dot.memoryAllowed
             ? this.store.memories().map((memory) => memory.text)
             : [];
-        const adapter = openaiCompatibleText(model, {
-          apiKey: this.config.apiKey,
-          baseURL: this.config.baseUrl ?? 'https://api.openai.com/v1',
-          api: 'chat-completions',
-          maxRetries: 1,
-        });
+        const adapter = models.adapterFor(resolved);
         // One instance per turn, shared by the computer tools and the approval gate.
         const agentComputer = computer.configured
           ? new AgentComputer(computer, dot.id, controller.signal)
@@ -341,7 +371,7 @@ export class DotAgent extends AbstractAgent {
               abortController: ctx.abortController,
               threadId: ctx.input.threadId,
               runId: ctx.input.runId,
-              modelOptions: { max_completion_tokens: limits.agentMaxTokens },
+              modelOptions: { [resolved.maxTokensKey]: limits.agentMaxTokens },
               agentLoopStrategy: maxIterations(limits.agentMaxSteps),
               // The gate goes first so a paused call is skipped before anything else sees it.
               middleware: gate
@@ -366,9 +396,25 @@ export class DotAgent extends AbstractAgent {
                 event.type === EventType.RUN_ERROR
               )
                 ended = true;
-              for (const mapped of messages.map(event)) subscriber.next(mapped);
+              // A provider's error body can echo the key it was sent.
+              const { message } = event as { message?: unknown };
+              const safe =
+                event.type === EventType.RUN_ERROR &&
+                typeof message === 'string'
+                  ? ({ ...event, message: models.redact(message) } as BaseEvent)
+                  : event;
+              for (const mapped of messages.map(safe)) subscriber.next(mapped);
             },
-            error: (error: unknown) => subscriber.error(error),
+            error: (error: unknown) => {
+              // A provider's error body can echo the key it was sent.
+              const redacted =
+                error instanceof Error ? models.redact(error.message) : '';
+              subscriber.error(
+                error instanceof Error && redacted !== error.message
+                  ? new Error(redacted)
+                  : error,
+              );
+            },
             complete: () => {
               // The time limit stopped the turn mid-flight. Say so, rather than leave a cut-off reply.
               if (timedOut && !ended) {

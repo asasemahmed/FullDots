@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { api } from './api';
 import { ConnectorGallery } from './ConnectorGallery';
 import { ConnectorSheet, type SheetTarget } from './ConnectorSheet';
@@ -32,7 +38,7 @@ export interface ConnectorsData {
 
 const RUNNING = ['starting', 'waiting', 'finishing'];
 
-/** Settings > Connectors: the gallery, and a detail sheet that slides over it. */
+/** Settings > Connectors: the gallery, and a detail page that takes its place. */
 export function ConnectorsSettings({
   initial,
 }: {
@@ -42,6 +48,19 @@ export function ConnectorsSettings({
   const [data, setData] = useState<ConnectorsData | undefined>(initial);
   const [loadError, setLoadError] = useState('');
   const [sheet, setSheet] = useState<SheetTarget | undefined>();
+  // The gallery stays mounted (hidden) under a detail page, so its search,
+  // filter and scroll position are all still there on the way back.
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const galleryScroll = useRef(0);
+  const openSheet = (target: SheetTarget) => {
+    if (!sheet && galleryRef.current)
+      galleryScroll.current = galleryRef.current.scrollTop;
+    setSheet(target);
+  };
+  useLayoutEffect(() => {
+    if (!sheet && galleryRef.current)
+      galleryRef.current.scrollTop = galleryScroll.current;
+  }, [sheet]);
 
   const load = useCallback(async () => {
     try {
@@ -100,7 +119,7 @@ export function ConnectorsSettings({
         }
       }}
     >
-      <div className="cg-scroll" inert={sheet ? true : undefined}>
+      <div className="cg-scroll" ref={galleryRef} hidden={!!sheet}>
         {loadError && (
           <div className="cg-error" role="alert">
             <span>{loadError}</span>
@@ -121,15 +140,15 @@ export function ConnectorsSettings({
             allowStdio={data.allowStdio}
             {...(connectingId ? { connectingId } : {})}
             onOpenConnector={(connector) =>
-              setSheet({ kind: 'connector', id: connector.id })
+              openSheet({ kind: 'connector', id: connector.id })
             }
             onConnect={(connector) => {
               // The sign-in window opens inside this click, before anything is awaited.
               auth.start(() => connector.id);
-              setSheet({ kind: 'connector', id: connector.id });
+              openSheet({ kind: 'connector', id: connector.id });
             }}
-            onOpenPreset={(preset) => setSheet({ kind: 'preset', preset })}
-            onCustom={() => setSheet({ kind: 'custom' })}
+            onOpenPreset={(preset) => openSheet({ kind: 'preset', preset })}
+            onCustom={() => openSheet({ kind: 'custom' })}
           />
         )}
       </div>
@@ -143,7 +162,7 @@ export function ConnectorsSettings({
           onClose={close}
           onSaved={(view) => {
             upsert(view);
-            // A connector created from a preset or the form: show its own sheet.
+            // A connector created from a preset or the form: show its own page.
             setSheet((current) =>
               current && current.kind !== 'connector'
                 ? { kind: 'connector', id: view.id }

@@ -48,11 +48,13 @@ describe('browser network boundaries', () => {
 // a stored conversation, the audit trail or a log line. Each value is planted where the server keeps it.
 const PLANTED = {
   model: 'model-secret-XYZ',
+  provider: 'provider-secret-PPP',
   supervisor: 'supervisor-secret-QQQ',
   master: 'master-secret-RRR',
   connector: 'connector-secret-ABC',
   webhook: 'webhook-secret-SSS',
 };
+const PROVIDER_URL = 'https://models.provider.test/v1';
 const WEBHOOK_URL = `https://hooks.example.test/notify/${PLANTED.webhook}`;
 
 describe('planted secrets', () => {
@@ -83,6 +85,17 @@ describe('planted secrets', () => {
     });
     const webhooks: string[] = [];
     const modelRequests: Array<{ body: string; authorization: string }> = [];
+    // A stored provider: the first request is refused with the key echoed back, the second answered.
+    const providerRequests: Array<{ body: string; authorization: string }> = [];
+    const providerReplies = [
+      () =>
+        Response.json(
+          { error: { message: `Invalid key ${PLANTED.provider}` } },
+          { status: 401 },
+        ),
+      () =>
+        completion({ role: 'assistant', content: 'The provider answered.' }),
+    ];
     const replies = [
       () =>
         completion(
@@ -107,6 +120,17 @@ describe('planted secrets', () => {
       if (url === WEBHOOK_URL) {
         webhooks.push(String(init?.body));
         return new Response('ok');
+      }
+      if (url.endsWith('/models'))
+        return Response.json({ data: [{ id: 'listed-model' }] });
+      if (url.startsWith(PROVIDER_URL)) {
+        providerRequests.push({
+          body: String(init?.body),
+          authorization: new Headers(init?.headers).get('authorization') ?? '',
+        });
+        const reply = providerReplies.shift();
+        if (!reply) throw new Error('Unexpected provider request.');
+        return reply();
       }
       if (url.startsWith('https://unused.invalid')) {
         modelRequests.push({
@@ -164,6 +188,27 @@ describe('planted secrets', () => {
     expect((await registry.status(connector.id)).state).toBe('connected');
     workspace.bindThread('thread', dot.id, 'Secrets');
     workspace.bindThread('waiting', dot.id, 'Waiting');
+    // A Dot on a stored provider whose key is encrypted in the workspace database.
+    const provider = workspace.modelProviders.create({
+      presetId: 'custom',
+      name: 'Lab provider',
+      baseUrl: PROVIDER_URL,
+      key: { kind: 'stored', value: PLANTED.provider },
+    });
+    const providerDot = workspace.createDot(
+      workspace.spaces()[0].id,
+      'Provider Dot',
+      'Be brief.',
+      false,
+      false,
+      undefined,
+      null,
+      false,
+      'provider-model',
+      'sensitive',
+      provider.id,
+    );
+    workspace.bindThread('provider-thread', providerDot.id, 'Provider');
 
     // A turn in which the connector hands the model its own secret back: it must arrive redacted.
     const reply = await runThreadTurn(
@@ -181,6 +226,32 @@ describe('planted secrets', () => {
     expect(modelRequests[1].body).toContain('[redacted]');
     // The planted model key is really in use (as the bearer token), just not anywhere it can leak from.
     expect(modelRequests[0].authorization).toContain(PLANTED.model);
+
+    // A turn on the stored provider: refused with its key echoed (the error must arrive redacted),
+    // then answered. The key is only ever the Authorization of that provider's own requests.
+    const providerTurn = () =>
+      runThreadTurn(
+        platform.runner,
+        new DotAgent(store, workspace, config, providerDot.id, {
+          ...platform.services(),
+        }),
+        'provider-thread',
+        'Say hello.',
+        new AbortController().signal,
+      );
+    const providerError = await providerTurn().then(
+      () => 'no error',
+      (error: unknown) => (error instanceof Error ? error.message : ''),
+    );
+    expect(providerError).toContain('Invalid key');
+    expect(providerError).toContain('[redacted]');
+    expect(await providerTurn()).toBe('The provider answered.');
+    expect(providerRequests).toHaveLength(2);
+    for (const request of providerRequests)
+      expect(request.authorization).toBe(`Bearer ${PLANTED.provider}`);
+    // The Dot used its own stored provider, not the .env one.
+    expect(providerRequests[0].body).toContain('provider-model');
+    expect(modelRequests).toHaveLength(2);
 
     // A pending approval and a waiting handoff, which both notify the webhook.
     const approval = platform.approvals.request({
@@ -209,6 +280,8 @@ describe('planted secrets', () => {
       '/api/state',
       '/api/workspace',
       '/api/connectors',
+      '/api/model-providers',
+      '/api/models',
       `/api/dots/${dot.id}/connectors`,
       '/api/approvals',
       `/api/approvals/${approval.id}`,
@@ -223,6 +296,18 @@ describe('planted secrets', () => {
     expect(
       JSON.parse(observed['/api/connectors']).connectors[0].headers,
     ).toEqual({ Authorization: { env: 'T', set: true } });
+    // The provider routes really described the stored provider (masked) and listed its models.
+    expect(JSON.parse(observed['/api/model-providers']).providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: provider.id,
+          key: expect.objectContaining({ kind: 'stored', set: true }),
+        }),
+      ]),
+    );
+    expect(JSON.parse(observed['/api/models']).providers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: provider.id })]),
+    );
     expect(JSON.parse(observed['/api/approvals']).approvals).toHaveLength(1);
     expect(JSON.parse(observed['/api/handoffs']).handoffs[0].id).toBe(
       handoff.id,
@@ -235,10 +320,18 @@ describe('planted secrets', () => {
       ...observed,
       webhooks: webhooks.join('\n'),
       'model request bodies': modelRequests.map((r) => r.body).join('\n'),
+      'provider request bodies': providerRequests.map((r) => r.body).join('\n'),
+      'provider error': providerError,
       'stored thread': JSON.stringify(
         platform.runner.getThreadMessages('thread'),
       ),
+      'stored provider thread': JSON.stringify(
+        platform.runner.getThreadMessages('provider-thread'),
+      ),
       'audit trail': JSON.stringify(workspace.computers.audit(dot.id)),
+      'provider audit trail': JSON.stringify(
+        workspace.computers.audit(providerDot.id),
+      ),
       'log lines': JSON.stringify(logs.flatMap((log) => log.mock.calls)),
     };
     for (const [secret, value] of Object.entries(PLANTED))

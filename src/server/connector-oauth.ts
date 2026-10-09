@@ -67,7 +67,7 @@ function ipv4Of(host: string): number[] | undefined {
   return undefined;
 }
 
-function isLoopbackHost(host: string): boolean {
+export function isLoopbackHost(host: string): boolean {
   if (host === 'localhost' || host.endsWith('.localhost') || host === '::1') {
     return true;
   }
@@ -75,7 +75,7 @@ function isLoopbackHost(host: string): boolean {
 }
 
 /** Literal private, link-local, unspecified and carrier-grade-NAT addresses (never hostnames). */
-function isPrivateLiteral(host: string): boolean {
+export function isPrivateLiteral(host: string): boolean {
   const v4 = ipv4Of(host);
   if (v4) {
     const [a = 0, b = 0] = v4;

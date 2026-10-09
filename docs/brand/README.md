@@ -1,14 +1,14 @@
 # FullDots brand
 
-The Dot characters are original artwork made for FullDots. The logo mark is the Hugging Face logo, downloaded from huggingface.co (`/front/assets/huggingface_logo.svg`); it is a trademark of Hugging Face, so replace it before publishing FullDots. All files have a transparent background.
+The logo and the Dot characters are original artwork made for FullDots. All files have a transparent background.
 
-| File                                                               | What it is                                                                                   |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `fulldots-logo.svg`                                                | Mark and wordmark, dark text, for light backgrounds                                          |
-| `fulldots-logo-light.svg`                                          | Mark and wordmark, white "Full", for dark backgrounds                                        |
-| `fulldots-mark.svg`                                                | The mark alone (also the favicon)                                                            |
-| `dot-indigo.svg`, `dot-mint.svg`, `dot-coral.svg`, `dot-lilac.svg` | The Dot character in its four colourways                                                     |
-| `png/`                                                             | The same artwork as transparent PNG (characters 512 x 512, mark 512 x 474, logos 1320 x 352) |
+| File                                                               | What it is                                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `fulldots-logo.svg`                                                | Mark and wordmark, dark text, for light backgrounds                                   |
+| `fulldots-logo-light.svg`                                          | Mark and wordmark, white "Full", for dark backgrounds                                 |
+| `fulldots-mark.svg`                                                | The mark alone (also the favicon)                                                     |
+| `dot-indigo.svg`, `dot-mint.svg`, `dot-coral.svg`, `dot-lilac.svg` | The Dot character in its four colourways                                              |
+| `png/`                                                             | The same artwork as transparent PNG (characters and mark 512 x 512, logos 1200 x 288) |
 
 ## The Dot
 
@@ -33,6 +33,6 @@ Each Dot keeps the same colourway everywhere: it is chosen from the Dot's id.
 | Coral  | `#ff8a66` | `#ffcab6` | `#de5f3c` |
 | Lilac  | `#a98bf3` | `#dccfff` | `#8063d4` |
 
-Status light: `#ffc52e` (on), `#ffb020` (needs you), `#3dd68c` (done), `#c9ccd6` (paused). Wordmark: `#242424` and `#5867e0`. The logo mark keeps its original colours.
+Status light: `#ffc52e` (on), `#ffb020` (needs you), `#3dd68c` (done), `#c9ccd6` (paused). Wordmark: `#242424` and `#5867e0`.
 
 The wordmark uses the system UI font at weight 700. In the SVG files it is live text, so the exact shape follows the fonts installed where the file is opened; the PNG files are the reference rendering.

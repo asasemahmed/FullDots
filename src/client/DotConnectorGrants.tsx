@@ -27,8 +27,7 @@ export interface GrantInput {
 
 export const WRITE_WARNING = 'This can change things outside FullDots';
 export const DESTRUCTIVE_WARNING = 'These can delete or overwrite data';
-export const NOT_CONNECTED_HINT =
-  'Not connected — tools appear once it is connected';
+export const NOT_CONNECTED_HINT = 'Not connected yet';
 export const NO_CONNECTORS_HINT =
   'No connectors yet. Add one in Settings → Connectors.';
 

@@ -299,7 +299,7 @@ describe('DotConnectorGrants', () => {
     const html = render([
       connector('notion', { state: 'missing_env', missing: ['X'], tools: [] }),
     ]);
-    expect(html).toContain('Not connected — tools appear once it is connected');
+    expect(html).toContain('Not connected yet');
   });
 
   it('shows an empty state without connectors and skips disabled ones', () => {
@@ -431,6 +431,8 @@ describe('WorkspaceDialog', () => {
         mutate={async () => true}
       />,
     );
+    expect(html).toContain('Create Dot');
+    expect(html).toContain('class="dlg-footer"');
     expect(html).toContain('id="dot-approval-mode"');
     expect(html).toContain('role="radiogroup"');
     expect(html).toMatch(/checked="" value="sensitive"/);

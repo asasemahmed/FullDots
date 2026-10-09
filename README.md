@@ -117,6 +117,10 @@ By default, a Dot pauses before sensitive actions, such as sending, submitting, 
 
 See [Connectors](docs/CONNECTORS.md) and [Approvals](docs/APPROVALS.md).
 
+### Model providers
+
+Add OpenAI, Anthropic, Gemini, OpenRouter, Groq, and other providers in **Settings → Models**, with a pasted key or a `.env` variable. Each Dot can use a different provider and model. See [Models](docs/MODELS.md).
+
 ## Contributing
 
 See [Contributing](CONTRIBUTING.md) for development guidance and [Security](SECURITY.md) for reporting issues.

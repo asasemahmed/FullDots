@@ -1,6 +1,7 @@
 import { computerRoutes } from './computer-routes.js';
 import { connectorRoutes } from './connector-routes.js';
 import { connectorAuthRoutes } from './connector-auth-routes.js';
+import { modelProviderRoutes } from './model-provider-routes.js';
 import { connectorPresets } from '../shared/connector-presets.js';
 import { approvalRoutes } from './approval-routes.js';
 import { turnRoutes } from './turn-routes.js';
@@ -113,6 +114,23 @@ export function createApp({
         workspace: platform.workspace,
         connectorAuth: platform.workspace.connectorAuth,
         allowStdio: !!platform.config.connectorsAllowStdio,
+      }),
+    );
+    app.route(
+      '/api',
+      modelProviderRoutes({
+        registry: platform.models,
+        store: platform.workspace.modelProviders,
+        usage: (providerId) => [
+          ...platform.workspace
+            .dots()
+            .filter((dot) => dot.modelProviderId === providerId)
+            .map((dot) => dot.name),
+          ...(platform.workspace.modelProviders.getDefaultModel()
+            ?.providerId === providerId
+            ? ['default model']
+            : []),
+        ],
       }),
     );
     app.route(

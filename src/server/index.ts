@@ -67,6 +67,7 @@ const researchConfig = {
   apiKey: config.apiKey,
   model: config.model,
   baseUrl: config.baseUrl,
+  models: platform.models,
   webSearchProvider: config.webSearchProvider,
   browserUrl: config.browserUrl,
   browserSecret: config.browserSecret,

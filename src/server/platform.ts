@@ -16,6 +16,7 @@ import { SqliteAgentRunner } from './sqlite-runner.js';
 import { TurnRegistry } from './turn-registry.js';
 import { ConnectorRegistry } from './connectors.js';
 import { ConnectorOAuthService } from './connector-oauth.js';
+import { ModelProviderRegistry } from './model-providers.js';
 import { ResumeQueue } from './resume-queue.js';
 import { ApprovalService } from './approval-service.js';
 import { HandoffService } from './handoff-service.js';
@@ -31,6 +32,8 @@ export class Platform {
   readonly connectors: ConnectorRegistry;
   /** Browser sign-in for connectors; tokens live encrypted in workspace.connectorAuth. */
   readonly oauth: ConnectorOAuthService;
+  /** Model providers: the `.env` one plus those stored (encrypted) in the workspace. */
+  readonly models: ModelProviderRegistry;
   readonly resumes: ResumeQueue;
   readonly approvals: ApprovalService;
   readonly handoffs: HandoffService;
@@ -41,6 +44,11 @@ export class Platform {
     chatDatabase = ':memory:',
     readonly turns = new TurnRegistry(),
   ) {
+    this.models = new ModelProviderRegistry(workspace.modelProviders, {
+      env: config,
+      processEnv: process.env,
+      ...(config.publicOrigin ? { publicOrigin: config.publicOrigin } : {}),
+    });
     this.computers = new ComputerService(
       workspace,
       config,
@@ -144,7 +152,11 @@ export class Platform {
     });
   }
   setup() {
-    return setupStatus(this.config);
+    return setupStatus(
+      this.config,
+      this.models.hasUsableDefault(),
+      this.models.defaultLabel(),
+    );
   }
   requireReady() {
     const missing = this.setup().missing;
@@ -158,6 +170,7 @@ export class Platform {
       connectors: this.connectors,
       approvals: this.approvals,
       handoffs: this.handoffs,
+      models: this.models,
     };
   }
   async start() {

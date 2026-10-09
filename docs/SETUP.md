@@ -25,16 +25,19 @@ Open http://127.0.0.1:4310. Keep the server running for background work.
 
 ## Model and storage
 
-Edit `.env` on the server and restart after changes:
+Model keys can now be added in **Settings → Models**, for several providers at once. See [Models](MODELS.md). `.env` still works: the variables below define the built-in default provider. Edit `.env` on the server and restart after changes:
 
-| Variable                         | Purpose                                                   |
-| -------------------------------- | --------------------------------------------------------- |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | Model credential and model identifier                     |
-| `OPENAI_BASE_URL`                | Compatible model API endpoint                             |
-| `OWNER_ID`                       | Stable identity used for this deployment's conversations  |
-| `DATABASE_PATH`                  | SQLite file containing pages, workspace and work metadata |
-| `OWNER_TOKEN`                    | Application access token; required for external bindings  |
-| `APP_ORIGIN`                     | Exact browser origin when using a proxy or custom domain  |
+| Variable                         | Purpose                                                         |
+| -------------------------------- | --------------------------------------------------------------- |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | Built-in default provider: its key and default model            |
+| `OPENAI_BASE_URL`                | Built-in default provider: compatible model API endpoint        |
+| `MODEL_PROVIDERS_ALLOW_LAN`      | Lets local providers (Ollama, LM Studio) run on another machine |
+| `OWNER_ID`                       | Stable identity used for this deployment's conversations        |
+| `DATABASE_PATH`                  | SQLite file containing pages, workspace and work metadata       |
+| `OWNER_TOKEN`                    | Application access token; required for external bindings        |
+| `APP_ORIGIN`                     | Exact browser origin when using a proxy or custom domain        |
+
+Keys added in Settings → Models are encrypted with `CONNECTOR_SECRET_KEY` or `data/connector.key`. A database backup can restore them only with that same key.
 
 Any OpenAI-compatible provider works; for OpenRouter set `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. Provider credentials belong in `.env`, not client-side variables or source code. Conversation history is stored in the same SQLite file (`chat_runs` and `chat_threads` tables), so backing up `DATABASE_PATH` backs up everything. CopilotKit telemetry is disabled in code.
 
@@ -69,7 +72,7 @@ For a separate browser, persistent files, and optional shell for each specialist
 
 ## Work limits and per-Dot models
 
-Each Dot can use its own model: open the Dot's settings and pick a model from the list your provider offers, or leave the field blank to use `OPENAI_MODEL`.
+Each Dot can use its own provider and model: open the Dot's settings and pick a model, or leave it on Default to use the default model. See [Models](MODELS.md).
 
 How long and how far a Dot may work is set in `.env`; see the commented block in `.env.example` for every setting and its default. Times are in seconds. For example, to let a Dot work for up to ten minutes with thirty tool steps and run shell commands for up to ten minutes:
 

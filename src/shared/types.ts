@@ -83,6 +83,8 @@ export interface Dot {
   skillDeliveryEnabled?: boolean;
   /** Model identifier for this Dot; null uses the server default. */
   model?: string | null;
+  /** Provider serving `model` (Settings → Models); null uses the default provider. */
+  modelProviderId?: string | null;
   /** When to ask the owner before acting; null/undefined means 'sensitive'. */
   approvalMode?: ApprovalMode | null;
 }

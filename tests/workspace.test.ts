@@ -54,3 +54,62 @@ it('migrates legacy Space ownership once and never restores revoked access on re
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it('stores a Dot model provider, keeps it on edits that leave it out, and clears it with null', () => {
+  const store = new WorkspaceStore(':memory:', 'owner');
+  const [space] = store.spaces();
+  const legacy = store.dots()[0];
+  expect(legacy.modelProviderId).toBeNull();
+  const dot = store.createDot(
+    space.id,
+    'Scout',
+    'Be concise',
+    false,
+    true,
+    [space.id],
+    null,
+    false,
+    'llama-3.3-70b-versatile',
+    'sensitive',
+    'provider-1',
+  );
+  expect(store.dot(dot.id)).toMatchObject({
+    model: 'llama-3.3-70b-versatile',
+    modelProviderId: 'provider-1',
+  });
+  const base = {
+    name: 'Scout',
+    instructions: 'Be concise',
+    researchAllowed: false,
+    memoryAllowed: true,
+  };
+  expect(store.updateDot(dot.id, { ...base, model: 'other' })).toMatchObject({
+    model: 'other',
+    modelProviderId: 'provider-1',
+  });
+  expect(
+    store.updateDot(dot.id, { ...base, modelProviderId: 'provider-2' })
+      .modelProviderId,
+  ).toBe('provider-2');
+  expect(
+    store.updateDot(dot.id, { ...base, modelProviderId: null }).modelProviderId,
+  ).toBeNull();
+  store.close();
+});
+
+it('adds the model provider column to a database from before providers existed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'opendots-provider-column-'));
+  const path = join(dir, 'workspace.sqlite');
+  try {
+    const first = new WorkspaceStore(path, 'owner');
+    first.close();
+    const legacy = new DatabaseSync(path);
+    legacy.exec('ALTER TABLE dots DROP COLUMN modelProviderId');
+    legacy.close();
+    const reopened = new WorkspaceStore(path, 'owner');
+    expect(reopened.dots()[0].modelProviderId).toBeNull();
+    reopened.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+  }
+});
