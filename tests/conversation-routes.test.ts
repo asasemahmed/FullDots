@@ -347,3 +347,45 @@ it('titles an untitled conversation from the first message only', async () => {
     titleFromFirstMessage(platform, garbage),
   ).resolves.toBeUndefined();
 });
+
+it('exports a conversation as a Markdown file', async () => {
+  const { ws, platform, app, dot } = fixture();
+  ws.bindThread('t1', dot.id, 'Plan the launch');
+  await say(platform, 't1', new ReplyAgent(), 'Who are our competitors?');
+  const response = await app.request('/api/conversations/t1/export.md');
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Content-Type')).toBe(
+    'text/markdown; charset=utf-8',
+  );
+  expect(response.headers.get('Content-Disposition')).toContain(
+    'attachment; filename="Plan the launch.md"',
+  );
+  expect(response.headers.get('Content-Disposition')).toContain(
+    "filename*=UTF-8''Plan%20the%20launch.md",
+  );
+  const body = await response.text();
+  expect(body).toContain('# Plan the launch');
+  expect(body).toContain('## You');
+  expect(body).toContain('Who are our competitors?');
+  expect(body).toContain('## Dot');
+  expect(body).toContain('Done');
+});
+
+it('exports a conversation that was never written in', async () => {
+  const { ws, app, dot } = fixture();
+  ws.bindThread('empty', dot.id, 'Silence');
+  const response = await app.request('/api/conversations/empty/export.md');
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain(
+    '_This conversation has no messages yet._',
+  );
+});
+
+it('refuses to export a conversation it does not have', async () => {
+  const { app } = fixture();
+  const response = await app.request('/api/conversations/missing/export.md');
+  expect(response.status).toBe(404);
+  expect(await response.json()).toMatchObject({
+    error: 'Conversation not found.',
+  });
+});

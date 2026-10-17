@@ -128,6 +128,7 @@ const sidebar = (teams?: SidebarTeams, collapsed = false) =>
       onSelectThread={noop}
       onRenameThread={async () => true}
       onDeleteThreads={async () => true}
+      onExportThread={async () => {}}
       onOpenPage={noop}
       onView={noop}
       onDialog={noop}

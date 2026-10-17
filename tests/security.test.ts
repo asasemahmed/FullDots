@@ -305,6 +305,7 @@ describe('planted secrets', () => {
       `/api/approvals/${approval.id}`,
       '/api/handoffs',
       `/api/dots/${dot.id}/computer`,
+      '/api/conversations/thread/export.md',
     ]) {
       const response = await app.request(path);
       expect(response.status, path).toBe(200);
@@ -329,6 +330,10 @@ describe('planted secrets', () => {
     expect(JSON.parse(observed['/api/approvals']).approvals).toHaveLength(1);
     expect(JSON.parse(observed['/api/handoffs']).handoffs[0].id).toBe(
       handoff.id,
+    );
+    // The export route really returned that conversation's Markdown.
+    expect(observed['/api/conversations/thread/export.md']).toContain(
+      '# Secrets',
     );
     expect(JSON.parse(observed[`/api/dots/${dot.id}/computer`]).state).toBe(
       'running',

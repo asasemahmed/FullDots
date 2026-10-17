@@ -645,6 +645,7 @@ describe('the sidebar', () => {
         onSelect={() => {}}
         onRename={async () => true}
         onDelete={async () => true}
+        onExport={async () => {}}
       />,
     );
     expect(html).toContain('sb-chat-nested');
@@ -663,6 +664,7 @@ describe('the sidebar', () => {
         onSelect={() => {}}
         onRename={async () => true}
         onDelete={async () => true}
+        onExport={async () => {}}
       />,
     );
     expect(flat).not.toContain('sb-chat-nested');

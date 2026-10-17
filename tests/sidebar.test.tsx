@@ -127,6 +127,7 @@ const render = (
       onSelect={() => {}}
       onRename={noop}
       onDelete={noop}
+      onExport={async () => {}}
     />,
   );
 
@@ -218,6 +219,7 @@ const sidebar = (
       onSelectThread={() => {}}
       onRenameThread={noop}
       onDeleteThreads={noop}
+      onExportThread={async () => {}}
       onOpenPage={() => {}}
       onView={() => {}}
       onDialog={() => {}}

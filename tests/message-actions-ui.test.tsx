@@ -268,6 +268,7 @@ describe('sidebar', () => {
         onSelect={() => {}}
         onRename={async () => true}
         onDelete={async () => true}
+        onExport={async () => {}}
       />,
     );
     expect(html).toContain('sb-chat-branch');

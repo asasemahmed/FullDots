@@ -45,6 +45,7 @@ import { useDesktopNotifications } from './inbox/notifications';
 import { MissionPage } from './mission/MissionView';
 import type { InboxSection } from '../shared/inbox';
 import { Sidebar } from './sidebar/Sidebar';
+import { downloadConversationMarkdown } from './conversation-export';
 import { useDotLive } from './sidebar/useDotLive';
 import { readFlag, writeFlag } from './sidebar/hooks';
 import { latestChat } from './sidebar/chat-groups';
@@ -351,6 +352,14 @@ export function App() {
     await refresh();
     return ok;
   };
+  const exportThread = async (id: string) => {
+    setError('');
+    try {
+      await downloadConversationMarkdown(id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not export the chat.');
+    }
+  };
   const decideApproval = async (
     id: string,
     decision: 'approve' | 'deny',
@@ -499,6 +508,7 @@ export function App() {
         onSelectThread={selectThread}
         onRenameThread={renameThread}
         onDeleteThreads={deleteThreads}
+        onExportThread={exportThread}
         onOpenPage={openPage}
         onView={(next) => {
           setView(next);

@@ -7,7 +7,13 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { ChevronRight, GitBranch, Pencil, Trash2 } from 'lucide-react';
+import {
+  ChevronRight,
+  Download,
+  GitBranch,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import type { ConversationSummary, Dot } from '../shared/types';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../shared/conversation-title';
 import { Mascot } from './Mascot';
@@ -26,6 +32,7 @@ function ChatRow({
   onSelect,
   onRename,
   onDelete,
+  onExport,
   onDeleted,
   nest,
   pulse = false,
@@ -39,6 +46,8 @@ function ChatRow({
   onSelect: () => void;
   onRename: (title: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
+  /** Writes the conversation to a Markdown file the owner keeps. */
+  onExport: () => Promise<void>;
   /** The row is gone: let the list put keyboard focus somewhere sensible. */
   onDeleted: () => void;
   /** Teammates' chats nested under this one: how deep it sits, and its own nested chats. */
@@ -82,6 +91,12 @@ function ChatRow({
   const cancelRename = () => {
     settled.current = true;
     finish();
+  };
+  const runExport = async () => {
+    if (busy) return;
+    setBusy(true);
+    await onExport();
+    setBusy(false);
   };
   const hotkeys = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'F2') {
@@ -235,6 +250,12 @@ function ChatRow({
             onSelect: startRename,
           },
           {
+            id: 'export',
+            label: 'Export as Markdown',
+            icon: <Download size={14} aria-hidden />,
+            onSelect: () => void runExport(),
+          },
+          {
             id: 'delete',
             label: 'Delete',
             icon: <Trash2 size={14} aria-hidden />,
@@ -255,6 +276,7 @@ export function ThreadList({
   onSelect,
   onRename,
   onDelete,
+  onExport,
 }: {
   chats: ConversationSummary[];
   dots: Dot[];
@@ -263,6 +285,8 @@ export function ThreadList({
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => Promise<boolean>;
   onDelete: (ids: string[]) => Promise<boolean>;
+  /** Writes one conversation to a Markdown file the owner keeps. */
+  onExport: (id: string) => Promise<void>;
 }) {
   const [clearing, setClearing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -303,6 +327,7 @@ export function ThreadList({
           onSelect={() => onSelect(chat.id)}
           onRename={(title) => onRename(chat.id, title)}
           onDelete={() => onDelete([chat.id])}
+          onExport={() => onExport(chat.id)}
           onDeleted={refocus}
           nest={{
             depth,

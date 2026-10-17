@@ -1,5 +1,6 @@
 // One short line for what a Dot is doing with a tool: the computer activity block and the work
 // lanes both describe steps with it ("Opening website", "Using github").
+import type { TurnSource } from './types.js';
 
 export const COMPUTER_STEP_LABELS: Record<string, string> = {
   navigate: 'Opening website',
@@ -60,3 +61,15 @@ export function toolStepLabel(toolName: string): string {
     return computerStepText(toolName);
   return OTHER_STEP_LABELS[toolName] ?? 'Using a tool';
 }
+
+/** What started a server-side turn, worded as the transcript and the export label it. */
+export const TURN_SOURCE_LABELS: Record<TurnSource, string> = {
+  task: 'Scheduled task',
+  approval: 'Approval decision',
+  handoff: 'Owner handoff',
+  trigger: 'Trigger',
+  channel: 'Message from channel',
+  delegation: 'Delegated work',
+  relay: 'Handed over',
+  question: 'Your answer',
+};

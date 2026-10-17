@@ -4,8 +4,9 @@ import { PhoneOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AssistantMessage, Message } from '@ag-ui/core';
-import type { Approval, CallReceipt, Dot, TurnSource } from '../shared/types';
+import type { Approval, CallReceipt, Dot } from '../shared/types';
 import { voiceReceiptMessagePrefix } from '../shared/voice-receipt';
+import { TURN_SOURCE_LABELS } from '../shared/step-label';
 import { ComputerActivity } from './ComputerActivity';
 import { ApprovalCard, type DecideApproval } from './ApprovalCard';
 import { describeComputerSteps } from './ComputerToolCard';
@@ -89,16 +90,6 @@ function Bubble({
     </div>
   );
 }
-const EVENT_LABELS: Record<TurnSource, string> = {
-  task: 'Scheduled task',
-  approval: 'Approval decision',
-  handoff: 'Owner handoff',
-  trigger: 'Trigger',
-  channel: 'Message from channel',
-  delegation: 'Delegated work',
-  relay: 'Handed over',
-  question: 'Your answer',
-};
 /**
  * Renders the visible conversation. Consecutive `computer_*` and `mcp__*` tool calls of a
  * turn collapse into one compact ComputerActivity block, placed before the
@@ -227,7 +218,7 @@ export function ChatTranscript({
                 data-source={item.source}
               >
                 <span className="chat-event-label">
-                  {EVENT_LABELS[item.source]}
+                  {TURN_SOURCE_LABELS[item.source]}
                 </span>
                 <Markdown content={item.content} />
               </div>

@@ -66,6 +66,8 @@ export interface SidebarProps {
   onSelectThread: (id: string) => void;
   onRenameThread: (id: string, title: string) => Promise<boolean>;
   onDeleteThreads: (ids: string[]) => Promise<boolean>;
+  /** Writes one conversation to a Markdown file the owner keeps. */
+  onExportThread: (id: string) => Promise<void>;
   onOpenPage: (spaceId: string, pageId?: string) => void;
   onView: (view: 'tasks' | 'memories' | 'inbox' | 'mission') => void;
   onDialog: (dialog: Dialog) => void;
@@ -153,6 +155,7 @@ export function Sidebar({
   onSelectThread,
   onRenameThread,
   onDeleteThreads,
+  onExportThread,
   onOpenPage,
   onView,
   onDialog,
@@ -474,6 +477,7 @@ export function Sidebar({
             onSelect={onSelectThread}
             onRename={onRenameThread}
             onDelete={onDeleteThreads}
+            onExport={onExportThread}
           />
         ) : (
           <p className="sb-note sb-chats">

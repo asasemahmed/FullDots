@@ -643,6 +643,7 @@ describe('sidebar entry point', () => {
         onSelectThread={() => {}}
         onRenameThread={async () => true}
         onDeleteThreads={async () => true}
+        onExportThread={async () => {}}
         onOpenPage={() => {}}
         onView={() => {}}
         onDialog={() => {}}
