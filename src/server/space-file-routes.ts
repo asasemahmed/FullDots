@@ -66,10 +66,11 @@ export function spaceFileRoutes(platform: Platform) {
       c.req.param('id'),
     );
     const text = TEXT_KINDS.includes(file.kind);
+    // HTML is sent as plain text: opened directly it shows its source, and only the viewer's
+    // sandboxed frame ever renders it.
+    const mediaType = file.kind === 'html' ? 'text/plain' : file.mediaType;
     return c.body(new Uint8Array(data), 200, {
-      'Content-Type': text
-        ? `${file.mediaType}; charset=utf-8`
-        : file.mediaType,
+      'Content-Type': text ? `${mediaType}; charset=utf-8` : mediaType,
       'Content-Disposition': disposition(file, c.req.query('download') === '1'),
       'Content-Length': String(data.byteLength),
       'Cache-Control': 'private, no-store',

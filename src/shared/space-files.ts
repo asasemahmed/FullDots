@@ -7,7 +7,7 @@ export const MAX_SPACE_FILE_MB = 50;
 
 /** What the viewer does with a file. `download` has no preview. */
 export type FileKind =
-  'markdown' | 'csv' | 'text' | 'json' | 'image' | 'pdf' | 'download';
+  'markdown' | 'html' | 'csv' | 'text' | 'json' | 'image' | 'pdf' | 'download';
 
 interface KnownType {
   mediaType: string;
@@ -16,14 +16,17 @@ interface KnownType {
 
 /**
  * The extensions FullDots knows. The server derives the media type from the name and never trusts
- * the one a client sends. HTML, scripts and other active formats are deliberately absent: they are
- * kept, but only as downloads, so a stored file can never run in the app's origin.
+ * the one a client sends. HTML is previewed only inside a sandboxed frame with no script access (see
+ * FileViewer); scripts and other active formats are absent, so they are kept as downloads only and
+ * a stored file can never run in the app's origin.
  */
 const KNOWN: Record<string, KnownType> = {
   md: { mediaType: 'text/markdown', kind: 'markdown' },
   markdown: { mediaType: 'text/markdown', kind: 'markdown' },
   csv: { mediaType: 'text/csv', kind: 'csv' },
   tsv: { mediaType: 'text/tab-separated-values', kind: 'csv' },
+  html: { mediaType: 'text/html', kind: 'html' },
+  htm: { mediaType: 'text/html', kind: 'html' },
   txt: { mediaType: 'text/plain', kind: 'text' },
   log: { mediaType: 'text/plain', kind: 'text' },
   json: { mediaType: 'application/json', kind: 'json' },
@@ -53,6 +56,7 @@ export function typeOfName(name: string): KnownType {
 /** Text kinds the viewer fetches and shows itself, so a Dot can read them too. */
 export const TEXT_KINDS: readonly FileKind[] = [
   'markdown',
+  'html',
   'csv',
   'text',
   'json',

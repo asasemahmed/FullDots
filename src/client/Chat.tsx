@@ -19,6 +19,7 @@ import {
   approvalIds,
   handoffIds,
   isActivityTool,
+  isFileCardTool,
   isComputerTool,
   toolResults,
 } from './chat-turns';
@@ -443,6 +444,7 @@ export function Chat({
               isLaneTool(call.function.name) ||
               call.function.name === 'request_approval' ||
               call.function.name === 'request_handoff' ||
+              isFileCardTool(call.function.name) ||
               call.function.name === pageReviewTool.name,
           ))),
   );

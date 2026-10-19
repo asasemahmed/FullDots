@@ -140,6 +140,50 @@ function CsvTable({ text, tab }: { text: string; tab: boolean }) {
   );
 }
 
+/**
+ * A stored HTML page, shown in a frame that has every sandbox restriction on: no scripts, no forms,
+ * no popups and no access to FullDots, its token or its data. The app's own security policy also
+ * blocks anything the page tries to load from the network, so it shows as a static page.
+ */
+function HtmlPreview({ file, text }: { file: SpaceFile; text: string }) {
+  const [source, setSource] = useState(false);
+  const page = useMemo(() => new Blob([text], { type: 'text/html' }), [text]);
+  const url = useObjectUrl(source ? undefined : page);
+  return (
+    <>
+      <div className="file-tabs" role="group" aria-label="HTML view">
+        <button
+          type="button"
+          aria-pressed={!source}
+          onClick={() => setSource(false)}
+        >
+          Preview
+        </button>
+        <button
+          type="button"
+          aria-pressed={source}
+          onClick={() => setSource(true)}
+        >
+          Source
+        </button>
+      </div>
+      {source ? (
+        <pre className="file-text">{text}</pre>
+      ) : url ? (
+        <iframe
+          className="file-html"
+          sandbox=""
+          src={url}
+          title={`${file.name} (preview)`}
+        />
+      ) : null}
+      <p className="file-note">
+        Scripts and outside resources are blocked in the preview.
+      </p>
+    </>
+  );
+}
+
 function Preview({ file, loaded }: { file: SpaceFile; loaded: Loaded }) {
   const blob = loaded.state === 'ready' ? loaded.blob : undefined;
   const url = useObjectUrl(
@@ -161,6 +205,8 @@ function Preview({ file, loaded }: { file: SpaceFile; loaded: Loaded }) {
   const text = loaded.text ?? '';
   const truncated = (blob?.size ?? 0) > TEXT_PREVIEW_CHARS;
   switch (file.kind) {
+    case 'html':
+      return <HtmlPreview file={file} text={text} />;
     case 'csv':
       return <CsvTable text={text} tab={file.mediaType.includes('tab')} />;
     case 'markdown':

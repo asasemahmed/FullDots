@@ -52,7 +52,9 @@ describe('file types', () => {
       kind: 'csv',
     });
     expect(typeOfName('notes.md').kind).toBe('markdown');
-    expect(typeOfName('page.html').kind).toBe('download');
+    expect(typeOfName('page.html').kind).toBe('html');
+    expect(typeOfName('page.html').mediaType).toBe('text/html');
+    expect(typeOfName('page.php').kind).toBe('download');
     expect(typeOfName('run.js').mediaType).toBe('application/octet-stream');
     expect(typeOfName('noextension').kind).toBe('download');
   });
@@ -161,8 +163,14 @@ describe('space files', () => {
     const html = await app.request(
       `/api/spaces/${spaceId}/files/${await make('page.html')}/content`,
     );
-    expect(html.headers.get('content-type')).toBe('application/octet-stream');
-    expect(html.headers.get('content-disposition')).toMatch(/^attachment/);
+    // HTML opened directly is plain text with the sandbox policy: only the viewer's frame renders it.
+    expect(html.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(html.headers.get('content-security-policy')).toContain('sandbox');
+    const php = await app.request(
+      `/api/spaces/${spaceId}/files/${await make('run.php')}/content`,
+    );
+    expect(php.headers.get('content-type')).toBe('application/octet-stream');
+    expect(php.headers.get('content-disposition')).toMatch(/^attachment/);
     const forced = await app.request(
       `/api/spaces/${spaceId}/files/${await make('n.txt')}/content?download=1`,
     );

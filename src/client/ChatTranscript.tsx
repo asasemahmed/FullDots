@@ -9,6 +9,7 @@ import { voiceReceiptMessagePrefix } from '../shared/voice-receipt';
 import { TURN_SOURCE_LABELS } from '../shared/step-label';
 import { ComputerActivity } from './ComputerActivity';
 import { ApprovalCard, type DecideApproval } from './ApprovalCard';
+import { FileCard } from './FileCard';
 import { describeComputerSteps } from './ComputerToolCard';
 import { buildTranscriptItems, toolResults } from './chat-turns';
 import { AddressedLine, AuthoredBubble } from './room/AuthorBubble';
@@ -238,6 +239,8 @@ export function ChatTranscript({
             return (
               <Fragment key={item.key}>{renderTools?.(item.message)}</Fragment>
             );
+          case 'file':
+            return <FileCard key={item.key} file={item.file} />;
           case 'approval':
             return (
               <ApprovalCard

@@ -26,6 +26,10 @@ export function pageAccess(
   return {
     /** Where pages go when no Space is named and no page is open. */
     destination,
+    /** The Space a request names (or the default) after checking this Dot may use it. */
+    space: resolve,
+    spaceName: (id: string) =>
+      workspace.spaces().find((space) => space.id === id)?.name ?? '',
     context: () => workspace.pages.forThread(threadId, resolve()),
     spaces: () => {
       check();

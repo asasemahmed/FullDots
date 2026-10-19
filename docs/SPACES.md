@@ -14,6 +14,7 @@ Open a Space and choose **Upload files**, or drop files on the library. Files ap
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `.csv`, `.tsv`                          | A table with sticky headers and sortable columns. The first 5,000 rows are shown; download for the rest. |
 | `.md`                                   | Rendered Markdown.                                                                                       |
+| `.html`, `.htm`                         | A **Preview** tab (a static page in a locked-down frame) and a **Source** tab.                           |
 | `.txt`, `.log`                          | Text.                                                                                                    |
 | `.json`                                 | Pretty-printed text.                                                                                     |
 | `.png`, `.jpg`, `.gif`, `.webp`, `.svg` | The image.                                                                                               |
@@ -32,10 +33,26 @@ Two files in one place never share a name: a clash becomes `report (2).csv`.
 ### Security
 
 - The server decides a file's type from its name and ignores any type a client sends.
-- HTML, scripts and other active formats are kept only as downloads. They are never shown as pages.
+- An HTML file is previewed only in a frame with every sandbox restriction on: no scripts, no forms, no popups and no access to FullDots or its data. FullDots' own security policy also blocks anything the page tries to load from the network, so it shows as a static page. Opened by its address, it is plain text.
+- Scripts and other active formats are kept only as downloads. They are never shown.
 - A file's address is served with `nosniff` and a sandboxing Content Security Policy, and the viewer shows text, images and PDFs from blobs, so nothing in a stored file runs in the app.
 - Files follow the same owner checks as every other API route.
 
-## Where a Dot's files go
+## Files from a Dot
 
-Files a Dot creates in its computer stay in that computer's workspace folder; they are not in a Space. Dot tools for saving results straight into a Space, and file cards in the chat, are planned as a follow-up.
+A Dot keeps a result in a Space with these tools, so you do not need a computer for it:
+
+| Tool                                  | What it does                                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `save_space_file`                     | Saves text the Dot wrote as a file (CSV, Markdown, HTML, JSON or text). The extension decides how it is shown.                              |
+| `list_space_files`, `read_space_file` | Lists a Space's files and reads a text file, so a Dot can build on earlier results.                                                         |
+| `copy_computer_file_to_space`         | Copies a text file from the Dot's computer into a Space (up to the computer's read limit, about 64 KB). Needs Files access on the computer. |
+
+When a Dot saves a file, the chat shows a **file card** with the name, type, size and Space. Click it to open the viewer; the small link on the card opens it in a new window.
+
+- **Access:** a Dot reaches only the Spaces it was granted, the same as pages.
+- **Approvals:** saving a file counts as **Write files**. In the "writes" approval mode it asks first, and a "never" rule for Write files blocks it. Listing and reading do not ask. See [Approvals](APPROVALS.md).
+- **Untrusted content:** a Dot treats file contents as data, never as instructions.
+- **Not yet:** images and other binary files cannot be saved by a Dot, and a file made in a computer is copied, not linked.
+
+Files a Dot creates inside its computer stay in that computer's workspace unless it copies them to a Space.

@@ -166,6 +166,10 @@ function describeAction(
       return 'run a shell command';
     case 'computer_files_write':
       return 'write a file';
+    case 'save_space_file':
+      return `save ${clip(String(args.name ?? 'a file'), 60)} in a Space`;
+    case 'copy_computer_file_to_space':
+      return `copy ${clip(String(args.path ?? 'a file'), 60)} into a Space`;
     case 'create_space_page':
       return 'create a page';
     case 'edit_space_page':

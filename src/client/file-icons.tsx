@@ -1,5 +1,6 @@
 import {
   File,
+  FileCode,
   FileImage,
   FileJson,
   FileSpreadsheet,
@@ -13,15 +14,16 @@ export function FileKindIcon({
   kind,
   ...props
 }: { kind: FileKind } & LucideProps) {
-  const Icon =
-    kind === 'csv'
-      ? FileSpreadsheet
-      : kind === 'image'
-        ? FileImage
-        : kind === 'json'
-          ? FileJson
-          : kind === 'markdown' || kind === 'text' || kind === 'pdf'
-            ? FileText
-            : File;
+  const ICONS: Record<FileKind, typeof File> = {
+    csv: FileSpreadsheet,
+    image: FileImage,
+    json: FileJson,
+    html: FileCode,
+    markdown: FileText,
+    text: FileText,
+    pdf: FileText,
+    download: File,
+  };
+  const Icon = ICONS[kind];
   return <Icon aria-hidden {...props} />;
 }

@@ -1,5 +1,6 @@
 import { api, authHeaders, ApiError } from './api';
 import type { SpaceFile } from '../shared/space-files';
+export { fileHash } from './file-links';
 
 /** Bytes as base64, in slices so a large file does not overflow the call stack. */
 export function toBase64(bytes: Uint8Array): string {
@@ -57,7 +58,3 @@ export function saveBlob(blob: Blob, name: string) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
-
-/** The link to a file inside the app: opens the viewer, in this tab or a new one. */
-export const fileHash = (spaceId: string, fileId: string) =>
-  `#/spaces/${spaceId}/files/${fileId}`;

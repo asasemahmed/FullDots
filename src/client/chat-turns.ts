@@ -17,6 +17,7 @@ import {
   type TurnSource,
 } from '../shared/types';
 import { isLaneTool } from '../shared/lanes';
+import type { FileKind } from '../shared/space-files';
 
 export function isComputerTool(name: string): boolean {
   return name.startsWith('computer_');
@@ -28,6 +29,66 @@ export function isActivityTool(name: string): boolean {
 }
 
 export type ApprovalToolResult = PendingApprovalResult | HandoffResult;
+
+/** Tools whose result is a file card, so a message holding only such a call is still shown. */
+export function isFileCardTool(name: string): boolean {
+  return name === 'save_space_file' || name === 'copy_computer_file_to_space';
+}
+
+/** A file a Dot saved in a Space, as its tool result reports it. Never holds the file's contents. */
+export interface SavedFile {
+  id: string;
+  spaceId: string;
+  name: string;
+  kind: FileKind;
+  size: number;
+  /** The Space's name, for the card. */
+  space: string;
+}
+
+const FILE_KINDS: readonly string[] = [
+  'markdown',
+  'html',
+  'csv',
+  'text',
+  'json',
+  'image',
+  'pdf',
+  'download',
+];
+
+/** The saved file in a `save_space_file` or `copy_computer_file_to_space` result, or undefined. */
+export function parseSavedFile(raw: string | undefined): SavedFile | undefined {
+  if (!raw || !raw.includes('"saved"')) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data))
+    return undefined;
+  const { saved, file, space } = data as Record<string, unknown>;
+  if (saved !== true || !file || typeof file !== 'object') return undefined;
+  const { id, spaceId, name, kind, size } = file as Record<string, unknown>;
+  if (
+    typeof id !== 'string' ||
+    typeof spaceId !== 'string' ||
+    typeof name !== 'string' ||
+    typeof kind !== 'string' ||
+    !FILE_KINDS.includes(kind) ||
+    typeof size !== 'number'
+  )
+    return undefined;
+  return {
+    id,
+    spaceId,
+    name,
+    kind: kind as FileKind,
+    size,
+    space: typeof space === 'string' ? space : '',
+  };
+}
 
 /** A tool result that asks the owner for something (an approval, a handoff), or undefined. */
 export function parseApprovalResult(
@@ -109,7 +170,9 @@ export type TranscriptItem =
       toolCallId: string;
       result: ApprovalToolResult;
     }
-  | { kind: 'receipt'; key: string; call: CallReceipt };
+  | { kind: 'receipt'; key: string; call: CallReceipt }
+  /** A file a Dot saved in a Space: a card that opens the viewer. */
+  | { kind: 'file'; key: string; file: SavedFile };
 
 /** Indexes of the last assistant message of every turn (a turn ends at the next user message). */
 function finalAssistantIndexes(messages: Message[]): Set<number> {
@@ -165,6 +228,8 @@ function assistantItems(
         toolCallId: call.id,
         result: asked,
       });
+    const file = parseSavedFile(results.get(call.id));
+    if (file) actions.push({ kind: 'file', key: `file:${call.id}`, file });
   }
   const content = typeof message.content === 'string' ? message.content : '';
   if (!content.trim()) return actions;
@@ -183,7 +248,9 @@ function assistantItems(
   let end = actions.length;
   while (
     end > 0 &&
-    (actions[end - 1].kind === 'tools' || actions[end - 1].kind === 'band')
+    (actions[end - 1].kind === 'tools' ||
+      actions[end - 1].kind === 'band' ||
+      actions[end - 1].kind === 'file')
   )
     end--;
   return [...actions.slice(0, end), bubble, ...actions.slice(end)];

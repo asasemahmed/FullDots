@@ -289,3 +289,101 @@
     flex-wrap: wrap;
   }
 }
+
+.file-tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border: 1px solid #e4e8e1;
+  border-radius: 9px;
+  background: #f6f7f3;
+}
+.file-tabs button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #5d675a;
+  font-size: 12px;
+}
+.file-tabs button[aria-pressed='true'] {
+  background: #fff;
+  color: #30392f;
+  box-shadow: 0 1px 2px #0000001a;
+}
+.file-html {
+  display: block;
+  width: 100%;
+  height: 72vh;
+  border: 1px solid #e4e8e1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* The card a saved file leaves in the chat. */
+.file-card {
+  display: flex;
+  align-items: stretch;
+  max-width: 420px;
+  margin: 6px 0;
+  border: 1px solid #e4e8e1;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.file-card:hover {
+  border-color: #b4c2b0;
+}
+.file-card-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #30392f;
+  text-align: left;
+}
+.file-card-main:hover:not(:disabled) {
+  background: #f8f9f6;
+  transform: none;
+}
+.file-card-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #f5f6f2;
+  color: #6f786a;
+  flex: none;
+}
+.file-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.file-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.file-card-meta {
+  color: #707a6c;
+  font-size: 12px;
+}
+.file-card-new {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  border-left: 1px solid #eef1ea;
+  color: #6f786a;
+}
+.file-card-new:hover {
+  background: #f8f9f6;
+  color: #30392f;
+}
