@@ -32,6 +32,9 @@ export function ResultCard({
           <span className="file-card-name">{title}</span>
           <span className="file-card-meta">{meta}</span>
         </span>
+        <span className="file-card-hint" aria-hidden="true">
+          Preview
+        </span>
       </button>
       <a
         className="file-card-new"

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Message } from '@ag-ui/core';
@@ -245,5 +246,33 @@ describe('cards for edits and pages', () => {
       expect(hasResultCard(name)).toBe(true);
     expect(hasResultCard('read_space_file')).toBe(false);
     expect(hasResultCard('list_space_files')).toBe(false);
+  });
+});
+
+describe('card layout', () => {
+  it('cannot be squashed by the scrolling transcript', () => {
+    // The transcript is a scrolling flex column and a card clips its overflow, so without
+    // `flex: none` a long chat shrinks every card to its 2px border and the button disappears.
+    const css = readFileSync('src/client/space-files.css', 'utf8');
+    const rule = /\.file-card \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toMatch(/flex:\s*none/);
+    expect(rule).toMatch(/width:\s*100%/);
+  });
+
+  it('says it opens a preview', () => {
+    const html = renderToStaticMarkup(
+      <FileCard
+        file={{
+          id: 'f',
+          spaceId: 's',
+          name: 'a.csv',
+          kind: 'csv',
+          size: 1,
+          updated: false,
+          space: '',
+        }}
+      />,
+    );
+    expect(html).toContain('Preview');
   });
 });
