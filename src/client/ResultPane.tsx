@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowDownToLine,
   ArrowUpRight,
   BookOpen,
   ExternalLink,
+  FileText,
   Monitor,
   X,
 } from 'lucide-react';
@@ -12,6 +13,7 @@ import remarkGfm from 'remark-gfm';
 import type { Dot, Result, Status } from '../shared/types';
 import { Mascot } from './Mascot';
 import { ComputerPanel } from './ComputerPanel';
+import { FilePane } from './FilePane';
 export function ResultPane({
   latest,
   status,
@@ -20,17 +22,26 @@ export function ResultPane({
   dots,
   defaultDotId,
   threadId,
+  file,
 }: {
   dots: Dot[];
   defaultDotId: string;
   /** The open conversation, for the computer's Replay tab. */
   threadId?: string;
+  /** A file the owner opened from the chat; it gets its own tab and is shown first. */
+  file?: { spaceId: string; id: string };
   latest?: Result | null;
   status?: Status;
   dotState: string;
   onClose: () => void;
 }) {
-  const [resultTab, setResultTab] = useState<'Brief' | 'Computer'>('Computer');
+  const [resultTab, setResultTab] = useState<'Brief' | 'Computer' | 'File'>(
+    file ? 'File' : 'Computer',
+  );
+  // Opening another file from the chat brings its tab forward.
+  useEffect(() => {
+    if (file) setResultTab('File');
+  }, [file?.spaceId, file?.id]);
   const [computerDotId, setComputerDotId] = useState(defaultDotId);
   const computerDot =
     dots.find((dot) => dot.id === computerDotId) ??
@@ -47,6 +58,14 @@ export function ResultPane({
             <BookOpen size={15} />
             Brief
           </button>
+          {file && (
+            <button
+              className={resultTab === 'File' ? 'selected' : ''}
+              onClick={() => setResultTab('File')}
+            >
+              <FileText size={15} /> File
+            </button>
+          )}
           <button
             className={resultTab === 'Computer' ? 'selected' : ''}
             onClick={() => setResultTab('Computer')}
@@ -62,7 +81,9 @@ export function ResultPane({
           <X size={16} />
         </button>
       </div>
-      {resultTab === 'Computer' ? (
+      {resultTab === 'File' && file ? (
+        <FilePane spaceId={file.spaceId} fileId={file.id} />
+      ) : resultTab === 'Computer' ? (
         <>
           {computerDot ? (
             <ComputerPanel

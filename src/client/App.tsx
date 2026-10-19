@@ -189,6 +189,8 @@ export function App() {
     menuButton.current?.focus();
   }, []);
   const [pane, setPane] = useState(false);
+  /** A file opened from the chat, shown in the side pane. */
+  const [chatFile, setChatFile] = useState<{ spaceId: string; id: string }>();
   const [capture, setCapture] = useState<Result>();
   const [prompt, setPrompt] = useState('');
   const [pendingPrompt, setPendingPrompt] = useState<string>();
@@ -644,6 +646,10 @@ export function App() {
                   paused={state.settings.paused || !!dot.paused}
                   onSaved={refresh}
                   onComputer={() => setPane(true)}
+                  onOpenFile={(file) => {
+                    setChatFile({ spaceId: file.spaceId, id: file.id });
+                    setPane(true);
+                  }}
                   onOpenThread={(id) =>
                     void refresh().then(() => selectThread(id))
                   }
@@ -735,6 +741,7 @@ export function App() {
                 dots={workspace.dots}
                 defaultDotId={dot.id}
                 threadId={thread?.id}
+                file={chatFile}
                 latest={capture}
                 dotState="idle"
                 onClose={() => setPane(false)}

@@ -17,17 +17,24 @@ const KIND_LABELS: Record<SavedFile['kind'], string> = {
 };
 
 /**
- * A file a Dot saved in a Space. Opens the viewer in the app; the small link opens it in a new
- * window, so the chat stays where it is.
+ * A file a Dot saved in a Space. Clicking it shows the file beside the chat; the small link opens it
+ * in a new window.
  */
-export function FileCard({ file }: { file: SavedFile }) {
+export function FileCard({
+  file,
+  onOpen,
+}: {
+  file: SavedFile;
+  /** Shows the file beside the chat. Without it the card opens the file in its Space. */
+  onOpen?: (file: SavedFile) => void;
+}) {
   const hash = fileHash(file.spaceId, file.id);
   return (
     <div className="file-card">
       <button
         type="button"
         className="file-card-main"
-        onClick={() => openPageLink(hash)}
+        onClick={() => (onOpen ? onOpen(file) : openPageLink(hash))}
         aria-label={`Open ${file.name}`}
       >
         <span className="file-card-icon">

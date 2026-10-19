@@ -126,3 +126,27 @@ describe('file cards in the chat', () => {
     expect(card('csv')).not.toContain('· in');
   });
 });
+
+describe('opening a card', () => {
+  it('shows the file beside the chat when the chat can, and links to the Space when it cannot', () => {
+    const file = {
+      id: 'f1',
+      spaceId: 's1',
+      name: 'a.csv',
+      kind: 'csv' as const,
+      size: 1,
+      space: 'Research',
+    };
+    const opened: unknown[] = [];
+    const card = FileCard({ file, onOpen: (picked) => opened.push(picked) });
+    // The main button hands the file to the chat; the small link still opens a new window.
+    const main = (
+      card.props.children as { props: { onClick: () => void } }[]
+    )[0]!;
+    main.props.onClick();
+    expect(opened).toEqual([file]);
+    expect(
+      renderToStaticMarkup(<FileCard file={file} onOpen={() => undefined} />),
+    ).toContain('target="_blank"');
+  });
+});

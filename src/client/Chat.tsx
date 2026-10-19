@@ -22,6 +22,7 @@ import {
   isFileCardTool,
   isComputerTool,
   toolResults,
+  type SavedFile,
 } from './chat-turns';
 import type {
   Approval,
@@ -68,6 +69,7 @@ export function Chat({
   onSchedule,
   onTrigger,
   onComputer,
+  onOpenFile,
   dots,
   onOpenThread,
 }: {
@@ -85,6 +87,8 @@ export function Chat({
   /** Adds a webhook or poll trigger that starts work in this conversation. */
   onTrigger?: () => void;
   onComputer?: () => void;
+  /** Shows a file a Dot saved beside the chat. */
+  onOpenFile?: (file: SavedFile) => void;
   /** Opens another conversation: a branch made from this one. */
   onOpenThread?: (id: string) => void;
 }) {
@@ -608,6 +612,7 @@ export function Chat({
             running={running}
             dotName={dot.name}
             onViewComputer={onComputer}
+            onOpenFile={onOpenFile}
             onTakeOver={
               onComputer
                 ? () => takeOverHere({ dotId: dot.id, open: onComputer })

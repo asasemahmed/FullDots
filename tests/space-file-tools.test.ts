@@ -143,6 +143,43 @@ describe('Dot tools for Space files', () => {
     );
   });
 
+  it('read a file by its name, even when the name is passed as the id', async () => {
+    const { tools } = setup();
+    await tools.save_space_file!({
+      name: 'Notes-Apps.csv',
+      content: 'a,b\n1,2\n',
+    });
+    for (const input of [{ name: 'notes-apps.csv' }, { id: 'NOTES-APPS.CSV' }])
+      expect(await tools.read_space_file!(input)).toMatchObject({
+        name: 'Notes-Apps.csv',
+        content: 'a,b\n1,2\n',
+      });
+  });
+
+  it('answer a wrong guess with the files that exist, not a bare "not found"', async () => {
+    const { tools } = setup();
+    await tools.save_space_file!({ name: 'one.txt', content: '1' });
+    await tools.save_space_file!({ name: 'two.txt', content: '2' });
+    const error = await tools.read_space_file!({ name: 'missing.csv' }).catch(
+      (e: Error) => e,
+    );
+    expect(String((error as Error).message)).toMatch(/no file "missing\.csv"/i);
+    expect(String((error as Error).message)).toContain('one.txt');
+    expect(String((error as Error).message)).toContain('two.txt');
+    expect(String((error as Error).message)).toMatch(/list_space_files/);
+    await expect(tools.read_space_file!({})).rejects.toThrow(/name or its id/);
+  });
+
+  it('tell the Dot not to link a file the owner already has a card for', async () => {
+    const { tools } = setup();
+    const result = await tools.save_space_file!({
+      name: 'a.txt',
+      content: 'x',
+    });
+    expect(String(result.note)).toMatch(/card/);
+    expect(String(result.note)).toMatch(/Do not add a link/);
+  });
+
   it('copy a text file out of the computer and refuse what it cannot', async () => {
     const action = vi.fn(
       async (_id: string, _a: string, input: { path: string }) =>

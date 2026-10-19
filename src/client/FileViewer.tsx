@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FolderOpen,
   LoaderCircle,
   Pencil,
   Trash2,
@@ -278,15 +279,21 @@ function Preview({ file, loaded }: { file: SpaceFile; loaded: Loaded }) {
  */
 export function FileViewer({
   file,
+  variant = 'page',
   onBack,
   onChanged,
   onDeleted,
+  onOpenInSpace,
 }: {
   file: SpaceFile;
-  onBack: () => void;
-  onChanged: (file: SpaceFile) => void;
-  onDeleted: (id: string) => void;
+  /** `pane` is the compact view beside a chat: no rename or delete, and a way into the Space. */
+  variant?: 'page' | 'pane';
+  onBack?: () => void;
+  onChanged?: (file: SpaceFile) => void;
+  onDeleted?: (id: string) => void;
+  onOpenInSpace?: () => void;
 }) {
+  const pane = variant === 'pane';
   const loaded = useFileContent(file);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(file.name);
@@ -305,7 +312,7 @@ export function FileViewer({
   const rename = () =>
     run(async () => {
       if (name.trim() && name !== file.name)
-        onChanged(
+        onChanged?.(
           await api<SpaceFile>(
             `/spaces/${file.spaceId}/files/${file.id}`,
             'PATCH',
@@ -328,7 +335,7 @@ export function FileViewer({
       if (!window.confirm(`Delete "${file.name}"? This can't be undone.`))
         return;
       await api(`/spaces/${file.spaceId}/files/${file.id}`, 'DELETE');
-      onDeleted(file.id);
+      onDeleted?.(file.id);
     });
   const copy = async () => {
     if (loaded.state !== 'ready' || loaded.text === undefined) return;
@@ -338,11 +345,16 @@ export function FileViewer({
   };
 
   return (
-    <section className="file-viewer" aria-label={`File ${file.name}`}>
+    <section
+      className={`file-viewer${pane ? ' is-pane' : ''}`}
+      aria-label={`File ${file.name}`}
+    >
       <header className="file-header">
-        <button type="button" className="file-back" onClick={onBack}>
-          <ArrowLeft size={16} aria-hidden="true" /> All pages and files
-        </button>
+        {!pane && onBack && (
+          <button type="button" className="file-back" onClick={onBack}>
+            <ArrowLeft size={16} aria-hidden="true" /> All pages and files
+          </button>
+        )}
         <div className="file-title">
           {renaming ? (
             <form
@@ -405,16 +417,26 @@ export function FileViewer({
           >
             <ExternalLink size={15} aria-hidden="true" /> New window
           </a>
-          <button type="button" onClick={() => setRenaming(true)}>
-            <Pencil size={15} aria-hidden="true" /> Rename
-          </button>
-          <button
-            type="button"
-            className="file-danger"
-            onClick={() => void remove()}
-          >
-            <Trash2 size={15} aria-hidden="true" /> Delete
-          </button>
+          {pane ? (
+            onOpenInSpace && (
+              <button type="button" onClick={onOpenInSpace}>
+                <FolderOpen size={15} aria-hidden="true" /> Open in Space
+              </button>
+            )
+          ) : (
+            <>
+              <button type="button" onClick={() => setRenaming(true)}>
+                <Pencil size={15} aria-hidden="true" /> Rename
+              </button>
+              <button
+                type="button"
+                className="file-danger"
+                onClick={() => void remove()}
+              >
+                <Trash2 size={15} aria-hidden="true" /> Delete
+              </button>
+            </>
+          )}
         </div>
       </header>
       {error && (

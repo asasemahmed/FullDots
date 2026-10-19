@@ -11,7 +11,11 @@ import { ComputerActivity } from './ComputerActivity';
 import { ApprovalCard, type DecideApproval } from './ApprovalCard';
 import { FileCard } from './FileCard';
 import { describeComputerSteps } from './ComputerToolCard';
-import { buildTranscriptItems, toolResults } from './chat-turns';
+import {
+  buildTranscriptItems,
+  toolResults,
+  type SavedFile,
+} from './chat-turns';
 import { AddressedLine, AuthoredBubble } from './room/AuthorBubble';
 import { EarlierAttempts } from './message-actions/EarlierAttempts';
 import { foldRetries } from './message-actions/retries';
@@ -104,6 +108,7 @@ export function ChatTranscript({
   running = false,
   dotName = 'Your Dot',
   onViewComputer,
+  onOpenFile,
   onTakeOver,
   approvals,
   onDecide,
@@ -121,6 +126,8 @@ export function ChatTranscript({
   dotName?: string;
   /** Opens the computer side panel. */
   onViewComputer?: () => void;
+  /** Shows a file a Dot saved beside the chat. */
+  onOpenFile?: (file: SavedFile) => void;
   /** Opens the computer side panel and takes control, from a handoff card. */
   onTakeOver?: () => Promise<void>;
   /** Live approval rows by id, for the status of each approval card. */
@@ -240,7 +247,9 @@ export function ChatTranscript({
               <Fragment key={item.key}>{renderTools?.(item.message)}</Fragment>
             );
           case 'file':
-            return <FileCard key={item.key} file={item.file} />;
+            return (
+              <FileCard key={item.key} file={item.file} onOpen={onOpenFile} />
+            );
           case 'approval':
             return (
               <ApprovalCard
