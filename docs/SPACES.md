@@ -46,9 +46,10 @@ A Dot keeps a result in a Space with these tools, so you do not need a computer 
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `save_space_file`                     | Saves text the Dot wrote as a file (CSV, Markdown, HTML, JSON or text). The extension decides how it is shown.                              |
 | `list_space_files`, `read_space_file` | Lists a Space's files and reads a text file, so a Dot can build on earlier results.                                                         |
+| `update_space_file`                   | Changes a text file that is already in a Space: replaces its content or adds to the end (for example, new rows in a CSV).                   |
 | `copy_computer_file_to_space`         | Copies a text file from the Dot's computer into a Space (up to the computer's read limit, about 64 KB). Needs Files access on the computer. |
 
-When a Dot saves a file, the chat shows a **file card** with the name, type, size and Space. Click it to open the viewer; the small link on the card opens it in a new window.
+When a Dot saves or changes a file, or creates or edits a page, the chat shows a **card** with its name, type and Space. Click it to see it **beside the chat**, without leaving the conversation: a file opens in a File tab with the viewer, a page opens in a Page tab with the rendered text. The pane follows later changes, so an edit the Dot makes shows up by itself. The pane also has **Open in Space** (for a page, **Open and edit**), and the small link on the card opens it in a new window.
 
 - **Access:** a Dot reaches only the Spaces it was granted, the same as pages.
 - **Approvals:** saving a file counts as **Write files**. In the "writes" approval mode it asks first, and a "never" rule for Write files blocks it. Listing and reading do not ask. See [Approvals](APPROVALS.md).

@@ -21,6 +21,8 @@ export function pageAccess(
   };
   const linked = <T extends { id: string; spaceId: string }>(page: T) => ({
     ...page,
+    // The Space's name is for the card the owner sees in the chat.
+    space: workspace.spaces().find((space) => space.id === page.spaceId)?.name,
     url: `/#/spaces/${page.spaceId}/pages/${page.id}`,
   });
   return {

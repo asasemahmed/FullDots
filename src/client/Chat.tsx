@@ -19,10 +19,10 @@ import {
   approvalIds,
   handoffIds,
   isActivityTool,
-  isFileCardTool,
+  hasResultCard,
   isComputerTool,
   toolResults,
-  type SavedFile,
+  type PaneItem,
 } from './chat-turns';
 import type {
   Approval,
@@ -69,7 +69,7 @@ export function Chat({
   onSchedule,
   onTrigger,
   onComputer,
-  onOpenFile,
+  onOpenItem,
   dots,
   onOpenThread,
 }: {
@@ -87,8 +87,8 @@ export function Chat({
   /** Adds a webhook or poll trigger that starts work in this conversation. */
   onTrigger?: () => void;
   onComputer?: () => void;
-  /** Shows a file a Dot saved beside the chat. */
-  onOpenFile?: (file: SavedFile) => void;
+  /** Shows a file or page a Dot saved beside the chat. */
+  onOpenItem?: (item: PaneItem) => void;
   /** Opens another conversation: a branch made from this one. */
   onOpenThread?: (id: string) => void;
 }) {
@@ -448,7 +448,7 @@ export function Chat({
               isLaneTool(call.function.name) ||
               call.function.name === 'request_approval' ||
               call.function.name === 'request_handoff' ||
-              isFileCardTool(call.function.name) ||
+              hasResultCard(call.function.name) ||
               call.function.name === pageReviewTool.name,
           ))),
   );
@@ -612,7 +612,7 @@ export function Chat({
             running={running}
             dotName={dot.name}
             onViewComputer={onComputer}
-            onOpenFile={onOpenFile}
+            onOpenItem={onOpenItem}
             onTakeOver={
               onComputer
                 ? () => takeOverHere({ dotId: dot.id, open: onComputer })

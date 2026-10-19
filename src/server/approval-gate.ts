@@ -170,6 +170,8 @@ function describeAction(
       return `save ${clip(String(args.name ?? 'a file'), 60)} in a Space`;
     case 'copy_computer_file_to_space':
       return `copy ${clip(String(args.path ?? 'a file'), 60)} into a Space`;
+    case 'update_space_file':
+      return `${args.mode === 'append' ? 'add to' : 'replace the content of'} ${clip(String(args.name ?? args.id ?? 'a file'), 60)}`;
     case 'create_space_page':
       return 'create a page';
     case 'edit_space_page':

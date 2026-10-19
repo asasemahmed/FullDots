@@ -6,6 +6,9 @@ import { fileHash } from './file-links';
 import { openPageLink } from './page-navigation';
 import type { SpaceFile } from '../shared/space-files';
 
+/** How often an open file is read again, so an edit the Dot makes shows up without reopening it. */
+const REFRESH_MS = 3000;
+
 type State =
   | { phase: 'loading' }
   | { phase: 'error'; message: string }
@@ -23,25 +26,45 @@ export function FilePane({
   useEffect(() => {
     const controller = new AbortController();
     setState({ phase: 'loading' });
-    api<SpaceFile>(
-      `/spaces/${spaceId}/files/${fileId}`,
-      'GET',
-      undefined,
-      controller.signal,
-    )
-      .then((file) => setState({ phase: 'ready', file }))
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          setState({
-            phase: 'error',
-            message:
-              error instanceof Error
-                ? error.message
-                : 'Could not load the file.',
-          });
-      });
-    return () => controller.abort();
+    const load = async () => {
+      try {
+        const file = await api<SpaceFile>(
+          `/spaces/${spaceId}/files/${fileId}`,
+          'GET',
+          undefined,
+          controller.signal,
+        );
+        // Only a changed file replaces the one shown, so the preview does not reload for nothing.
+        setState((previous) =>
+          previous.phase === 'ready' &&
+          previous.file.sha256 === file.sha256 &&
+          previous.file.name === file.name
+            ? previous
+            : { phase: 'ready', file },
+        );
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setState((previous) =>
+          previous.phase === 'ready'
+            ? previous
+            : {
+                phase: 'error',
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : 'Could not load the file.',
+              },
+        );
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), REFRESH_MS);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
   }, [spaceId, fileId]);
+
   if (state.phase === 'loading')
     return (
       <div className="file-state" role="status">

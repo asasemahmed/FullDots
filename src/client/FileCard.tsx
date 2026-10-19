@@ -1,8 +1,9 @@
-import { ExternalLink } from 'lucide-react';
-import type { SavedFile } from './chat-turns';
+import { FileText } from 'lucide-react';
+import type { PaneItem, SavedFile, SavedPage } from './chat-turns';
 import { FileKindIcon } from './file-icons';
 import { openPageLink } from './page-navigation';
 import { fileHash } from './file-links';
+import { ResultCard } from './ResultCard';
 import { formatBytes } from '../shared/space-files';
 
 const KIND_LABELS: Record<SavedFile['kind'], string> = {
@@ -16,48 +17,55 @@ const KIND_LABELS: Record<SavedFile['kind'], string> = {
   download: 'File',
 };
 
+const inSpace = (space: string) => (space ? ` · in ${space}` : '');
+
 /**
- * A file a Dot saved in a Space. Clicking it shows the file beside the chat; the small link opens it
- * in a new window.
+ * A file a Dot saved or changed in a Space. Clicking it shows the file beside the chat; without a
+ * chat to show it in, it opens the file in its Space.
  */
 export function FileCard({
   file,
   onOpen,
 }: {
   file: SavedFile;
-  /** Shows the file beside the chat. Without it the card opens the file in its Space. */
-  onOpen?: (file: SavedFile) => void;
+  onOpen?: (item: PaneItem) => void;
 }) {
   const hash = fileHash(file.spaceId, file.id);
   return (
-    <div className="file-card">
-      <button
-        type="button"
-        className="file-card-main"
-        onClick={() => (onOpen ? onOpen(file) : openPageLink(hash))}
-        aria-label={`Open ${file.name}`}
-      >
-        <span className="file-card-icon">
-          <FileKindIcon kind={file.kind} size={20} />
-        </span>
-        <span className="file-card-text">
-          <span className="file-card-name">{file.name}</span>
-          <span className="file-card-meta">
-            {KIND_LABELS[file.kind]} · {formatBytes(file.size)}
-            {file.space ? ` · in ${file.space}` : ''}
-          </span>
-        </span>
-      </button>
-      <a
-        className="file-card-new"
-        href={hash}
-        target="_blank"
-        rel="noreferrer"
-        aria-label={`Open ${file.name} in a new window`}
-        title="Open in a new window"
-      >
-        <ExternalLink size={15} aria-hidden="true" />
-      </a>
-    </div>
+    <ResultCard
+      icon={<FileKindIcon kind={file.kind} size={20} />}
+      title={file.name}
+      meta={`${file.updated ? 'Updated · ' : ''}${KIND_LABELS[file.kind]} · ${formatBytes(file.size)}${inSpace(file.space)}`}
+      href={hash}
+      onOpen={() =>
+        onOpen
+          ? onOpen({ type: 'file', spaceId: file.spaceId, id: file.id })
+          : openPageLink(hash)
+      }
+    />
+  );
+}
+
+/** A page a Dot created or edited. Clicking it previews the page beside the chat. */
+export function PageCard({
+  page,
+  onOpen,
+}: {
+  page: SavedPage;
+  onOpen?: (item: PaneItem) => void;
+}) {
+  const hash = `#/spaces/${page.spaceId}/pages/${page.id}`;
+  return (
+    <ResultCard
+      icon={<FileText size={20} aria-hidden="true" />}
+      title={page.title || 'Untitled page'}
+      meta={`Page · ${page.updated ? 'edited' : 'created'}${inSpace(page.space)}`}
+      href={hash}
+      onOpen={() =>
+        onOpen
+          ? onOpen({ type: 'page', spaceId: page.spaceId, id: page.id })
+          : openPageLink(hash)
+      }
+    />
   );
 }

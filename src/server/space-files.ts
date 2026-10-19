@@ -174,6 +174,34 @@ export class SpaceFiles {
     return this.get(spaceId, id);
   }
 
+  /** Replaces a file's contents, keeping its name and place. The limit is the same as for a new file. */
+  replaceContent(
+    spaceId: string,
+    id: string,
+    data: Uint8Array,
+    maxBytes: number,
+  ): SpaceFile {
+    this.get(spaceId, id);
+    if (data.byteLength > maxBytes)
+      throw new SpaceFileError(
+        `Files can be at most ${Math.floor(maxBytes / 1024 / 1024)} MB. Raise SPACE_FILE_MAX_MB (up to ${MAX_SPACE_FILE_MB}) to allow more.`,
+        413,
+      );
+    this.db
+      .prepare(
+        'UPDATE space_files SET size=?, sha256=?, data=?, updatedAt=? WHERE id=? AND spaceId=?',
+      )
+      .run(
+        data.byteLength,
+        createHash('sha256').update(data).digest('hex'),
+        data,
+        Date.now(),
+        id,
+        spaceId,
+      );
+    return this.get(spaceId, id);
+  }
+
   /** Renames and moves. Changing the extension changes how the file is shown, so it is allowed. */
   update(
     spaceId: string,

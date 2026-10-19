@@ -14,6 +14,8 @@ import type { Dot, Result, Status } from '../shared/types';
 import { Mascot } from './Mascot';
 import { ComputerPanel } from './ComputerPanel';
 import { FilePane } from './FilePane';
+import { PagePane } from './PagePane';
+import type { PaneItem } from './chat-turns';
 export function ResultPane({
   latest,
   status,
@@ -22,26 +24,26 @@ export function ResultPane({
   dots,
   defaultDotId,
   threadId,
-  file,
+  item,
 }: {
   dots: Dot[];
   defaultDotId: string;
   /** The open conversation, for the computer's Replay tab. */
   threadId?: string;
-  /** A file the owner opened from the chat; it gets its own tab and is shown first. */
-  file?: { spaceId: string; id: string };
+  /** A file or page the owner opened from the chat; it gets its own tab and is shown first. */
+  item?: PaneItem;
   latest?: Result | null;
   status?: Status;
   dotState: string;
   onClose: () => void;
 }) {
-  const [resultTab, setResultTab] = useState<'Brief' | 'Computer' | 'File'>(
-    file ? 'File' : 'Computer',
+  const [resultTab, setResultTab] = useState<'Brief' | 'Computer' | 'Item'>(
+    item ? 'Item' : 'Computer',
   );
-  // Opening another file from the chat brings its tab forward.
+  // Opening another file or page from the chat brings its tab forward.
   useEffect(() => {
-    if (file) setResultTab('File');
-  }, [file?.spaceId, file?.id]);
+    if (item) setResultTab('Item');
+  }, [item?.type, item?.spaceId, item?.id]);
   const [computerDotId, setComputerDotId] = useState(defaultDotId);
   const computerDot =
     dots.find((dot) => dot.id === computerDotId) ??
@@ -58,12 +60,12 @@ export function ResultPane({
             <BookOpen size={15} />
             Brief
           </button>
-          {file && (
+          {item && (
             <button
-              className={resultTab === 'File' ? 'selected' : ''}
-              onClick={() => setResultTab('File')}
+              className={resultTab === 'Item' ? 'selected' : ''}
+              onClick={() => setResultTab('Item')}
             >
-              <FileText size={15} /> File
+              <FileText size={15} /> {item.type === 'page' ? 'Page' : 'File'}
             </button>
           )}
           <button
@@ -81,8 +83,12 @@ export function ResultPane({
           <X size={16} />
         </button>
       </div>
-      {resultTab === 'File' && file ? (
-        <FilePane spaceId={file.spaceId} fileId={file.id} />
+      {resultTab === 'Item' && item ? (
+        item.type === 'page' ? (
+          <PagePane spaceId={item.spaceId} pageId={item.id} />
+        ) : (
+          <FilePane spaceId={item.spaceId} fileId={item.id} />
+        )
       ) : resultTab === 'Computer' ? (
         <>
           {computerDot ? (

@@ -31,6 +31,7 @@ const OTHER_STEP_LABELS: Record<string, string> = {
   create_space_page: 'Writing a page',
   edit_space_page: 'Editing a page',
   save_space_file: 'Saving a file',
+  update_space_file: 'Updating a file',
   copy_computer_file_to_space: 'Moving a file to a Space',
   list_space_files: 'Looking through files',
   read_space_file: 'Reading a file',

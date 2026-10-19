@@ -369,6 +369,8 @@ function baseLevel(
     case 'save_space_file':
     case 'copy_computer_file_to_space':
       return { level: 'write', reason: 'saves a file in a Space' };
+    case 'update_space_file':
+      return { level: 'write', reason: 'changes a file in a Space' };
     case 'create_space_page':
       return { level: 'write', reason: 'creates a page' };
     case 'edit_space_page':
@@ -505,6 +507,7 @@ export function categoriesOf(input: ClassifyInput): RuleCategory[] {
     case 'computer_files_write':
     case 'save_space_file':
     case 'copy_computer_file_to_space':
+    case 'update_space_file':
       found.add('write_files');
       break;
     case 'create_space_page':

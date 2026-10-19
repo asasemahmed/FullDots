@@ -180,6 +180,52 @@ describe('Dot tools for Space files', () => {
     expect(String(result.note)).toMatch(/Do not add a link/);
   });
 
+  it('change a file that is already there: replace it, or add to the end', async () => {
+    const { ws, dot, tools } = setup();
+    await tools.save_space_file!({ name: 'rows.csv', content: 'a,b\n1,2' });
+    const appended = await tools.update_space_file!({
+      name: 'rows.csv',
+      content: '3,4',
+      mode: 'append',
+    });
+    expect(appended).toMatchObject({
+      saved: true,
+      updated: true,
+      file: { name: 'rows.csv', size: 'a,b\n1,2\n3,4'.length },
+    });
+    expect(String(appended.note)).toMatch(/card/);
+    const stored = ws.spaceFiles.list(dot.spaceId);
+    expect(stored).toHaveLength(1);
+    const read = () =>
+      ws.spaceFiles.content(dot.spaceId, stored[0]!.id).data.toString();
+    expect(read()).toBe('a,b\n1,2\n3,4');
+    await tools.update_space_file!({ name: 'rows.csv', content: 'x\n' });
+    expect(read()).toBe('x\n');
+  });
+
+  it('refuse to edit what it cannot show as text, or past the size limit', async () => {
+    const { ws, dot, tools } = setup({ maxBytes: 20 });
+    ws.spaceFiles.create(
+      dot.spaceId,
+      { name: 'pic.png', data: Buffer.from([1, 2, 3]) },
+      { maxBytes: 20 },
+    );
+    await expect(
+      tools.update_space_file!({ name: 'pic.png', content: 'x' }),
+    ).rejects.toThrow(/not a text file/);
+    await tools.save_space_file!({ name: 'a.txt', content: '12345' });
+    await expect(
+      tools.update_space_file!({
+        name: 'a.txt',
+        content: 'y'.repeat(30),
+        mode: 'append',
+      }),
+    ).rejects.toThrow(/at most/);
+    await expect(
+      tools.update_space_file!({ name: 'nope.txt', content: 'z' }),
+    ).rejects.toThrow(/no file "nope\.txt"/i);
+  });
+
   it('copy a text file out of the computer and refuse what it cannot', async () => {
     const action = vi.fn(
       async (_id: string, _a: string, input: { path: string }) =>

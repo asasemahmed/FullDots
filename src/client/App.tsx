@@ -1,6 +1,7 @@
 import { parseAppHash } from './app-hash';
 import { openPageLink } from './page-navigation';
 import { fileHash } from './space-files-api';
+import type { PaneItem } from './chat-turns';
 import { SpaceWorkspace } from './SpaceWorkspace';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { CopilotKitProvider } from '@copilotkit/react-core/v2';
@@ -189,8 +190,8 @@ export function App() {
     menuButton.current?.focus();
   }, []);
   const [pane, setPane] = useState(false);
-  /** A file opened from the chat, shown in the side pane. */
-  const [chatFile, setChatFile] = useState<{ spaceId: string; id: string }>();
+  /** A file or page opened from the chat, shown in the side pane. */
+  const [chatItem, setChatItem] = useState<PaneItem>();
   const [capture, setCapture] = useState<Result>();
   const [prompt, setPrompt] = useState('');
   const [pendingPrompt, setPendingPrompt] = useState<string>();
@@ -646,8 +647,8 @@ export function App() {
                   paused={state.settings.paused || !!dot.paused}
                   onSaved={refresh}
                   onComputer={() => setPane(true)}
-                  onOpenFile={(file) => {
-                    setChatFile({ spaceId: file.spaceId, id: file.id });
+                  onOpenItem={(item) => {
+                    setChatItem(item);
                     setPane(true);
                   }}
                   onOpenThread={(id) =>
@@ -741,7 +742,7 @@ export function App() {
                 dots={workspace.dots}
                 defaultDotId={dot.id}
                 threadId={thread?.id}
-                file={chatFile}
+                item={chatItem}
                 latest={capture}
                 dotState="idle"
                 onClose={() => setPane(false)}

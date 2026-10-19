@@ -9,13 +9,9 @@ import { voiceReceiptMessagePrefix } from '../shared/voice-receipt';
 import { TURN_SOURCE_LABELS } from '../shared/step-label';
 import { ComputerActivity } from './ComputerActivity';
 import { ApprovalCard, type DecideApproval } from './ApprovalCard';
-import { FileCard } from './FileCard';
+import { FileCard, PageCard } from './FileCard';
 import { describeComputerSteps } from './ComputerToolCard';
-import {
-  buildTranscriptItems,
-  toolResults,
-  type SavedFile,
-} from './chat-turns';
+import { buildTranscriptItems, toolResults, type PaneItem } from './chat-turns';
 import { AddressedLine, AuthoredBubble } from './room/AuthorBubble';
 import { EarlierAttempts } from './message-actions/EarlierAttempts';
 import { foldRetries } from './message-actions/retries';
@@ -108,7 +104,7 @@ export function ChatTranscript({
   running = false,
   dotName = 'Your Dot',
   onViewComputer,
-  onOpenFile,
+  onOpenItem,
   onTakeOver,
   approvals,
   onDecide,
@@ -126,8 +122,8 @@ export function ChatTranscript({
   dotName?: string;
   /** Opens the computer side panel. */
   onViewComputer?: () => void;
-  /** Shows a file a Dot saved beside the chat. */
-  onOpenFile?: (file: SavedFile) => void;
+  /** Shows a file or page a Dot saved beside the chat. */
+  onOpenItem?: (item: PaneItem) => void;
   /** Opens the computer side panel and takes control, from a handoff card. */
   onTakeOver?: () => Promise<void>;
   /** Live approval rows by id, for the status of each approval card. */
@@ -248,7 +244,11 @@ export function ChatTranscript({
             );
           case 'file':
             return (
-              <FileCard key={item.key} file={item.file} onOpen={onOpenFile} />
+              <FileCard key={item.key} file={item.file} onOpen={onOpenItem} />
+            );
+          case 'page':
+            return (
+              <PageCard key={item.key} page={item.page} onOpen={onOpenItem} />
             );
           case 'approval':
             return (

@@ -30,9 +30,63 @@ export function isActivityTool(name: string): boolean {
 
 export type ApprovalToolResult = PendingApprovalResult | HandoffResult;
 
-/** Tools whose result is a file card, so a message holding only such a call is still shown. */
-export function isFileCardTool(name: string): boolean {
-  return name === 'save_space_file' || name === 'copy_computer_file_to_space';
+const FILE_TOOLS: readonly string[] = [
+  'save_space_file',
+  'copy_computer_file_to_space',
+  'update_space_file',
+];
+const PAGE_TOOLS: readonly string[] = ['create_space_page', 'edit_space_page'];
+
+/** Tools whose result is a card, so a message holding only such a call is still shown. */
+export function hasResultCard(name: string): boolean {
+  return FILE_TOOLS.includes(name) || PAGE_TOOLS.includes(name);
+}
+
+/** A page a Dot created or edited, as the tool result reports it. */
+export interface SavedPage {
+  id: string;
+  spaceId: string;
+  title: string;
+  /** True when the Dot edited an existing page. */
+  updated: boolean;
+  space: string;
+}
+
+/** What the owner opened from a card, shown in the side pane. */
+export interface PaneItem {
+  type: 'file' | 'page';
+  spaceId: string;
+  id: string;
+}
+
+/** The page in a `create_space_page` or `edit_space_page` result, or undefined (including for an error). */
+export function parseSavedPage(
+  toolName: string,
+  raw: string | undefined,
+): SavedPage | undefined {
+  if (!PAGE_TOOLS.includes(toolName) || !raw) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data))
+    return undefined;
+  const { id, spaceId, title, space } = data as Record<string, unknown>;
+  if (
+    typeof id !== 'string' ||
+    typeof spaceId !== 'string' ||
+    typeof title !== 'string'
+  )
+    return undefined;
+  return {
+    id,
+    spaceId,
+    title,
+    updated: toolName === 'edit_space_page',
+    space: typeof space === 'string' ? space : '',
+  };
 }
 
 /** A file a Dot saved in a Space, as its tool result reports it. Never holds the file's contents. */
@@ -42,6 +96,8 @@ export interface SavedFile {
   name: string;
   kind: FileKind;
   size: number;
+  /** True when the Dot changed a file that was already there. */
+  updated: boolean;
   /** The Space's name, for the card. */
   space: string;
 }
@@ -68,7 +124,7 @@ export function parseSavedFile(raw: string | undefined): SavedFile | undefined {
   }
   if (!data || typeof data !== 'object' || Array.isArray(data))
     return undefined;
-  const { saved, file, space } = data as Record<string, unknown>;
+  const { saved, file, space, updated } = data as Record<string, unknown>;
   if (saved !== true || !file || typeof file !== 'object') return undefined;
   const { id, spaceId, name, kind, size } = file as Record<string, unknown>;
   if (
@@ -86,6 +142,7 @@ export function parseSavedFile(raw: string | undefined): SavedFile | undefined {
     name,
     kind: kind as FileKind,
     size,
+    updated: updated === true,
     space: typeof space === 'string' ? space : '',
   };
 }
@@ -172,7 +229,9 @@ export type TranscriptItem =
     }
   | { kind: 'receipt'; key: string; call: CallReceipt }
   /** A file a Dot saved in a Space: a card that opens the viewer. */
-  | { kind: 'file'; key: string; file: SavedFile };
+  | { kind: 'file'; key: string; file: SavedFile }
+  /** A page a Dot created or edited: a card that opens it beside the chat. */
+  | { kind: 'page'; key: string; page: SavedPage };
 
 /** Indexes of the last assistant message of every turn (a turn ends at the next user message). */
 function finalAssistantIndexes(messages: Message[]): Set<number> {
@@ -230,6 +289,8 @@ function assistantItems(
       });
     const file = parseSavedFile(results.get(call.id));
     if (file) actions.push({ kind: 'file', key: `file:${call.id}`, file });
+    const page = parseSavedPage(call.function.name, results.get(call.id));
+    if (page) actions.push({ kind: 'page', key: `page:${call.id}`, page });
   }
   const content = typeof message.content === 'string' ? message.content : '';
   if (!content.trim()) return actions;
@@ -250,7 +311,8 @@ function assistantItems(
     end > 0 &&
     (actions[end - 1].kind === 'tools' ||
       actions[end - 1].kind === 'band' ||
-      actions[end - 1].kind === 'file')
+      actions[end - 1].kind === 'file' ||
+      actions[end - 1].kind === 'page')
   )
     end--;
   return [...actions.slice(0, end), bubble, ...actions.slice(end)];
