@@ -50,3 +50,12 @@ it('ignores unknown or malformed hashes', () => {
   ])
     expect(parseAppHash(hash), hash).toBeUndefined();
 });
+
+it('parses a file link and ignores unknown space sub-paths', () => {
+  expect(parseAppHash('#/spaces/s1/files/f9')).toEqual({
+    view: 'space',
+    spaceId: 's1',
+    fileId: 'f9',
+  });
+  expect(parseAppHash('#/spaces/s1/other/x')).toBeUndefined();
+});

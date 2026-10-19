@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronRight, FileText, Folder } from 'lucide-react';
+import type { SpaceFile } from '../shared/space-files';
+import { FileKindIcon } from './file-icons';
 import type { Space } from '../shared/types';
 import type { Page } from '../server/pages';
 import { api } from './api';
@@ -8,18 +10,23 @@ export function SpaceNav({
   space,
   active,
   pageId,
+  fileId,
   collapsed = false,
   onOpen,
+  onOpenFile,
 }: {
   space: Space;
   active: boolean;
   pageId?: string;
+  fileId?: string;
   /** Slim icon-only sidebar: just the Space, no page tree. */
   collapsed?: boolean;
   onOpen: (pageId?: string) => void;
+  onOpenFile: (fileId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
+  const [files, setFiles] = useState<SpaceFile[]>([]);
   const [error, setError] = useState('');
   // Following a link into this Space opens its tree so the page is visible.
   useEffect(() => {
@@ -31,9 +38,13 @@ export function SpaceNav({
     let current = true;
     const load = async () => {
       try {
-        const next = await api<Page[]>(`/spaces/${space.id}/pages`);
+        const [next, nextFiles] = await Promise.all([
+          api<Page[]>(`/spaces/${space.id}/pages`),
+          api<SpaceFile[]>(`/spaces/${space.id}/files`),
+        ]);
         if (current) {
           setPages(next);
+          setFiles(nextFiles);
           setError('');
         }
       } catch {
@@ -47,8 +58,25 @@ export function SpaceNav({
       clearInterval(timer);
     };
   }, [showPages, space.id]);
-  const branches = (parentId: string | null, depth = 0): React.ReactNode =>
-    pages
+  const filesUnder = (parentId: string | null, depth: number) =>
+    files
+      .filter((file) => file.parentId === parentId)
+      .map((file) => (
+        <button
+          key={file.id}
+          type="button"
+          className={`sb-row sb-page ${active && fileId === file.id ? 'active' : ''}`}
+          style={{ paddingLeft: 30 + Math.min(depth, 4) * 12 }}
+          aria-current={active && fileId === file.id ? 'page' : undefined}
+          title={file.name}
+          onClick={() => onOpenFile(file.id)}
+        >
+          <FileKindIcon kind={file.kind} size={14} />
+          <span className="sb-text">{file.name}</span>
+        </button>
+      ));
+  const branches = (parentId: string | null, depth = 0): React.ReactNode => [
+    ...pages
       .filter((page) => page.parentId === parentId)
       .map((page) => (
         <div key={page.id}>
@@ -65,7 +93,9 @@ export function SpaceNav({
           </button>
           {branches(page.id, depth + 1)}
         </div>
-      ));
+      )),
+    ...filesUnder(parentId, depth),
+  ];
   return (
     <div className="sb-space">
       <div className="sb-space-row">

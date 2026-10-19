@@ -6,6 +6,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Added
 
+- **Files in Spaces.** Upload files to a Space (or drop them on its library) and keep them beside its pages, under a page or at the top. A viewer shows CSV as a sortable table, Markdown rendered, text, JSON, images and PDFs; everything else downloads. Files are stored in the same SQLite database, up to `SPACE_FILE_MAX_MB` (default 10). See [`docs/SPACES.md`](docs/SPACES.md).
 - **Guided Docker setup for Dot computers.** The Computer panel checks, starts and installs Docker and creates the computers with buttons. Each step shows its exact commands and runs them only after you allow them (`DOCKER_SETUP=off` hides it). A Dot can also do the setup itself through the approval gate, with the exact commands on the approval card and no terminal output. See [`docs/COMPUTERS.md`](docs/COMPUTERS.md#set-up-from-the-app).
 - **Command palette and saved prompts.** Ctrl+K (Cmd+K) opens a keyboard-driven palette that searches chats, messages, pages, Dots and prompts (`GET /api/search`) and runs actions such as New chat with a Dot or Pause a Dot. Saved prompts live in Settings > Prompts (`/api/prompts`); deleting archives them.
 - **Teams of Dots.** A Dot hands work to a teammate with `delegate_to_dot`; the teammate works in its own conversation and the result comes back as a new turn. Team grants per Dot, a depth limit (`TEAM_MAX_DEPTH`), loop protection and at most three hand-offs per turn ([`docs/TEAMS.md`](docs/TEAMS.md)).

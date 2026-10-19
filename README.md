@@ -175,6 +175,7 @@ Deploy straight from your GitHub fork with HTTPS, a domain and redeploys on ever
 - **Dot computers** need Docker. See [Computers](docs/COMPUTERS.md).
 - **Page reader, voice calls and backups** are covered in [Setup](docs/SETUP.md).
 - **Connectors** are added in **Settings → Connectors**. See [Connectors](docs/CONNECTORS.md).
+- **Spaces** keep pages and files. See [Spaces](docs/SPACES.md).
 
 ## How it works
 

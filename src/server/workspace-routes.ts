@@ -1,4 +1,5 @@
 import { pageRoutes } from './page-routes.js';
+import { spaceFileRoutes } from './space-file-routes.js';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { Platform } from './platform.js';
@@ -156,6 +157,7 @@ const UNKNOWN_PROVIDER = 'Unknown model provider.';
 export function workspaceRoutes(platform: Platform, voice: VoiceService) {
   const app = new Hono();
   app.route('/', pageRoutes(platform));
+  app.route('/', spaceFileRoutes(platform));
   app.get('/workspace', async (c) =>
     c.json({
       spaces: platform.workspace.spaces(),

@@ -299,6 +299,12 @@ export class Pages {
           'UPDATE pages SET parentId=?, revision=revision+1, updatedAt=? WHERE spaceId=? AND parentId=?',
         )
         .run(page.parentId, now, spaceId, id);
+      // Files under the page move up with its subpages (space_files is created by SpaceFiles).
+      this.db
+        .prepare(
+          'UPDATE space_files SET parentId=?, updatedAt=? WHERE spaceId=? AND parentId=?',
+        )
+        .run(page.parentId, now, spaceId, id);
       // page_reviews rows stay: a retried approval must not recreate this page.
       this.db.prepare('DELETE FROM page_threads WHERE pageId=?').run(id);
       this.db

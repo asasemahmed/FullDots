@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   FileText,
   Plus,
@@ -6,7 +6,11 @@ import {
   LayoutGrid,
   List,
   ArrowUpRight,
+  Upload,
 } from 'lucide-react';
+import type { SpaceFile } from '../shared/space-files';
+import { formatBytes } from '../shared/space-files';
+import { FileKindIcon } from './file-icons';
 import type { Page } from '../server/pages';
 import type { Space } from '../shared/types';
 export function pageExcerpt(content: string) {
@@ -25,14 +29,22 @@ export function pageExcerpt(content: string) {
 export function SpaceLibrary({
   space,
   pages,
+  files,
   onPage,
+  onFile,
+  onUpload,
   onNew,
 }: {
   space: Space;
   pages: Page[];
+  files: SpaceFile[];
   onPage: (id: string) => void;
+  onFile: (id: string) => void;
+  onUpload: (files: File[]) => void;
   onNew: () => void;
 }) {
+  const picker = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   const [query, setQuery] = useState('');
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState('recent');
@@ -51,10 +63,37 @@ export function SpaceLibrary({
         ),
     [pages, query, sort],
   );
+  const matchingFiles = useMemo(
+    () =>
+      files
+        .filter((file) =>
+          file.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+        )
+        .sort(
+          (a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name),
+        ),
+    [files, query],
+  );
   return (
     <section
-      className="space-library"
+      className={`space-library${dragging ? ' is-dragging' : ''}`}
       aria-label={`${space.name} page library`}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes('Files')) {
+          event.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (event.dataTransfer.files.length)
+          onUpload(Array.from(event.dataTransfer.files));
+      }}
     >
       <header className="library-heading">
         <div>
@@ -62,16 +101,37 @@ export function SpaceLibrary({
           <h1>{space.name}</h1>
           {space.description && <p>{space.description}</p>}
         </div>
-        <button className="document-primary" onClick={onNew}>
-          <Plus size={17} /> New page
-        </button>
+        <div className="library-actions">
+          <button
+            type="button"
+            className="document-secondary"
+            onClick={() => picker.current?.click()}
+          >
+            <Upload size={16} /> Upload files
+          </button>
+          <button className="document-primary" onClick={onNew}>
+            <Plus size={17} /> New page
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            aria-label="Choose files to upload"
+            onChange={(event) => {
+              if (event.target.files?.length)
+                onUpload(Array.from(event.target.files));
+              event.target.value = '';
+            }}
+          />
+        </div>
       </header>
       <div className="library-tools">
         <label className="library-search">
           <Search size={17} />
           <input
-            aria-label="Search pages"
-            placeholder="Search pages"
+            aria-label="Search pages and files"
+            placeholder="Search pages and files"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -153,6 +213,11 @@ export function SpaceLibrary({
             </button>
           ))}
         </div>
+      ) : !query && files.length ? (
+        // Files are already below: a short note instead of a page-sized empty state.
+        <p className="library-files-empty">
+          No pages yet. Use New page to write one.
+        </p>
       ) : (
         <div className="library-empty">
           <FileText size={30} strokeWidth={1.3} />
@@ -168,6 +233,42 @@ export function SpaceLibrary({
             </button>
           )}
         </div>
+      )}
+      {(files.length > 0 || dragging) && (
+        <>
+          <div className="library-section-label">
+            <h2>{query ? 'Matching files' : 'Files'}</h2>
+            <span>
+              {matchingFiles.length}{' '}
+              {matchingFiles.length === 1 ? 'file' : 'files'}
+            </span>
+          </div>
+          {matchingFiles.length ? (
+            <ul className="library-files">
+              {matchingFiles.map((file) => (
+                <li key={file.id}>
+                  <button type="button" onClick={() => onFile(file.id)}>
+                    <span className="library-file-icon">
+                      <FileKindIcon kind={file.kind} size={18} />
+                    </span>
+                    <span className="library-file-name">{file.name}</span>
+                    <span className="library-file-meta">
+                      {formatBytes(file.size)} ·{' '}
+                      {new Date(file.updatedAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="library-files-empty">
+              {query ? 'No matching files.' : 'Drop files here to add them.'}
+            </p>
+          )}
+        </>
       )}
     </section>
   );

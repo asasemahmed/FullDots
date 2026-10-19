@@ -167,6 +167,7 @@ it('counts what needs the owner on the sidebar Inbox only when something is wait
         onDeleteThreads={async () => true}
         onExportThread={async () => {}}
         onOpenPage={() => {}}
+        onOpenFile={() => {}}
         onView={() => {}}
         onDialog={() => {}}
       />,

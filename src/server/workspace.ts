@@ -20,6 +20,7 @@ import { copyThreadRows } from './thread-branch.js';
 import { InboxStore } from './inbox-store.js';
 import { DotNotesStore } from './dot-notes-store.js';
 import { Pages } from './pages.js';
+import { SpaceFiles } from './space-files.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -42,6 +43,8 @@ function knownColor<T extends { color?: unknown }>({ color, ...row }: T) {
 export class WorkspaceStore {
   private db: DatabaseSync;
   readonly pages: Pages;
+  /** Files kept in Spaces, beside the pages. */
+  readonly spaceFiles: SpaceFiles;
   readonly computers: ComputerStore;
   /** Computer replay steps and their pictures. */
   readonly frames: ComputerFrameStore;
@@ -137,9 +140,13 @@ export class WorkspaceStore {
     this.team = new TeamStore(this.db);
     this.teams = new NamedTeamStore(this.db);
     this.rules = new RuleStore(this.db);
-    this.pages = new Pages(this.db, (id) =>
-      this.spaces().some((space) => space.id === id),
+    const spaceExists = (id: string) =>
+      this.spaces().some((space) => space.id === id);
+    // Created first: deleting a page moves its files up, so Pages needs the table to exist.
+    this.spaceFiles = new SpaceFiles(this.db, spaceExists, (spaceId, id) =>
+      this.pages.exists(spaceId, id),
     );
+    this.pages = new Pages(this.db, spaceExists);
     this.prompts = new PromptStore(this.db);
     this.search = new SearchStore(this.db, ownerId);
     this.pins = new PinStore(this.db);
@@ -497,6 +504,7 @@ export class WorkspaceStore {
         'DELETE FROM page_threads WHERE threadId=?',
         'DELETE FROM page_reviews WHERE threadId=?',
         'UPDATE pages SET sourceThreadId=NULL WHERE sourceThreadId=?',
+        'UPDATE space_files SET sourceThreadId=NULL WHERE sourceThreadId=?',
         'DELETE FROM approvals WHERE threadId=?',
         'DELETE FROM handoffs WHERE threadId=?',
         'DELETE FROM resume_markers WHERE threadId=?',
