@@ -351,6 +351,9 @@ function validateResultUrl(candidate: string): string | undefined {
 const DOMAIN_HEAD =
   /^(?:https?:\/\/)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}(?:\/[^\s›>]*)?$/i;
 const PATH_SEGMENT = /^[A-Za-z0-9._~:@!$&'()*+,;=%-]+$/;
+/** File extensions that are not top-level domains, so `Node.js` or `index.html` is a name, not an address. */
+const FILE_LIKE_TLD =
+  /\.(?:js|mjs|cjs|jsx|ts|tsx|json|html?|css|php|txt|pdf|exe|png|jpe?g|svg)$/i;
 
 /**
  * Turns a visible address or breadcrumb (such as `https://example.org/docs`,
@@ -384,7 +387,8 @@ export function parseDisplayUrl(raw: string): string | undefined {
 
   if (/\s/.test(trimmed)) return undefined;
   if (/^https?:\/\//i.test(trimmed)) return validateResultUrl(trimmed);
-  if (DOMAIN_HEAD.test(trimmed)) return validateResultUrl(`https://${trimmed}`);
+  if (DOMAIN_HEAD.test(trimmed) && !FILE_LIKE_TLD.test(trimmed))
+    return validateResultUrl(`https://${trimmed}`);
   return undefined;
 }
 
@@ -497,7 +501,76 @@ function splitCompoundLink(
         ...(truncated ? { truncatedUrl: true } : {}),
       };
   }
-  return undefined;
+  return splitSiteBreadcrumbLink(flat);
+}
+
+/** Emoji such as the globe Brave puts before a site name when the site has no icon. */
+const PICTOGRAPHS = /\p{Emoji_Presentation}️?/gu;
+const BREADCRUMB_START =
+  /(?:^|\s)((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24})\s*›/i;
+
+/**
+ * Brave names each result link `🌐 Site domain › path › Title`: an optional icon and site name,
+ * then the breadcrumb, then the title. A breadcrumb segment with spaces in it (Brave shows some
+ * slugs as words) leaves the address unknown, so the result keeps only its ref.
+ */
+function splitSiteBreadcrumbLink(
+  flat: string,
+): { title: string; url: string; truncatedUrl?: boolean } | undefined {
+  const plain = flat.replace(PICTOGRAPHS, '').replace(/\s+/g, ' ').trim();
+  const start = BREADCRUMB_START.exec(plain);
+  if (!start) return undefined;
+  const domain = start[1];
+  const from = start.index + start[0].indexOf(domain);
+  const crumb = /^(\S+(?:\s*›\s*[^\s›]+)*)\s+(\S.*)$/.exec(plain.slice(from));
+  if (!crumb) return undefined;
+  let title = crumb[2];
+  let url: string | undefined;
+  if (title.includes('›')) {
+    // The breadcrumb went on past a segment with spaces: the title is what follows the last one,
+    // from the first word that starts with a capital (Brave shows the slug in lower case).
+    const tail = title.slice(title.lastIndexOf('›') + 1).trim();
+    title = /(?:^|\s)(\p{Lu}.*)$/u.exec(tail)?.[1] ?? tail;
+  } else {
+    url = parseDisplayUrl(crumb[1]);
+  }
+  title = title.replace(/^[·|—–-]+/, '').trim();
+  if (!title || parseDisplayUrl(title) || isTruncatedDisplayUrl(title))
+    return undefined;
+  return url ? { title, url } : { title, url: '', truncatedUrl: true };
+}
+
+/** Whitespace and icons dropped and lower-cased, for finding names in one-line page text. */
+const flatKey = (value: string) =>
+  value.replace(PICTOGRAPHS, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * The words after `title` in page text that arrives as one line (the computer reads the page
+ * without its line breaks), up to the next result or another name in `stops`.
+ */
+function snippetAfter(
+  line: string,
+  title: string,
+  stops: readonly string[],
+): string {
+  const text = line.replace(PICTOGRAPHS, '').replace(/\s+/g, ' ').trim();
+  const key = text.toLowerCase();
+  // Lower-casing changed a length (as for İ): positions no longer line up, so give no snippet.
+  if (key.length !== text.length) return '';
+  // The title as written first: Brave also shows it lower-cased as the last breadcrumb segment.
+  const exact = text.indexOf(title.replace(/\s+/g, ' ').trim());
+  const at = exact === -1 ? key.indexOf(flatKey(title)) : exact;
+  if (at === -1) return '';
+  let begin = at + flatKey(title).length;
+  // A title cut short in the snapshot ends mid-word: start from the next whole word.
+  if (/\w/.test(text[begin - 1] ?? '') && /\w/.test(text[begin] ?? ''))
+    begin = text.indexOf(' ', begin) + 1 || text.length;
+  let end = Math.min(text.length, begin + SNIPPET_LIMIT);
+  for (const stop of stops) {
+    const found = key.indexOf(stop, begin);
+    if (found !== -1 && found < end) end = found;
+  }
+  return clip(text.slice(begin, end), SNIPPET_LIMIT);
 }
 
 const NOISE_LINK_NAMES =
@@ -541,6 +614,7 @@ function matchInText(
   lines: readonly string[],
   knownUrl: string | undefined,
   otherTitles: ReadonlySet<string>,
+  stops: readonly string[] = [],
 ): { url?: string; snippet: string; ad?: boolean; truncatedUrl?: boolean } {
   const target = normalize(title);
   if (!target) return { url: knownUrl, snippet: '' };
@@ -549,6 +623,17 @@ function matchInText(
     return norm === target || (target.length >= 12 && norm.includes(target));
   });
   if (idx === -1) return { url: knownUrl, snippet: '' };
+  // The title sits inside a longer line: the page text came as one line, so the snippet is the
+  // words after the title rather than the lines after it.
+  if (normalize(lines[idx]).length > target.length * 2 + 40)
+    return {
+      url: knownUrl,
+      snippet: snippetAfter(
+        lines[idx],
+        title,
+        stops.filter((stop) => stop !== flatKey(title)),
+      ),
+    };
 
   if (idx > 0 && isAdMarker(lines[idx - 1]))
     return { url: knownUrl, snippet: '', ad: true };
@@ -634,6 +719,17 @@ export function parseBrowserSearchResults(
       candidateTitles.add(normalize(links[i].name));
   }
 
+  // Where one result's snippet ends in one-line page text: the next result's site and address, or
+  // any other link name long enough not to turn up inside a sentence.
+  const stops = new Set<string>();
+  for (let i = 0; i < links.length; i++) {
+    const head = flatKey(links[i].name).split(' › ')[0];
+    if (compoundLinks[i] && head.includes(' ')) stops.add(head);
+    const name = compoundLinks[i]?.title ?? links[i].name;
+    if (flatKey(name).length >= 12) stops.add(flatKey(name));
+  }
+  const textStops = [...stops];
+
   const pushResult = (
     title: string,
     url: string | undefined,
@@ -678,6 +774,7 @@ export function parseBrowserSearchResults(
         lines,
         compound.url || undefined,
         candidateTitles,
+        textStops,
       );
       if (!fromText.ad)
         pushResult(

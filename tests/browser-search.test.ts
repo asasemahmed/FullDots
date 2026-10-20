@@ -15,6 +15,7 @@ import {
   searchEngineUrl,
   webSearchEngines,
 } from '../src/server/browser-search.js';
+import { braveHeadedPage } from './fixtures/brave-search-page.js';
 import {
   bingBrowserPage,
   braveBrowserPage,
@@ -296,6 +297,56 @@ describe('browser search result extraction', () => {
         ref: 'e9',
       },
     ]);
+  });
+
+  it('reads a real Brave page: site, breadcrumb and title in one link, text on one line', () => {
+    const results = parseBrowserSearchResults({
+      engine: 'brave',
+      ...braveHeadedPage,
+    });
+    expect(results).toHaveLength(8);
+    expect(results[0]).toEqual({
+      title: 'Node.js — Download Node.js®',
+      url: 'https://nodejs.org/en/download/current',
+      snippet: expect.stringMatching(
+        /^Read the changelog or blog post for this version\./,
+      ),
+      ref: 'f7e80',
+    });
+    expect(results[1]).toMatchObject({
+      title: 'Releases · nodejs/node',
+      url: 'https://github.com/nodejs/node/releases',
+      snippet: expect.stringContaining('Version 26.12.0 (Current)'),
+    });
+    // A snippet ends where the next result starts, not in the next one's text.
+    expect(results[1].snippet).not.toContain('YouTube');
+    expect(results[4]).toMatchObject({
+      title: 'Latest Node.js Version - What Version',
+      url: 'https://what-version.com/latest-version/nodejs',
+      snippet: expect.stringMatching(/^August 23, 2026 - The current/),
+    });
+    // A breadcrumb with words in it leaves the address unknown: the Dot clicks the ref instead.
+    expect(results[3]).toMatchObject({
+      title: 'Download & Update Node.js to the Lates',
+      url: '',
+      ref: 'f7e235',
+      snippet: expect.stringMatching(/^Version! Node v26\.5\.1 Current/),
+    });
+    // Sitelinks such as "Node.js" are names, not addresses.
+    expect(results.map((result) => result.url)).not.toContain(
+      'https://node.js/',
+    );
+    for (const result of results.filter((result) => result.url))
+      expect(new URL(result.url).hostname).not.toMatch(/brave\.com$/);
+  });
+
+  it('does not read a name like Node.js as an address', () => {
+    expect(parseDisplayUrl('Node.js')).toBeUndefined();
+    expect(parseDisplayUrl('index.html')).toBeUndefined();
+    expect(parseDisplayUrl('nodejs.org')).toBe('https://nodejs.org/');
+    expect(parseDisplayUrl('example.dev › docs')).toBe(
+      'https://example.dev/docs',
+    );
   });
 
   it('extracts Brave Search compound links and pairs them with page text snippets', () => {

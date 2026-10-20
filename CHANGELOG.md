@@ -32,6 +32,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 - `compose.yml` passes `BACKGROUND_CONCURRENCY`, `DOT_DAILY_TOKEN_WARN` and `TEAM_MAX_DEPTH` to the app.
 - A model provider is shown as Ready only after a successful test, the built-in `.env` provider included.
 - When a Dot is busy, the chat says so, keeps the message and offers to send it again or to stop the other work and send.
+- Browser search reads Brave's results again. Brave names each result `🌐 Site domain › path › Title`, and the computer sends the page text as one line, so most searches came back empty or pointed at addresses made from names such as `Node.js`. Results now carry their real address, title and snippet; a result whose address Brave shows only as words keeps its ref for the Dot to click.
 
 Ported from OpenDots, adapted to FullDots and covered by tests:
 
