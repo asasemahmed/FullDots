@@ -2,14 +2,14 @@
 
 The logo and the penguin Dots are original artwork made for FullDots. All files have a transparent background.
 
-| File                                                               | What it is                                                                            |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `fulldots-logo.svg`                                                | Mark and wordmark, dark text, for light backgrounds                                   |
-| `fulldots-logo-light.svg`                                          | Mark and wordmark, white "Full", for dark backgrounds                                 |
-| `fulldots-mark.svg`                                                | The mark alone (also the favicon)                                                     |
-| `dot-indigo.svg`, `dot-mint.svg`, `dot-coral.svg`, `dot-lilac.svg` | The penguin Dot in four colours, species and gear                                     |
-| `png/`                                                             | The same artwork as transparent PNG (characters and mark 512 x 512, logos 1200 x 288) |
-| `penguin-preview.html`                                             | A page to try every species, colour, gear and state, and export them                  |
+| File                                                                                | What it is                                                                            |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `fulldots-logo.svg`                                                                 | Mark and wordmark, dark text, for light backgrounds                                   |
+| `fulldots-logo-light.svg`                                                           | Mark and wordmark, white "Full", for dark backgrounds                                 |
+| `fulldots-mark.svg`                                                                 | The mark alone (also the favicon)                                                     |
+| `dot-indigo.svg`, `dot-mint.svg`, `dot-coral.svg`, `dot-lilac.svg`, `dot-amber.svg` | The penguin Dot in all five species, each with its own colour and gear                |
+| `png/`                                                                              | The same artwork as transparent PNG (characters and mark 512 x 512, logos 1200 x 288) |
+| `penguin-preview.html`                                                              | A page to try every species, colour, gear and state, and export them                  |
 
 Every file here is drawn by `npm run brand` from the same code as the app (`src/client/penguin/engine.ts`). Run it after changing the penguin or the palettes.
 

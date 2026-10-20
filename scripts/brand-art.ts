@@ -38,6 +38,11 @@ const characters: { file: string; title: string; look: PenguinLook }[] = [
     },
   },
   {
+    file: 'dot-amber',
+    title: 'Dot (amber chick in a scarf)',
+    look: { palette: DOT_PALETTES.amber, species: 'chick', gear: 'scarf' },
+  },
+  {
     file: 'dot-lilac',
     title: 'Dot (lilac macaroni in a beanie)',
     look: { palette: DOT_PALETTES.lilac, species: 'macaroni', gear: 'beanie' },

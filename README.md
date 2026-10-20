@@ -7,7 +7,7 @@
 
 <br />
 
-<img src="docs/brand/dot-indigo.svg" alt="" width="64" /> <img src="docs/brand/dot-mint.svg" alt="" width="64" /> <img src="docs/brand/dot-coral.svg" alt="" width="64" /> <img src="docs/brand/dot-lilac.svg" alt="" width="64" />
+<img src="docs/brand/dot-indigo.svg" alt="An indigo Emperor penguin Dot" width="64" /> <img src="docs/brand/dot-mint.svg" alt="A mint Adélie penguin Dot with headphones" width="64" /> <img src="docs/brand/dot-coral.svg" alt="A coral Rockhopper penguin Dot with glasses" width="64" /> <img src="docs/brand/dot-lilac.svg" alt="A lilac Macaroni penguin Dot in a beanie" width="64" /> <img src="docs/brand/dot-amber.svg" alt="An amber Chick penguin Dot in a scarf" width="64" />
 
 ### AI coworkers with their own computers.
 
@@ -29,6 +29,8 @@ Self-hosted and local-first. Bring any model, connect your tools, and approve ev
 ![FullDots: a chat with Scout, a research Dot](docs/screenshots/home.png)
 
 FullDots is a workspace for AI agents called **Dots**. Each Dot has a role, instructions, a model, the tools you grant it and, optionally, its own computer with a browser, files and a shell. You chat with a Dot, schedule work for it and review what it did.
+
+Every Dot is a round penguin with its own colour, species and gear, so a team reads at a glance, and the penguin shows what the Dot is doing right now.
 
 Everything runs on your machine. Conversations, pages and settings are stored in one SQLite file, there is no account and no telemetry, and the app contacts only the services you configure.
 
@@ -115,6 +117,22 @@ A Dot hands part of a task to a teammate whose role fits it, and gets the result
 #### Pause, backup, take back control
 
 Pause one Dot or all of them, and copy everything to a safe backup with `npm run backup`, even while FullDots runs.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### A penguin for every Dot
+
+Choose each Dot's colour, species (Emperor, Adélie, Rockhopper, Macaroni or Chick) and gear (headphones, glasses, beanie, scarf or bow tie). A Dot you have not dressed gets a species of its own from its id.
+
+</td>
+<td valign="top">
+
+#### See what a Dot is doing
+
+Three pulsing dots while it thinks, hopping dots while it writes, focused eyes while it uses a tool, a badge when it needs you, confetti when it is done and a small grey dot when paused. See [the brand notes](docs/brand/README.md#the-dot).
 
 </td>
 </tr>
@@ -253,21 +271,21 @@ docs/        Guides, brand assets and screenshots
 <details>
 <summary><b>Where each feature lives in the code</b></summary>
 
-| Feature                 | Code                                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local conversations     | [`sqlite-runner.ts`](src/server/sqlite-runner.ts)                                                                                                                   |
-| No telemetry            | [`privacy.ts`](src/server/privacy.ts), imported first in [`index.ts`](src/server/index.ts)                                                                          |
-| Keyless web search      | [`web-search.ts`](src/server/web-search.ts)                                                                                                                         |
-| Model providers         | [`model-providers.ts`](src/server/model-providers.ts), [`model-presets.ts`](src/shared/model-presets.ts)                                                            |
-| Encrypted secrets       | [`connector-crypto.ts`](src/server/connector-crypto.ts)                                                                                                             |
-| MCP connectors          | [`connectors.ts`](src/server/connectors.ts), [`connector-oauth.ts`](src/server/connector-oauth.ts), [`connector-auth-store.ts`](src/server/connector-auth-store.ts) |
-| Approvals               | [`approval-gate.ts`](src/server/approval-gate.ts), [`approvals.ts`](src/server/approvals.ts), [`resume-queue.ts`](src/server/resume-queue.ts)                       |
-| Owner handoff           | [`handoff-service.ts`](src/server/handoff-service.ts), [`handoff-detect.ts`](src/server/handoff-detect.ts)                                                          |
-| One turn per Dot        | [`turn-registry.ts`](src/server/turn-registry.ts)                                                                                                                   |
-| Live computer view      | [`computer-stream.ts`](src/server/computer-stream.ts), [`computer-panel/`](src/client/computer-panel/)                                                              |
-| Work limits             | [`limits.ts`](src/server/limits.ts)                                                                                                                                 |
-| Audit and notifications | [`computer-store.ts`](src/server/computer-store.ts), [`notify.ts`](src/server/notify.ts)                                                                            |
-| Dot character           | [`DotCharacter.tsx`](src/client/DotCharacter.tsx), [`docs/brand/`](docs/brand/README.md)                                                                            |
+| Feature                 | Code                                                                                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local conversations     | [`sqlite-runner.ts`](src/server/sqlite-runner.ts)                                                                                                                                              |
+| No telemetry            | [`privacy.ts`](src/server/privacy.ts), imported first in [`index.ts`](src/server/index.ts)                                                                                                     |
+| Keyless web search      | [`web-search.ts`](src/server/web-search.ts)                                                                                                                                                    |
+| Model providers         | [`model-providers.ts`](src/server/model-providers.ts), [`model-presets.ts`](src/shared/model-presets.ts)                                                                                       |
+| Encrypted secrets       | [`connector-crypto.ts`](src/server/connector-crypto.ts)                                                                                                                                        |
+| MCP connectors          | [`connectors.ts`](src/server/connectors.ts), [`connector-oauth.ts`](src/server/connector-oauth.ts), [`connector-auth-store.ts`](src/server/connector-auth-store.ts)                            |
+| Approvals               | [`approval-gate.ts`](src/server/approval-gate.ts), [`approvals.ts`](src/server/approvals.ts), [`resume-queue.ts`](src/server/resume-queue.ts)                                                  |
+| Owner handoff           | [`handoff-service.ts`](src/server/handoff-service.ts), [`handoff-detect.ts`](src/server/handoff-detect.ts)                                                                                     |
+| One turn per Dot        | [`turn-registry.ts`](src/server/turn-registry.ts)                                                                                                                                              |
+| Live computer view      | [`computer-stream.ts`](src/server/computer-stream.ts), [`computer-panel/`](src/client/computer-panel/)                                                                                         |
+| Work limits             | [`limits.ts`](src/server/limits.ts)                                                                                                                                                            |
+| Audit and notifications | [`computer-store.ts`](src/server/computer-store.ts), [`notify.ts`](src/server/notify.ts)                                                                                                       |
+| Penguin Dots            | [`penguin/engine.ts`](src/client/penguin/engine.ts), [`penguin/live.ts`](src/client/penguin/live.ts), [`DotCharacter.tsx`](src/client/DotCharacter.tsx), [`docs/brand/`](docs/brand/README.md) |
 
 </details>
 
@@ -285,7 +303,7 @@ docs/        Guides, brand assets and screenshots
 | [Roadmap](docs/ROADMAP.md)                  | What is done and what is next                 |
 | [Computers](docs/COMPUTERS.md)              | A computer for each Dot                       |
 | [Interface](docs/UI.md)                     | A map of the chat and sidebar                 |
-| [Brand](docs/brand/README.md)               | Logo, Dots and colours                        |
+| [Brand](docs/brand/README.md)               | Logo, penguin Dots, their states and colours  |
 | [Changelog](CHANGELOG.md)                   | What changed in each release                  |
 
 ## FullDots and OpenDots
