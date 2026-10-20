@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Crown } from 'lucide-react';
 import type { Dot } from '../../shared/types';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { orbitAngles } from './builder-model';
 import './teams.css';
 
@@ -39,7 +39,7 @@ export function TeamStack({
           >
             <Mascot
               identity={id}
-              color={dot?.color}
+              {...dotLook(dot)}
               name={dot?.name ?? 'Dot'}
               small
               decorative
@@ -111,7 +111,7 @@ export function TeamOrbit({
                 >
                   <Mascot
                     identity={id}
-                    color={dot?.color}
+                    {...dotLook(dot)}
                     name={dot?.name ?? 'Dot'}
                     small
                     decorative
@@ -138,7 +138,7 @@ export function TeamOrbit({
             </span>
             <Mascot
               identity={leadDotId}
-              color={lead?.color}
+              {...dotLook(lead)}
               name={lead?.name ?? 'Lead'}
               decorative
               state={

@@ -1,6 +1,10 @@
 // Tunable work limits, read from the environment. Defaults match the original
 // OpenDots values; maximums follow what the OpenBot computer itself accepts.
 import {
+  DEFAULT_SPACE_FILE_MB,
+  MAX_SPACE_FILE_MB,
+} from '../shared/space-files.js';
+import {
   defaultComputerInputLimits,
   type ComputerInputLimits,
 } from '../shared/computer-types.js';
@@ -27,6 +31,8 @@ export interface Limits extends ComputerInputLimits {
   computerResponseBytes: number;
   /** Replay steps kept per Dot; the oldest go first. Zero keeps none. */
   computerReplayFrames: number;
+  /** The largest file kept in a Space, in bytes (SPACE_FILE_MAX_MB). */
+  spaceFileBytes: number;
 }
 
 export const defaultLimits: Limits = {
@@ -40,6 +46,7 @@ export const defaultLimits: Limits = {
   computerRequestMs: 70_000,
   computerResponseBytes: 4_000_000,
   computerReplayFrames: 300,
+  spaceFileBytes: DEFAULT_SPACE_FILE_MB * 1024 * 1024,
 };
 
 type Env = Record<string, string | undefined>;
@@ -143,6 +150,16 @@ export function readLimits(env: Env = process.env): Limits {
       0,
       10_000,
     ),
+    spaceFileBytes:
+      number(
+        env,
+        'SPACE_FILE_MAX_MB',
+        DEFAULT_SPACE_FILE_MB,
+        1,
+        MAX_SPACE_FILE_MB,
+      ) *
+      1024 *
+      1024,
   };
 }
 

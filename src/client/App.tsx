@@ -1,5 +1,7 @@
 import { parseAppHash } from './app-hash';
 import { openPageLink } from './page-navigation';
+import { fileHash } from './space-files-api';
+import type { PaneItem } from './chat-turns';
 import { SpaceWorkspace } from './SpaceWorkspace';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { CopilotKitProvider } from '@copilotkit/react-core/v2';
@@ -37,7 +39,7 @@ import {
   type Notices,
 } from './poll-notice';
 import { deriveTitle } from '../shared/conversation-title';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
 import { Chat } from './Chat';
 import { InboxPage } from './inbox/InboxView';
 import { useInbox, useNeedsYouTitle } from './inbox/useInbox';
@@ -88,6 +90,7 @@ export function App() {
   const dirtyPage = useRef(false);
   const [spaceId, setSpaceId] = useState('');
   const [pageId, setPageId] = useState<string>();
+  const [fileId, setFileId] = useState<string>();
   const setDirtyPage = useCallback((value: boolean) => {
     dirtyPage.current = value;
   }, []);
@@ -118,6 +121,7 @@ export function App() {
       if (target.view === 'space') {
         setSpaceId(target.spaceId);
         setPageId(target.pageId);
+        setFileId(target.fileId);
         rawSetView('space');
       } else if (target.view === 'team') {
         // Like a page, a team page keeps its hash so a reload stays there.
@@ -147,6 +151,8 @@ export function App() {
   const openPage = (space: string, page?: string) => {
     openPageLink(`#/spaces/${space}${page ? `/pages/${page}` : ''}`);
   };
+  const openFile = (space: string, file: string) =>
+    openPageLink(fileHash(space, file));
 
   // Poll failures clear themselves once polling recovers; action errors wait for a dismiss.
   const [notices, setNotices] = useState<Notices>({
@@ -184,6 +190,8 @@ export function App() {
     menuButton.current?.focus();
   }, []);
   const [pane, setPane] = useState(false);
+  /** A file or page opened from the chat, shown in the side pane. */
+  const [chatItem, setChatItem] = useState<PaneItem>();
   const [capture, setCapture] = useState<Result>();
   const [prompt, setPrompt] = useState('');
   const [pendingPrompt, setPendingPrompt] = useState<string>();
@@ -409,7 +417,7 @@ export function App() {
   if (needsAuth)
     return (
       <main className="unlock">
-        <Mascot />
+        <Mascot hero />
         <h1>Your own little corner.</h1>
         <p>
           Enter the owner access token configured on this template’s server.
@@ -452,7 +460,7 @@ export function App() {
   if (!state || !workspace || !dot)
     return (
       <main className="unlock">
-        <Mascot state="working" />
+        <Mascot hero state="working" />
         <h1>Finding your dots…</h1>
         {error && (
           <>
@@ -489,6 +497,7 @@ export function App() {
         selectedThread={selectedThread}
         spaceId={spaceId}
         pageId={pageId}
+        fileId={fileId}
         taskCount={state.tasks.length}
         memoryCount={state.memories.length}
         approvalCount={needsYou}
@@ -510,6 +519,7 @@ export function App() {
         onDeleteThreads={deleteThreads}
         onExportThread={exportThread}
         onOpenPage={openPage}
+        onOpenFile={openFile}
         onView={(next) => {
           setView(next);
           setMobile(false);
@@ -600,9 +610,11 @@ export function App() {
               workspace.spaces[0]
             }
             pageId={pageId}
+            fileId={fileId}
             workspace={workspace}
             paused={state.settings.paused}
             onPage={(id) => openPage(spaceId, id)}
+            onFile={(id) => openFile(spaceId, id)}
             onSettings={() => setDialog({ type: 'settings' })}
             onCreateDot={() => setDialog({ type: 'dot', spaceId })}
             onDirty={setDirtyPage}
@@ -635,6 +647,10 @@ export function App() {
                   paused={state.settings.paused || !!dot.paused}
                   onSaved={refresh}
                   onComputer={() => setPane(true)}
+                  onOpenItem={(item) => {
+                    setChatItem(item);
+                    setPane(true);
+                  }}
                   onOpenThread={(id) =>
                     void refresh().then(() => selectThread(id))
                   }
@@ -649,8 +665,9 @@ export function App() {
                 <div className="new-conversation">
                   <div className="empty-chat-persona">
                     <Mascot
+                      hero
                       identity={dot.id}
-                      color={dot.color}
+                      {...dotLook(dot)}
                       name={dot.name}
                       state={state.settings.paused ? 'paused' : 'idle'}
                     />
@@ -726,6 +743,7 @@ export function App() {
                 dots={workspace.dots}
                 defaultDotId={dot.id}
                 threadId={thread?.id}
+                item={chatItem}
                 latest={capture}
                 dotState="idle"
                 onClose={() => setPane(false)}
@@ -820,7 +838,7 @@ export function App() {
                 </div>
                 {!state.memories.length && (
                   <div className="large-empty">
-                    <Mascot />
+                    <Mascot hero />
                     <h2>A little context goes a long way.</h2>
                     <p>
                       Add a preference like “Keep my research briefs short.” You

@@ -6,12 +6,17 @@ import { api } from './api';
 import { SpaceLibrary } from './SpaceLibrary';
 import { PageDocument } from './PageDocument';
 import { PageOutline } from './PageOutline';
+import { FileViewer } from './FileViewer';
+import { uploadSpaceFile } from './space-files-api';
+import type { SpaceFile } from '../shared/space-files';
 export function SpaceWorkspace({
   space,
   pageId,
+  fileId,
   workspace,
   paused,
   onPage,
+  onFile,
   onDirty,
   onRefresh,
   onSchedule,
@@ -21,9 +26,12 @@ export function SpaceWorkspace({
 }: {
   space: Space;
   pageId?: string;
+  /** The file open in the viewer instead of a page. */
+  fileId?: string;
   workspace: WorkspaceState;
   paused: boolean;
   onPage: (id?: string) => void;
+  onFile: (id: string) => void;
   onDirty: (value: boolean) => void;
   onRefresh: () => void;
   onSchedule: (threadId: string) => void;
@@ -32,6 +40,7 @@ export function SpaceWorkspace({
   onCreateDot: () => void;
 }) {
   const [pages, setPages] = useState<Page[]>([]);
+  const [files, setFiles] = useState<SpaceFile[]>([]);
   const removed = useRef(new Set<string>());
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -40,11 +49,15 @@ export function SpaceWorkspace({
     let active = true;
     const load = async () => {
       try {
-        const next = await api<Page[]>(`/spaces/${space.id}/pages`);
+        const [next, nextFiles] = await Promise.all([
+          api<Page[]>(`/spaces/${space.id}/pages`),
+          api<SpaceFile[]>(`/spaces/${space.id}/files`),
+        ]);
         if (active) {
           setPages((previous) =>
             mergePageSnapshot(previous, next, removed.current),
           );
+          setFiles(nextFiles);
           setLoaded(true);
           setError('');
         }
@@ -93,6 +106,20 @@ export function SpaceWorkspace({
       setError(e instanceof Error ? e.message : 'Could not create page.');
     }
   };
+  const file = files.find((item) => item.id === fileId);
+  const upload = async (picked: File[]) => {
+    setError('');
+    for (const item of picked) {
+      try {
+        const saved = await uploadSpaceFile(space.id, item);
+        setFiles((previous) => [...previous, saved]);
+      } catch (e) {
+        setError(
+          `${item.name}: ${e instanceof Error ? e.message : 'Could not upload the file.'}`,
+        );
+      }
+    }
+  };
   return (
     <main
       aria-label="Space documents"
@@ -103,11 +130,40 @@ export function SpaceWorkspace({
           {error}
         </div>
       )}
-      {!pageId ? (
+      {fileId ? (
+        file ? (
+          <FileViewer
+            key={file.id}
+            file={file}
+            onBack={() => onPage()}
+            onChanged={(next) =>
+              setFiles((previous) =>
+                previous.map((item) => (item.id === next.id ? next : item)),
+              )
+            }
+            onDeleted={(id) => {
+              setFiles((previous) => previous.filter((item) => item.id !== id));
+              onPage();
+            }}
+          />
+        ) : (
+          <div className="library-empty">
+            <h2>{loaded ? 'File not found' : 'Loading file…'}</h2>
+            {loaded && (
+              <button className="document-primary" onClick={() => onPage()}>
+                Back to all pages
+              </button>
+            )}
+          </div>
+        )
+      ) : !pageId ? (
         <SpaceLibrary
           space={space}
           pages={pages}
+          files={files}
           onPage={onPage}
+          onFile={onFile}
+          onUpload={(picked) => void upload(picked)}
           onNew={() => void create(null)}
         />
       ) : page ? (

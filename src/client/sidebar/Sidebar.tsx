@@ -24,7 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Dot, WorkspaceState } from '../../shared/types';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { SpaceNav } from '../SpaceNav';
 import { ThreadList } from '../ThreadList';
 import type { Dialog } from '../WorkspaceDialog';
@@ -47,6 +47,7 @@ export interface SidebarProps {
   selectedThread?: string;
   spaceId: string;
   pageId?: string;
+  fileId?: string;
   taskCount: number;
   memoryCount: number;
   /** What needs the owner: pending approvals, waiting handoffs and open questions. */
@@ -69,6 +70,7 @@ export interface SidebarProps {
   /** Writes one conversation to a Markdown file the owner keeps. */
   onExportThread: (id: string) => Promise<void>;
   onOpenPage: (spaceId: string, pageId?: string) => void;
+  onOpenFile: (spaceId: string, fileId: string) => void;
   onView: (view: 'tasks' | 'memories' | 'inbox' | 'mission') => void;
   onDialog: (dialog: Dialog) => void;
   /** Opens the Ctrl+K palette, optionally with the text typed in the title filter. */
@@ -140,6 +142,7 @@ export function Sidebar({
   selectedThread,
   spaceId,
   pageId,
+  fileId,
   taskCount,
   memoryCount,
   approvalCount = 0,
@@ -157,6 +160,7 @@ export function Sidebar({
   onDeleteThreads,
   onExportThread,
   onOpenPage,
+  onOpenFile,
   onView,
   onDialog,
   onOpenPalette,
@@ -275,7 +279,7 @@ export function Sidebar({
             <span className="sb-new-avatar">
               <Mascot
                 identity={dot.id}
-                color={dot.color}
+                {...dotLook(dot)}
                 name={dot.name}
                 small
                 decorative
@@ -375,7 +379,7 @@ export function Sidebar({
                     <span className="sb-avatar">
                       <Mascot
                         identity={item.id}
-                        color={item.color}
+                        {...dotLook(item)}
                         name={item.name}
                         small
                         decorative
@@ -462,7 +466,9 @@ export function Sidebar({
                 collapsed={collapsed}
                 active={view === 'space' && spaceId === space.id}
                 pageId={pageId}
+                fileId={fileId}
                 onOpen={(id) => onOpenPage(space.id, id)}
+                onOpenFile={(id) => onOpenFile(space.id, id)}
               />
             ))}
           </nav>

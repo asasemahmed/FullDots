@@ -1,0 +1,2566 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FullDots Penguins</title>
+    <link rel="icon" id="favicon" href="data:," />
+    <style>
+      :root {
+        --bg: #f5f5f7;
+        --panel: #ffffff;
+        --ink: #1c1f2e;
+        --muted: #666c7e;
+        --line: #e4e5eb;
+        --chip: #f0f1f5;
+        --on: #1c1f2e;
+        --on-ink: #ffffff;
+        --tile-dark: #15171f;
+        --shadow: 0 1px 2px rgb(20 22 30 / 5%), 0 10px 30px rgb(20 22 30 / 6%);
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #0e1015;
+          --panel: #161920;
+          --ink: #eef0f6;
+          --muted: #9ca2b3;
+          --line: #262a34;
+          --chip: #1f232c;
+          --on: #eef0f6;
+          --on-ink: #12141a;
+          --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 30px rgb(0 0 0 / 25%);
+          color-scheme: dark;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #0e1015;
+        --panel: #161920;
+        --ink: #eef0f6;
+        --muted: #9ca2b3;
+        --line: #262a34;
+        --chip: #1f232c;
+        --on: #eef0f6;
+        --on-ink: #12141a;
+        --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 30px rgb(0 0 0 / 25%);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button:focus-visible,
+      [tabindex]:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 16px 64px;
+      }
+      header.top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+      header.top .logo {
+        width: 38px;
+        height: 38px;
+      }
+      header.top h1 {
+        font-size: 20px;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      header.top p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .grow {
+        flex: 1;
+        min-width: 220px;
+      }
+      .seg {
+        display: inline-flex;
+        background: var(--chip);
+        border-radius: 999px;
+        padding: 3px;
+        gap: 2px;
+        flex-wrap: wrap;
+      }
+      .seg button {
+        border: 0;
+        background: transparent;
+        padding: 5px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--on);
+        color: var(--on-ink);
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+      }
+      .main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 16px;
+        align-items: stretch;
+      }
+      @media (max-width: 920px) {
+        .main {
+          grid-template-columns: 1fr;
+        }
+      }
+      .stage {
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        min-height: 540px;
+      }
+      #stage {
+        width: min(360px, 76vw);
+        aspect-ratio: 1;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bot svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      .hint {
+        position: absolute;
+        top: 14px;
+        left: 18px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .caption {
+        text-align: center;
+      }
+      .caption .name {
+        font-size: 19px;
+        font-weight: 650;
+      }
+      .caption .sub {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .exportbar {
+        margin-top: auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .btn {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn:hover {
+        border-color: var(--muted);
+      }
+      .btn.primary {
+        background: var(--on);
+        color: var(--on-ink);
+        border-color: var(--on);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: progress;
+      }
+      details.menu {
+        position: relative;
+      }
+      details.menu summary {
+        list-style: none;
+        cursor: pointer;
+      }
+      details.menu summary::-webkit-details-marker {
+        display: none;
+      }
+      details.menu .pop {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        right: 0;
+        z-index: 5;
+        width: 270px;
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+      }
+      .pop .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .pop select {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 6px 8px;
+        font-size: 13px;
+        width: 100%;
+      }
+      .pop .btn {
+        text-align: left;
+        font-size: 13px;
+        padding: 7px 10px;
+      }
+      .pop small {
+        color: var(--muted);
+        padding: 2px 4px 0;
+      }
+      .panel {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .panel .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .panel .head b {
+        font-size: 15px;
+      }
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        background: var(--chip);
+        border-radius: 12px;
+        padding: 3px;
+        gap: 2px;
+      }
+      .tabs button {
+        border: 0;
+        background: transparent;
+        padding: 6px 0;
+        border-radius: 9px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .tabs button[aria-selected='true'] {
+        background: var(--panel);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+        font-weight: 600;
+      }
+      .picks {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        align-content: start;
+      }
+      .picks.four {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .pick {
+        border: 2px solid transparent;
+        background: var(--chip);
+        border-radius: 14px;
+        padding: 6px 4px 7px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        font-size: 12px;
+        line-height: 1.25;
+        text-align: center;
+      }
+      .pick img {
+        width: 60px;
+        height: 60px;
+      }
+      .picks.four .pick img {
+        width: 46px;
+        height: 46px;
+      }
+      .pick small {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pick[aria-pressed='true'] {
+        border-color: var(--ink);
+        background: var(--panel);
+      }
+      .subhead {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 4px 0 -2px;
+      }
+      .opts {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: auto;
+      }
+      .opts label {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        cursor: pointer;
+      }
+      section.block {
+        margin-top: 26px;
+      }
+      section.block .bhead {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      section.block h2 {
+        font-size: 17px;
+        margin: 0;
+      }
+      section.block p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .team {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 860px) {
+        .team {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .slot {
+        padding: 12px 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        cursor: pointer;
+        border: 2px solid transparent;
+      }
+      .slot[aria-pressed='true'] {
+        border-color: var(--ink);
+      }
+      .slot .bot {
+        width: 100%;
+        max-width: 104px;
+        aspect-ratio: 1;
+      }
+      .slot b {
+        font-size: 14px;
+      }
+      .slot span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .states {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+        gap: 10px;
+      }
+      .state {
+        padding: 10px 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        cursor: pointer;
+      }
+      .state .bot {
+        width: 84px;
+        height: 84px;
+      }
+      .state b {
+        font-size: 13px;
+      }
+      .state span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .sizes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 760px) {
+        .sizes {
+          grid-template-columns: 1fr;
+        }
+      }
+      .tile {
+        border-radius: 18px;
+        padding: 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+        flex-wrap: wrap;
+        border: 1px solid var(--line);
+      }
+      .tile.light {
+        background: #ffffff;
+        color: #1c1f2e;
+      }
+      .tile.dark {
+        background: var(--tile-dark);
+        color: #eef0f6;
+      }
+      .tile figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        opacity: 0.85;
+      }
+      .sidebar {
+        padding: 10px;
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 2px 12px;
+      }
+      .sidebar .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 8px;
+      }
+      .sidebar .row .bot {
+        width: 34px;
+        height: 34px;
+        flex: none;
+      }
+      .sidebar .who {
+        flex: 1;
+        min-width: 0;
+      }
+      .sidebar .who b {
+        display: block;
+        font-size: 14px;
+      }
+      .sidebar .who span {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .pill {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--chip);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      pre.tree {
+        margin: 0;
+        padding: 16px;
+        font:
+          13px/1.6 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        overflow-x: auto;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--on);
+        color: var(--on-ink);
+        padding: 9px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        opacity: 0;
+        transition: 0.2s;
+        pointer-events: none;
+        z-index: 10;
+        max-width: calc(100vw - 32px);
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <img class="logo" id="logo" alt="" />
+        <div class="grow">
+          <h1>FullDots Penguins</h1>
+          <p>
+            A penguin for every Dot. When a Dot thinks or works it turns into
+            three dots, like a chat typing indicator. Move the pointer and it
+            watches you; click it to boop.
+          </p>
+        </div>
+        <div class="seg" role="group" aria-label="Theme" id="theme">
+          <button data-theme="system">System</button>
+          <button data-theme="light">Light</button>
+          <button data-theme="dark">Dark</button>
+        </div>
+      </header>
+
+      <div class="main">
+        <div class="card stage">
+          <span class="hint" id="hint">Move the pointer · click to boop</span>
+          <div
+            id="stage"
+            class="bot"
+            role="img"
+            aria-label="FullDots penguin"
+          ></div>
+          <div class="caption">
+            <div class="name" id="capName"></div>
+            <div class="sub" id="capSub"></div>
+          </div>
+          <div class="exportbar">
+            <button class="btn primary" id="exPng">Download PNG</button>
+            <details class="menu" id="menu">
+              <summary class="btn">More formats</summary>
+              <div class="card pop">
+                <div class="row2">
+                  <select id="exSize" aria-label="Size">
+                    <option value="128">128 px</option>
+                    <option value="256">256 px</option>
+                    <option value="512" selected>512 px</option>
+                    <option value="1024">1024 px</option>
+                  </select>
+                  <select id="exBg" aria-label="Background">
+                    <option value="transparent">Transparent</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </div>
+                <button class="btn" id="exWebp">WebP image</button>
+                <button class="btn" id="exSvg">SVG</button>
+                <button class="btn" id="exAnim">Animated SVG</button>
+                <button class="btn" id="exCopy">Copy SVG code</button>
+                <button class="btn" id="exClip">
+                  Video of this mood (WebM)
+                </button>
+                <button class="btn" id="exMontage">
+                  Montage of every state (WebM)
+                </button>
+                <button class="btn" id="exPack">Asset pack (.zip)</button>
+                <small>Exports use the Dot and version on the stage.</small>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <aside class="card panel">
+          <div class="head">
+            <b id="editing">Editing</b>
+            <div
+              class="seg"
+              role="group"
+              aria-label="Version"
+              id="variants"
+            ></div>
+          </div>
+          <div class="tabs" role="tablist" id="tabs">
+            <button role="tab" data-tab="mood">Mood</button>
+            <button role="tab" data-tab="species">Penguin</button>
+            <button role="tab" data-tab="color">Colour</button>
+            <button role="tab" data-tab="gear">Gear</button>
+          </div>
+          <div id="tabBody" role="tabpanel"></div>
+          <div class="opts">
+            <label
+              ><input type="checkbox" id="optFollow" checked /> Eyes follow the
+              pointer</label
+            >
+            <label
+              ><input type="checkbox" id="optMotion" checked /> Animate</label
+            >
+          </div>
+        </aside>
+      </div>
+
+      <section class="block">
+        <div class="bhead">
+          <div>
+            <h2>Your team</h2>
+            <p>
+              Choose a Dot to edit it. Each one has its own penguin, colour and
+              gear.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px">
+            <button class="btn" id="shuffle">Shuffle</button>
+            <button class="btn" id="reset">Reset</button>
+          </div>
+        </div>
+        <div class="team" id="team"></div>
+      </section>
+
+      <section class="block">
+        <div class="bhead">
+          <div>
+            <h2>States and reactions</h2>
+            <p id="statesNote"></p>
+          </div>
+        </div>
+        <div class="states" id="stateGrid"></div>
+        <div class="subhead" style="margin: 16px 0 10px">Reactions</div>
+        <div class="states" id="reactGrid"></div>
+      </section>
+
+      <section class="block">
+        <div class="bhead">
+          <div>
+            <h2>In the app</h2>
+            <p>
+              Icon and Favicon drop the gear and enlarge the eyes, so they stay
+              readable down to 16 px.
+            </p>
+          </div>
+        </div>
+        <div class="sizes">
+          <div class="tile light" id="sizesLight"></div>
+          <div class="tile dark" id="sizesDark"></div>
+        </div>
+        <div class="card sidebar" id="sidebar"></div>
+      </section>
+
+      <section class="block">
+        <div class="bhead">
+          <div>
+            <h2>Asset pack</h2>
+            <p>SVG inside the app, PNG and WebP for marketing.</p>
+          </div>
+        </div>
+        <div class="card"><pre class="tree" id="tree"></pre></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+
+    <script>
+      'use strict';
+
+      // ---------- Maths ----------
+      const TAU = Math.PI * 2;
+      const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+      const lerp = (a, b, k) => a + (b - a) * k;
+      const mod = (x, m) => ((x % m) + m) % m;
+      const easeOutQuint = (x) => 1 - Math.pow(1 - clamp(x), 5);
+      const easeOutCubic = (x) => 1 - Math.pow(1 - clamp(x), 3);
+      const easeOutBack = (x) => {
+        const c = 1.7;
+        x = clamp(x);
+        return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2);
+      };
+      const f = (n) => +n.toFixed(2);
+
+      // ---------- Colours ----------
+      const EYE = '#171a26';
+      const BEAK = '#ff9d2e';
+      const LIGHTS = {
+        on: '#ffc52e',
+        needs: '#ffb020',
+        done: '#3dd68c',
+        paused: '#c9ccd6',
+        error: '#ff5d5d',
+      };
+      const RED = '#ef5a5a';
+      const GOLD = '#ffc83d';
+      const COLORS = [
+        {
+          id: 'ink',
+          name: 'Ink',
+          base: '#2b3040',
+          light: '#5c6378',
+          dark: '#1a1d28',
+          cheek: '#ff86a8',
+        },
+        {
+          id: 'sky',
+          name: 'Sky',
+          base: '#4aaee8',
+          light: '#b4e2ff',
+          dark: '#2a87c4',
+          cheek: '#ff8fb0',
+        },
+        {
+          id: 'lilac',
+          name: 'Lilac',
+          base: '#a98bf3',
+          light: '#dccfff',
+          dark: '#8669d8',
+          cheek: '#ff7ab8',
+        },
+        {
+          id: 'rose',
+          name: 'Rose',
+          base: '#ee6a98',
+          light: '#ffc4d9',
+          dark: '#cc4a79',
+          cheek: '#ff5a82',
+        },
+        {
+          id: 'mint',
+          name: 'Mint',
+          base: '#33c49f',
+          light: '#a0f0da',
+          dark: '#1f9a7a',
+          cheek: '#ffa6bf',
+        },
+        {
+          id: 'amber',
+          name: 'Amber',
+          base: '#f2ab2e',
+          light: '#ffe0a0',
+          dark: '#c98611',
+          cheek: '#ff7a5c',
+        },
+        {
+          id: 'indigo',
+          name: 'Indigo',
+          base: '#6e7ff3',
+          light: '#b8c1ff',
+          dark: '#5160d6',
+          cheek: '#ff7aa8',
+        },
+        {
+          id: 'coral',
+          name: 'Coral',
+          base: '#ff8a66',
+          light: '#ffcab6',
+          dark: '#e2643f',
+          cheek: '#ff4d73',
+        },
+        {
+          id: 'moss',
+          name: 'Moss',
+          base: '#7bab55',
+          light: '#cfe9b6',
+          dark: '#5d8d3b',
+          cheek: '#ff9a8a',
+        },
+      ];
+      const colorById = (id) => COLORS.find((c) => c.id === id) || COLORS[0];
+      const hex = (h) => {
+        const x =
+          h.length === 4 ? '#' + [...h.slice(1)].map((c) => c + c).join('') : h;
+        return [1, 3, 5].map((i) => parseInt(x.slice(i, i + 2), 16));
+      };
+      const toHex = (rgb) =>
+        '#' +
+        rgb
+          .map((v) =>
+            Math.round(clamp(v, 0, 255))
+              .toString(16)
+              .padStart(2, '0'),
+          )
+          .join('');
+      const mix = (a, b, t) => {
+        const x = hex(a),
+          y = hex(b);
+        return toHex(x.map((v, i) => v + (y[i] - v) * t));
+      };
+      const luma = (h) => {
+        const [r, g, b] = hex(h).map((v) => v / 255);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const GREY = '#a9aebb';
+      function palette(color, muted = 0, soft = false) {
+        const c = colorById(color);
+        const m = (x) => (muted > 0 ? mix(x, GREY, 0.62 * muted) : x);
+        const base = soft ? mix(c.base, '#ffffff', 0.2) : c.base;
+        return {
+          body: m(base),
+          shade: m(c.dark),
+          light: m(c.light),
+          cheek: m(c.cheek),
+          belly: muted > 0 ? mix('#ffffff', '#eceef2', muted) : '#ffffff',
+          m,
+        };
+      }
+
+      // ---------- Species, gear, versions ----------
+      const SPECIES = {
+        emperor: {
+          label: 'Emperor',
+          blurb: 'Golden ear patches',
+          belly: 'std',
+        },
+        adelie: {
+          label: 'Adélie',
+          blurb: 'Dark face, eye rings',
+          belly: 'low',
+          rings: true,
+        },
+        rockhopper: {
+          label: 'Rockhopper',
+          blurb: 'Yellow brows',
+          belly: 'std',
+        },
+        macaroni: { label: 'Macaroni', blurb: 'Orange crest', belly: 'std' },
+        chick: {
+          label: 'Chick',
+          blurb: 'Soft and new',
+          belly: 'chick',
+          soft: true,
+          eye: 1.1,
+          beak: 0.82,
+        },
+      };
+      const GEAR = {
+        none: 'None',
+        headphones: 'Headphones',
+        glasses: 'Glasses',
+        beanie: 'Beanie',
+        scarf: 'Scarf',
+        bow: 'Bow tie',
+      };
+      const VARIANTS = {
+        mascot: {
+          label: 'Mascot',
+          vb: [0, 0, 128, 128],
+          flippers: true,
+          feet: true,
+          cheeks: true,
+          shadow: true,
+          marks: true,
+          gear: true,
+          eye: 1,
+          eyeL: [50, 66],
+          eyeR: [78, 66],
+          beak: 1,
+        },
+        avatar: {
+          label: 'Avatar',
+          vb: [2, 2, 124, 124],
+          flippers: true,
+          feet: false,
+          cheeks: true,
+          shadow: false,
+          marks: true,
+          gear: true,
+          eye: 1,
+          eyeL: [50, 66],
+          eyeR: [78, 66],
+          beak: 1,
+        },
+        icon: {
+          label: 'Icon',
+          vb: [14, 18, 100, 100],
+          flippers: false,
+          feet: false,
+          cheeks: false,
+          shadow: false,
+          marks: true,
+          gear: false,
+          eye: 1.15,
+          eyeL: [49, 66],
+          eyeR: [79, 66],
+          beak: 1.15,
+        },
+        favicon: {
+          label: 'Favicon',
+          vb: [16, 20, 96, 96],
+          flippers: false,
+          feet: false,
+          cheeks: false,
+          shadow: false,
+          marks: false,
+          gear: false,
+          eye: 1.32,
+          eyeL: [48, 65],
+          eyeR: [80, 65],
+          beak: 1.3,
+        },
+      };
+      const BELLIES = {
+        std: 'M64 46C57 37 34 38 30 58C26 80 40 108 64 108C88 108 102 80 98 58C94 38 71 37 64 46Z',
+        low: 'M64 75C46 75 33 85 33 96C33 106 47 111 64 111C81 111 95 106 95 96C95 85 82 75 64 75Z',
+        chick:
+          'M64 44C46 44 34 56 34 72C34 92 48 106 64 106C80 106 94 92 94 72C94 56 82 44 64 44Z',
+      };
+
+      // ---------- Poses ----------
+      // A pose is a plain object of numbers. Every state is a pure function of its own time, so the
+      // live view, the exports and the videos draw the same frames, and a change of state blends
+      // from the frame on screen (the approach bloub takes).
+      const R = 46;
+      const DOT_R = 0.165 * R;
+      const DOT_PEAK = 1.25;
+      const DOT_X = [-25, 0, 25];
+      const BADGE_R = 6.9;
+      const EYE_DEFAULT = {
+        mode: 'open',
+        rx: 6,
+        ry: 7.5,
+        open: 1,
+        lid: 0,
+        lidA: 0,
+        low: 0,
+        spark: 0,
+      };
+      const eye = (o = {}) => ({ ...EYE_DEFAULT, ...o });
+      const NO_BADGE = { r: 0, c: 'on' };
+
+      /** A wave through the three dots from left to right, after bloub's thinking state. */
+      function dotPulse(t, i) {
+        const p = mod((t - i * 0.5) / 1.5, 1);
+        const k = p < 0.5 ? 0.5 - 0.5 * Math.cos(p * TAU) : 0;
+        return clamp(k * 2);
+      }
+      /** A chat typing indicator: each dot hops in turn. */
+      function dotHop(t, i) {
+        const p = mod((t - i * 0.16) / 0.95, 1);
+        return p < 0.42 ? Math.sin((p / 0.42) * Math.PI) : 0;
+      }
+      /** A badge popping in at time t: up to +14 %, then settling. */
+      const pop = (t) => {
+        if (t <= 0) return 0;
+        const p = clamp(t / 0.45);
+        return p < 1
+          ? (0.6 + 0.4 * p) *
+              (1 + 0.14 * Math.sin(p * Math.PI) * (1 - p * 0.35))
+          : 1;
+      };
+      /** A blink every 4.4 s. */
+      const blinkAt = (t) => {
+        const d = mod(t, 4.4) - 3.9;
+        return d >= 0 && d < 0.18
+          ? 1 - 0.92 * Math.sin((Math.PI * d) / 0.18)
+          : 1;
+      };
+
+      function base(t, ctx, over = {}) {
+        const br = Math.sin((t * TAU) / 3.2);
+        const P = {
+          s: 1,
+          x: 0,
+          y: 0,
+          sx: 1 - br * 0.006,
+          sy: 1 + br * 0.012,
+          rot: 0,
+          face: 1,
+          bodyO: 1,
+          gx: 0,
+          gy: 0,
+          eyes: [eye(), eye()],
+          flipL: 2 * br,
+          flipR: 2 * br,
+          cheeks: 0,
+          dots: [],
+          parts: [],
+          badge: NO_BADGE,
+          bang: 0,
+          bangS: 1,
+          bangRot: 0,
+          muted: 0,
+          ...over,
+        };
+        if (over.follow && ctx.gaze) [P.gx, P.gy] = ctx.gaze;
+        if (!over.noBlink) {
+          const b = blinkAt(t);
+          P.eyes = P.eyes.map((e) =>
+            e.mode === 'open' ? { ...e, open: e.open * b } : e,
+          );
+        }
+        return P;
+      }
+      const both = (o) => [eye(o), eye(o)];
+      const emergeAt = (t) => 0.3 + 0.7 * easeOutCubic(t / 0.3);
+
+      const STATES = {
+        idle: {
+          label: 'Idle',
+          group: 'state',
+          desc: 'Breathes, blinks and watches the pointer.',
+          loop: 4.4,
+          rest: 1,
+          pose: (t, ctx) => base(t, ctx, { follow: true }),
+        },
+        thinking: {
+          label: 'Thinking',
+          group: 'state',
+          desc: 'Turns into three dots; a pulse runs through them.',
+          loop: 1.5,
+          warm: 1.5,
+          rest: 1.95,
+          morph: 0.4,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              s: (DOT_R * (1 + (DOT_PEAK - 1) * dotPulse(t, 1))) / R,
+              sx: 1,
+              sy: 1,
+              face: 0,
+              noBlink: true,
+              flipL: 0,
+              flipR: 0,
+              dots: [0, 2].map((i) => {
+                const k = dotPulse(t, i);
+                return {
+                  x: DOT_X[i] * emergeAt(t),
+                  y: 0,
+                  r: DOT_R * (1 + (DOT_PEAK - 1) * k),
+                  o: 0.55 + 0.45 * k,
+                };
+              }),
+            }),
+        },
+        working: {
+          label: 'Working',
+          group: 'state',
+          desc: 'Three dots hop in turn, like a typing indicator.',
+          loop: 0.95,
+          warm: 0.95,
+          rest: 1.05,
+          morph: 0.4,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              s: (DOT_R * 1.05) / R,
+              sx: 1,
+              sy: 1,
+              face: 0,
+              noBlink: true,
+              flipL: 0,
+              flipR: 0,
+              y: -dotHop(t, 1) * 7,
+              dots: [0, 2].map((i) => ({
+                x: DOT_X[i] * emergeAt(t),
+                y: -dotHop(t, i) * 7,
+                r: DOT_R * 1.05,
+                o: 0.6 + 0.4 * dotHop(t, i),
+              })),
+            }),
+        },
+        waiting: {
+          label: 'Needs you',
+          group: 'state',
+          desc: 'Looks up at a badge that pops out of its head.',
+          loop: 4.4,
+          warm: 1,
+          rest: 1.2,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              gx: 2.3,
+              gy: -2.1,
+              rot: 5 + Math.sin((t * TAU) / 2.6) * 1.5,
+              eyes: both({ rx: 6.3, ry: 7.9 }),
+              badge: {
+                r:
+                  BADGE_R *
+                  pop(t - 0.15) *
+                  (1 + (t > 1 ? 0.06 * Math.sin((t * TAU) / 1.4) : 0)),
+                c: 'needs',
+              },
+            }),
+        },
+        done: {
+          label: 'Done',
+          group: 'state',
+          desc: 'Bursts into confetti, comes back smiling.',
+          loop: 4,
+          rest: 2.6,
+          morph: 0.3,
+          pose: (t, ctx) => {
+            const c = mod(t, 4);
+            const collapse = 1 - 0.8 * easeOutQuint(c / 0.45);
+            const regrow = easeOutQuint((c - 0.95) / 0.6);
+            const face = clamp((c - 1.05) / 0.3);
+            const hop =
+              c > 1.5 && c < 2.1 ? Math.sin(((c - 1.5) / 0.6) * Math.PI) : 0;
+            const kinds = ['body', 'on', 'done', 'cheek'];
+            return base(t, ctx, {
+              s: collapse + (1 - collapse) * regrow,
+              face,
+              y: -hop * 6,
+              noBlink: true,
+              eyes: both({ mode: 'smile' }),
+              cheeks: 0.8 * face,
+              flipL: face * (24 + 18 * Math.sin(c * 9)),
+              flipR: face * (24 + 18 * Math.sin(c * 9 + 1)),
+              parts: [...Array(10).keys()].map((i) => {
+                const a = (i / 10) * TAU - Math.PI / 2 + 0.2;
+                const d = 10 + 46 * easeOutCubic((c - 0.08) / 0.9);
+                return {
+                  x: Math.cos(a) * d,
+                  y: Math.sin(a) * d,
+                  r: 3.6 * (1 - clamp((c - 0.35) / 0.75)) * (c > 0.08 ? 1 : 0),
+                  o: clamp((1.15 - c) / 0.4),
+                  k: kinds[i % 4],
+                };
+              }),
+              badge: { r: BADGE_R * pop(c - 1.3), c: 'done' },
+            });
+          },
+        },
+        error: {
+          label: 'Error',
+          group: 'state',
+          desc: 'Crossed eyes, a shake and a red badge.',
+          loop: 2.4,
+          warm: 1,
+          rest: 0.9,
+          pose: (t, ctx) => {
+            const c = mod(t, 2.4);
+            const sh =
+              c > 1.5 && c < 2
+                ? Math.sin((c - 1.5) * 40) * 3 * (1 - (c - 1.5) / 0.5)
+                : 0;
+            return base(t, ctx, {
+              x: sh,
+              eyes: both({ mode: 'x' }),
+              flipL: -10,
+              flipR: -10,
+              badge: { r: BADGE_R * pop(t - 0.1), c: 'error' },
+            });
+          },
+        },
+        paused: {
+          label: 'Paused',
+          group: 'state',
+          desc: 'Shrinks to a small grey dot, slowly breathing.',
+          loop: 2.4,
+          rest: 0.6,
+          morph: 0.5,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              s: 0.17,
+              sx: 1,
+              sy: 1,
+              face: 0,
+              muted: 1,
+              noBlink: true,
+              flipL: 0,
+              flipR: 0,
+              y: 4 - 5 * Math.sin((t * TAU) / 2.4),
+            }),
+        },
+        surprised: {
+          label: 'Surprised',
+          group: 'react',
+          desc: 'Wide eyes and a jump.',
+          loop: 2.2,
+          rest: 1,
+          pose: (t, ctx) => {
+            const c = mod(t, 2.2);
+            const j = c < 0.5 ? Math.sin((c / 0.5) * Math.PI) : 0;
+            const squash = c < 0.12 ? 1 : 0;
+            return base(t, ctx, {
+              y: -j * 8,
+              sx: 1 + squash * 0.06 - j * 0.04,
+              sy: 1 - squash * 0.08 + j * 0.05,
+              gy: -0.6,
+              eyes: both({ rx: 7.4, ry: 9.6, spark: 1 }),
+              flipL: 52,
+              flipR: 52,
+            });
+          },
+        },
+        happy: {
+          label: 'Happy',
+          group: 'react',
+          desc: 'Squeezed happy eyes and rosy cheeks.',
+          loop: 1.4,
+          rest: 0.7,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              y: -2.5 * (0.5 - 0.5 * Math.cos((t * TAU) / 1.4)),
+              eyes: both({ mode: 'happy' }),
+              cheeks: 0.85,
+              flipL: 18 + 14 * Math.sin(t * 8),
+              flipR: 18 + 14 * Math.sin(t * 8 + 1),
+            }),
+        },
+        love: {
+          label: 'Love',
+          group: 'react',
+          desc: 'Heart eyes.',
+          loop: 1.4,
+          rest: 0.7,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              y: -2.5 * (0.5 - 0.5 * Math.cos((t * TAU) / 1.4)),
+              eyes: both({ mode: 'heart' }),
+              cheeks: 0.95,
+            }),
+        },
+        wink: {
+          label: 'Wink',
+          group: 'react',
+          desc: 'One eye shut, a little wave.',
+          loop: 1.6,
+          rest: 0.4,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              gx: -1,
+              gy: 0.6,
+              rot: 6,
+              eyes: [eye(), eye({ mode: 'dash' })],
+              cheeks: 0.5,
+              flipR: 30 + 22 * Math.sin(t * 8),
+            }),
+        },
+        curious: {
+          label: 'Curious',
+          group: 'react',
+          desc: 'One eye wide, head tilted.',
+          loop: 4.4,
+          rest: 1,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              follow: true,
+              rot: -8,
+              eyes: [
+                eye({ rx: 6.4, ry: 8.6 }),
+                eye({ ry: 6.2, lid: 0.24, lidA: -0.15 }),
+              ],
+            }),
+        },
+        shy: {
+          label: 'Shy',
+          group: 'react',
+          desc: 'Looks down and blushes.',
+          loop: 4.4,
+          rest: 1,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              gx: -1.6,
+              gy: 2.4,
+              rot: 5,
+              eyes: both({ ry: 6.4, lid: 0.22 }),
+              cheeks: 1,
+              flipL: -10,
+              flipR: -10,
+            }),
+        },
+        suspicious: {
+          label: 'Suspicious',
+          group: 'react',
+          desc: 'Half-closed side-eye.',
+          loop: 4.4,
+          rest: 1,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              gx: -2.6 + 0.8 * Math.sin((t * TAU) / 3),
+              rot: -2,
+              eyes: both({ lid: 0.48, low: 0.12 }),
+            }),
+        },
+        sad: {
+          label: 'Sad',
+          group: 'react',
+          desc: 'Droopy eyes looking down.',
+          loop: 4.4,
+          rest: 1,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              gy: 2,
+              y: 1.5,
+              eyes: both({ lid: 0.3, lidA: -0.5 }),
+              flipL: -12,
+              flipR: -12,
+            }),
+        },
+        angry: {
+          label: 'Angry',
+          group: 'react',
+          desc: 'Lowered lids and a tremble.',
+          loop: 0.52,
+          rest: 0.1,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              x: 0.8 * Math.sin((t * TAU) / 0.26),
+              gy: 0.4,
+              eyes: both({ lid: 0.36, lidA: 0.55 }),
+              flipL: 40,
+              flipR: 40,
+            }),
+        },
+        alert: {
+          label: 'Alert',
+          group: 'react',
+          desc: 'Becomes a "!" for something urgent.',
+          loop: 0.8,
+          warm: 0.8,
+          rest: 1,
+          morph: 0.35,
+          pose: (t, ctx) =>
+            base(t, ctx, {
+              s: 0.3,
+              sx: 1,
+              sy: 1,
+              face: 0,
+              bodyO: 0,
+              noBlink: true,
+              flipL: 0,
+              flipR: 0,
+              bang: 1,
+              bangS: 0.55 + 0.45 * easeOutBack(t / 0.4),
+              bangRot: 12 + Math.sin(t * 2.5 * TAU) * 3,
+            }),
+        },
+        excited: {
+          label: 'Excited',
+          group: 'react',
+          desc: 'Sparkly eyes, flapping flippers.',
+          loop: 0.62,
+          rest: 0.31,
+          pose: (t, ctx) => {
+            const h = 0.5 - 0.5 * Math.cos((t * TAU) / 0.62);
+            return base(t, ctx, {
+              y: -h * 4,
+              gy: -0.4,
+              eyes: both({ rx: 7, ry: 8.6, spark: 1 }),
+              cheeks: 0.5,
+              flipL: 14 + 48 * h,
+              flipR: 14 + 48 * h,
+            });
+          },
+        },
+      };
+      const STATE_IDS = Object.keys(STATES).filter(
+        (k) => STATES[k].group === 'state',
+      );
+      const REACT_IDS = Object.keys(STATES).filter(
+        (k) => STATES[k].group === 'react',
+      );
+      const poseAt = (id, t, ctx = {}) => STATES[id].pose(t, ctx);
+      const restPose = (id) => poseAt(id, STATES[id].rest);
+
+      function lerpList(a, b, k) {
+        const n = Math.max(a.length, b.length);
+        const zero = (p) => ({ ...p, r: 0, o: 0 });
+        return [...Array(n).keys()].map((i) => {
+          const p = a[i] || zero(b[i]),
+            q = b[i] || zero(a[i]);
+          return {
+            x: lerp(p.x, q.x, k),
+            y: lerp(p.y, q.y, k),
+            r: lerp(p.r, q.r, k),
+            o: lerp(p.o, q.o, k),
+            k: q.k || p.k,
+          };
+        });
+      }
+      /** Blends two poses. Eye shapes that differ swap behind a quick blink. */
+      function lerpPose(a, b, k) {
+        const P = { ...b };
+        for (const key of [
+          's',
+          'x',
+          'y',
+          'sx',
+          'sy',
+          'rot',
+          'face',
+          'bodyO',
+          'gx',
+          'gy',
+          'flipL',
+          'flipR',
+          'cheeks',
+          'bang',
+          'bangS',
+          'bangRot',
+          'muted',
+        ])
+          P[key] = lerp(a[key], b[key], k);
+        P.eyes = b.eyes.map((e, i) => {
+          const o = a.eyes[i];
+          if (o.mode === e.mode) {
+            const n = { ...e };
+            for (const key of [
+              'rx',
+              'ry',
+              'open',
+              'lid',
+              'lidA',
+              'low',
+              'spark',
+            ])
+              n[key] = lerp(o[key], e[key], k);
+            return n;
+          }
+          return k < 0.5
+            ? { ...o, open: o.open * (1 - k * 2) }
+            : { ...e, open: e.open * (k * 2 - 1) };
+        });
+        P.dots = lerpList(a.dots, b.dots, k);
+        P.parts = lerpList(a.parts, b.parts, k);
+        P.badge = {
+          r: lerp(a.badge.r, b.badge.r, k),
+          c: b.badge.r > 0.1 ? b.badge.c : a.badge.c,
+        };
+        return P;
+      }
+
+      // ---------- Drawing ----------
+      function eyeMarkup(e, gx, gy, cx, cy, sc, ctx, side) {
+        const { uid, lidFill, ring } = ctx;
+        const open = clamp(e.open);
+        const clipId = `${uid}c${side}`;
+        const crx = ring ? 6 * sc + 3.3 : 6 * sc + 5;
+        const cry = ring ? 7.5 * sc + 3.3 : 7.5 * sc + 5.5;
+        let s = `<clipPath id="${clipId}"><ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(crx)}" ry="${f(cry)}"/></clipPath>`;
+        if (ring)
+          s += `<ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(crx)}" ry="${f(cry)}" fill="#fff"/>`;
+        let inner = '';
+        if (e.mode === 'open') {
+          const rx = e.rx * sc,
+            ryFull = e.ry * sc,
+            ry = Math.max(0.15, ryFull * open);
+          const x = cx + gx * sc,
+            y = cy + gy * sc;
+          inner += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(rx)}" ry="${f(ry)}" fill="${EYE}"/>`;
+          if (open > 0.45 && rx > 2.6) {
+            inner += `<circle cx="${f(x - rx * 0.32)}" cy="${f(y - ry * 0.38)}" r="${f(rx * 0.32)}" fill="#fff"/>`;
+            if (e.spark > 0.4)
+              inner += `<circle cx="${f(x + rx * 0.34)}" cy="${f(y + ry * 0.36)}" r="${f(rx * 0.16)}" fill="#fff"/>`;
+          }
+          const W = rx + 5;
+          if (e.lid > 0.01 || Math.abs(e.lidA) > 0.01) {
+            const b0 = cy - ryFull + e.lid * 2 * ryFull,
+              d = e.lidA * ryFull,
+              dir = side === 'L' ? 1 : -1,
+              top = cy - cry - 1;
+            const yl = Math.max(top, b0 - dir * d),
+              yr = Math.max(top, b0 + dir * d);
+            inner += `<path d="M${f(cx - W)} ${f(top)}H${f(cx + W)}V${f(yr)}L${f(cx - W)} ${f(yl)}Z" fill="${lidFill}"/>`;
+          }
+          if (e.low > 0.01) {
+            const b1 = cy + ryFull - e.low * 2 * ryFull;
+            inner += `<path d="M${f(cx - W)} ${f(b1)}H${f(cx + W)}V${f(cy + cry + 1)}H${f(cx - W)}Z" fill="${lidFill}"/>`;
+          }
+        } else {
+          const tr = `translate(${f(cx + gx * sc * 0.5)} ${f(cy + gy * sc * 0.5)}) scale(${f(sc)} ${f(sc * Math.max(0.05, open))})`;
+          const line = (d) =>
+            `<path d="${d}" fill="none" stroke="${EYE}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+          let g = '';
+          if (e.mode === 'happy') g = line('M-6.2 2.6Q0 -6.6 6.2 2.6');
+          else if (e.mode === 'smile') g = line('M-6 -1.8Q0 5.4 6 -1.8');
+          else if (e.mode === 'dash') g = line('M-6.8 .4H6.8');
+          else if (e.mode === 'x')
+            g = line('M-4.6 -4.6L4.6 4.6M4.6 -4.6L-4.6 4.6');
+          else if (e.mode === 'heart')
+            g = `<path d="M0 5.6C-9 -.2 -5.8 -8.6 0 -3.6C5.8 -8.6 9 -.2 0 5.6Z" fill="#ff4f7b"/>`;
+          inner = `<g transform="${tr}">${g}</g>`;
+        }
+        return s + `<g clip-path="url(#${clipId})">${inner}</g>`;
+      }
+
+      function marks(sp, pal) {
+        const m = pal.m;
+        if (sp === 'emperor')
+          return `<ellipse cx="30.5" cy="62" rx="3.4" ry="7.8" fill="${m(GOLD)}" transform="rotate(-14 30.5 62)"/><ellipse cx="97.5" cy="62" rx="3.4" ry="7.8" fill="${m(GOLD)}" transform="rotate(14 97.5 62)"/>`;
+        if (sp === 'rockhopper') {
+          const c = m('#ffcf33');
+          const s = (X) =>
+            `<path d="M${X(57)} 53Q${X(47)} 50 ${X(35)} 41M${X(55)} 56Q${X(45)} 54.5 ${X(34)} 49" stroke="${c}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+          return s((x) => x) + s((x) => 128 - x);
+        }
+        if (sp === 'macaroni')
+          return `<path d="M63 41C58 31 64 20 79 15C72 22 72 28 77 33C70 31 66 35 63 41Z" fill="${m('#ff9f1c')}"/>`;
+        if (sp === 'chick')
+          return `<path d="M61 24Q58 16 63 11M66 24Q68 16 74 14" stroke="${pal.body}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+        return '';
+      }
+
+      function gearMarkup(gear, v, pal, sc) {
+        const m = pal.m;
+        const dark = '#262a38';
+        if (gear === 'glasses') {
+          const [lx, ly] = v.eyeL,
+            [rx] = v.eyeR;
+          const w = 10.5 * sc,
+            h = 9.5 * sc;
+          const frame = (x) =>
+            `<rect x="${f(x - w)}" y="${f(ly - h)}" width="${f(2 * w)}" height="${f(2 * h)}" rx="${f(7 * sc)}" fill="none" stroke="${dark}" stroke-width="2.4"/>`;
+          return (
+            frame(lx) +
+            frame(rx) +
+            `<path d="M${f(lx + w)} ${f(ly - 2)}Q64 ${f(ly - 5)} ${f(rx - w)} ${f(ly - 2)}" stroke="${dark}" stroke-width="2.4" fill="none"/>`
+          );
+        }
+        if (gear === 'headphones')
+          return `<path d="M15 66C12 2 116 2 113 66" stroke="${dark}" stroke-width="4.6" fill="none" stroke-linecap="round"/><rect x="8.5" y="54" width="13" height="24" rx="6.5" fill="${pal.light}" stroke="${dark}" stroke-width="2.6"/><rect x="106.5" y="54" width="13" height="24" rx="6.5" fill="${pal.light}" stroke="${dark}" stroke-width="2.6"/>`;
+        if (gear === 'beanie') {
+          const darkBody = luma(pal.body) < 0.3;
+          const hat = m(darkBody ? RED : pal.light),
+            band = m(darkBody ? '#c94048' : pal.shade);
+          return `<path d="M23 47C26 12 102 12 105 47C90 38 38 38 23 47Z" fill="${hat}"/><path d="M23 47C39 37 89 37 105 47" stroke="${band}" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="64" cy="15" r="6" fill="${band}"/>`;
+        }
+        if (gear === 'scarf') {
+          const c = m(RED);
+          return `<path d="M25.5 91C44 102 84 102 102.5 91L97 101C82 110 46 110 31 101Z" fill="${c}"/><path d="M82 101C84 109 86 115 88 120L96 117C94 111 92 105 90 99Z" fill="${mix(c, '#000000', 0.12)}"/>`;
+        }
+        if (gear === 'bow')
+          return `<path d="M64 96L52.5 90Q50 96 52.5 102ZM64 96L75.5 90Q78 96 75.5 102Z" fill="${pal.shade}"/><circle cx="64" cy="96" r="2.8" fill="${mix(pal.shade, '#000000', 0.2)}"/>`;
+        return '';
+      }
+
+      let uidSeq = 0;
+      /** One frame of a Dot in a pose: its defs (clips, the badge notch) and its drawing. */
+      function frameMarkup(dot, P, variantId, opt = {}) {
+        const v = VARIANTS[variantId];
+        const sp = SPECIES[dot.species];
+        const uid = 'p' + ++uidSeq;
+        const pal = palette(dot.color, P.muted, sp.soft);
+        const face = clamp(P.face);
+        const gear = v.gear ? dot.gear : 'none';
+        const hasBadge = P.badge.r > 0.3;
+        const badgeColor = LIGHTS[P.badge.c] || LIGHTS.on;
+        const rim =
+          opt.rim && luma(pal.body) < 0.3
+            ? ` stroke="#ffffff" stroke-opacity=".22" stroke-width="${f(1.6 / Math.max(P.s, 0.15))}"`
+            : '';
+        const fo = face < 1 ? ` opacity="${f(face)}"` : '';
+        let s = '';
+        if (v.shadow)
+          s += `<ellipse cx="64" cy="121.5" rx="${f(Math.max(4, 28 * Math.max(0.2, P.s) + Math.min(0, P.y) * 0.6))}" ry="3.4" fill="#000" opacity="${f(0.09 * Math.max(0.3, P.s))}"/>`;
+        // Squash about the feet, then the overall size about the middle.
+        const T = `translate(${f(64 + P.x)} ${f(114 + P.y)}) rotate(${f(P.rot)}) scale(${f(P.sx)} ${f(P.sy)}) translate(-64 -114) translate(64 68) scale(${f(P.s)}) translate(-64 -68)`;
+        let body = '';
+        if (v.flippers && face > 0.02)
+          body += `<g${fo} fill="${pal.shade}"><ellipse cx="23" cy="83" rx="6.6" ry="13" transform="rotate(${f(14 + P.flipL)} 27 68)"/><ellipse cx="105" cy="83" rx="6.6" ry="13" transform="rotate(${f(-14 - P.flipR)} 101 68)"/></g>`;
+        body += `<circle cx="64" cy="68" r="46" fill="${pal.body}"${P.bodyO < 1 ? ` opacity="${f(P.bodyO)}"` : ''}${rim}/>`;
+        if (face > 0.02) {
+          const sc = v.eye * (sp.eye || 1);
+          const rings = sp.rings && (v.marks || variantId === 'favicon');
+          const ctx = { uid, lidFill: rings ? '#fff' : pal.belly, ring: rings };
+          // The face shifts a little with the gaze, so the head seems to turn.
+          let fc = `<g transform="translate(${f(P.gx * 0.45)} ${f(P.gy * 0.35)})">`;
+          fc += `<path d="${BELLIES[sp.belly]}" fill="${pal.belly}"/>`;
+          if (v.marks) fc += marks(dot.species, pal);
+          if (v.cheeks && P.cheeks > 0.02)
+            fc += `<g fill="${pal.cheek}" opacity="${f(0.55 * P.cheeks)}"><ellipse cx="37.5" cy="80.5" rx="6" ry="3.8"/><ellipse cx="90.5" cy="80.5" rx="6" ry="3.8"/></g>`;
+          const beakC = pal.m(BEAK);
+          fc += `<path d="M56.4 76Q64 70.4 71.6 76Q67 84.6 64 85Q61 84.6 56.4 76Z" fill="${beakC}" transform="translate(64 78) scale(${f(v.beak * (sp.beak || 1))}) translate(-64 -78)"/>`;
+          fc +=
+            eyeMarkup(
+              P.eyes[0],
+              P.gx,
+              P.gy,
+              v.eyeL[0],
+              v.eyeL[1],
+              sc,
+              ctx,
+              'L',
+            ) +
+            eyeMarkup(
+              P.eyes[1],
+              P.gx,
+              P.gy,
+              v.eyeR[0],
+              v.eyeR[1],
+              sc,
+              ctx,
+              'R',
+            );
+          if (gear === 'glasses' || gear === 'bow' || gear === 'scarf')
+            fc += gearMarkup(gear, v, pal, sc);
+          fc += `</g>`;
+          if (v.feet)
+            fc += `<g fill="${beakC}"><ellipse cx="50" cy="113.5" rx="9" ry="4.4"/><ellipse cx="78" cy="113.5" rx="9" ry="4.4"/></g>`;
+          if (gear === 'beanie' || gear === 'headphones')
+            fc += gearMarkup(gear, v, pal, sc);
+          body += `<g${fo}>${fc}</g>`;
+        }
+        let defs = '';
+        if (hasBadge) {
+          // The badge sits in a notch cut out of the body, like a presence dot on an avatar.
+          defs += `<mask id="${uid}m" maskUnits="userSpaceOnUse" x="-40" y="-40" width="208" height="208"><rect x="-40" y="-40" width="208" height="208" fill="#fff"/><circle cx="98.5" cy="37" r="${f(P.badge.r + 2.8)}" fill="#000"/></mask>`;
+          body = `<g mask="url(#${uid}m)">${body}</g><circle cx="98.5" cy="37" r="${f(P.badge.r)}" fill="${badgeColor}"/><circle cx="96.6" cy="35.1" r="${f(P.badge.r * 0.28)}" fill="#fff" opacity=".7"/>`;
+        }
+        s += `<g transform="${T}">${body}</g>`;
+        for (const d of P.dots)
+          if (d.r > 0.2)
+            s += `<circle cx="${f(64 + P.x + d.x)}" cy="${f(68 + d.y)}" r="${f(d.r)}" fill="${pal.body}" opacity="${f(clamp(d.o))}"/>`;
+        const partColor = {
+          body: pal.body,
+          on: LIGHTS.on,
+          done: LIGHTS.done,
+          cheek: pal.cheek,
+        };
+        for (const p of P.parts)
+          if (p.r > 0.2 && p.o > 0.02)
+            s += `<circle cx="${f(64 + p.x)}" cy="${f(68 + p.y)}" r="${f(p.r)}" fill="${partColor[p.k] || pal.body}" opacity="${f(clamp(p.o))}"/>`;
+        if (P.bang > 0.02)
+          s += `<g fill="${pal.body}" opacity="${f(clamp(P.bang))}" transform="translate(64 66) rotate(${f(P.bangRot)}) scale(${f(P.bangS)})"><rect x="-8" y="-44" width="16" height="56" rx="8"/><circle cx="0" cy="30" r="9"/></g>`;
+        return { defs, body: s };
+      }
+
+      function svgOf(dot, P, variantId, opt = {}) {
+        const v = VARIANTS[variantId];
+        const { defs, body } = frameMarkup(dot, P, variantId, opt);
+        const [x, y, w, h] = v.vb;
+        const size = opt.size
+          ? ` width="${opt.size}" height="${opt.size}"`
+          : '';
+        const title = opt.title || `${SPECIES[dot.species].label} penguin`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}"${size} role="img"><title>${title}</title>${defs ? `<defs>${defs}</defs>` : ''}${body}</svg>`;
+      }
+      const stillSvg = (dot, state, variantId, opt = {}) =>
+        svgOf(dot, restPose(state), variantId, {
+          title: `${SPECIES[dot.species].label} penguin, ${STATES[state].label.toLowerCase()}`,
+          ...opt,
+        });
+
+      /** A self-running SVG: one loop of frames shown in turn with SMIL, so it plays as <img src>. */
+      function animatedSvg(dot, state, variantId, opt = {}) {
+        const S = STATES[state];
+        const fps = 24;
+        const n = Math.max(2, Math.round(S.loop * fps));
+        const [x, y, w, h] = VARIANTS[variantId].vb;
+        let defs = '',
+          frames = '';
+        for (let i = 0; i < n; i++) {
+          const fr = frameMarkup(
+            dot,
+            poseAt(state, (S.warm || 0) + (i / n) * S.loop),
+            variantId,
+            opt,
+          );
+          defs += fr.defs;
+          frames += `<g visibility="hidden">${fr.body}<animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;${f(i / n)};${f((i + 1) / n)}" calcMode="discrete" dur="${f(S.loop)}s" repeatCount="indefinite"/></g>`;
+        }
+        const size = opt.size
+          ? ` width="${opt.size}" height="${opt.size}"`
+          : '';
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}"${size} role="img"><title>${SPECIES[dot.species].label} penguin, ${S.label.toLowerCase()}</title><defs>${defs}</defs>${frames}</svg>`;
+      }
+      const dataUri = (svg) =>
+        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+
+      // ---------- Live bots ----------
+      // Every animated penguin on the page samples its pose each frame and blends when its mood changes.
+      class Bot {
+        constructor(el, get, opt = {}) {
+          this.el = el;
+          this.get = get;
+          this.opt = opt;
+          this.state = get().mood;
+          this.t0 = performance.now() - (opt.offset || 0);
+          this.from = null;
+          this.changeAt = 0;
+          this.last = null;
+          this.visible = true;
+        }
+        frame(now, ctx = {}) {
+          const d = this.get();
+          if (d.mood !== this.state) {
+            this.from = this.last;
+            this.changeAt = now;
+            this.state = d.mood;
+            this.t0 = now;
+          }
+          const S = STATES[this.state];
+          const t = app.motion ? (now - this.t0) / 1000 : S.rest;
+          let P = poseAt(this.state, t, ctx);
+          const morph = (S.morph || 0.45) * 1000;
+          if (this.from && app.motion && now - this.changeAt < morph)
+            P = lerpPose(
+              this.from,
+              P,
+              easeOutQuint((now - this.changeAt) / morph),
+            );
+          else this.from = null;
+          if (ctx.override) P = ctx.override(P);
+          this.last = P;
+          if (this.visible)
+            this.el.innerHTML = svgOf(
+              d,
+              P,
+              this.opt.variant ? this.opt.variant() : 'avatar',
+              { rim: isDark() },
+            );
+        }
+      }
+
+      // ---------- Team ----------
+      const ROLES = ['Main', 'Research', 'Code', 'Design', 'Writer', 'Planner'];
+      const DEFAULT_TEAM = [
+        { color: 'ink', species: 'emperor', gear: 'none', mood: 'idle' },
+        {
+          color: 'sky',
+          species: 'adelie',
+          gear: 'headphones',
+          mood: 'thinking',
+        },
+        {
+          color: 'lilac',
+          species: 'rockhopper',
+          gear: 'glasses',
+          mood: 'working',
+        },
+        { color: 'rose', species: 'macaroni', gear: 'beanie', mood: 'waiting' },
+        { color: 'mint', species: 'chick', gear: 'scarf', mood: 'done' },
+        { color: 'amber', species: 'adelie', gear: 'bow', mood: 'paused' },
+      ];
+      const store = {
+        get(k, d) {
+          try {
+            const v = localStorage.getItem('fdp4-' + k);
+            return v == null ? d : JSON.parse(v);
+          } catch {
+            return d;
+          }
+        },
+        set(k, v) {
+          try {
+            localStorage.setItem('fdp4-' + k, JSON.stringify(v));
+          } catch {}
+        },
+      };
+      const valid = (d) =>
+        d &&
+        SPECIES[d.species] &&
+        GEAR[d.gear] &&
+        STATES[d.mood] &&
+        COLORS.some((c) => c.id === d.color);
+      let team = store.get('team', null);
+      if (
+        !Array.isArray(team) ||
+        team.length !== ROLES.length ||
+        !team.every(valid)
+      )
+        team = DEFAULT_TEAM.map((d) => ({ ...d }));
+      const savedVariant = store.get('variant', 'mascot');
+      const savedTab = store.get('tab', 'mood');
+      const app = {
+        sel: clamp(store.get('sel', 0) | 0, 0, ROLES.length - 1),
+        variant: VARIANTS[savedVariant] ? savedVariant : 'mascot',
+        tab: ['mood', 'species', 'color', 'gear'].includes(savedTab)
+          ? savedTab
+          : 'mood',
+        theme: store.get('theme', 'system'),
+        follow: true,
+        motion: !matchMedia('(prefers-reduced-motion: reduce)').matches,
+      };
+      const dot = () => team[app.sel];
+      const saveTeam = () => store.set('team', team);
+      const $ = (id) => document.getElementById(id);
+      const isDark = () =>
+        app.theme === 'dark' ||
+        (app.theme === 'system' &&
+          matchMedia('(prefers-color-scheme: dark)').matches);
+      function toast(text, ms = 2200) {
+        const t = $('toast');
+        t.textContent = text;
+        t.classList.add('show');
+        clearTimeout(toast.timer);
+        if (ms) toast.timer = setTimeout(() => t.classList.remove('show'), ms);
+      }
+
+      // ---------- Stage ----------
+      const live = {
+        pointer: null,
+        gaze: [0, 0],
+        lastMove: performance.now(),
+        boopUntil: 0,
+        asleep: false,
+      };
+      let stageBot = null;
+      let bots = [];
+      function captions() {
+        const d = dot(),
+          S = STATES[d.mood];
+        $('capName').textContent =
+          `${ROLES[app.sel]} · ${SPECIES[d.species].label}`;
+        $('capSub').textContent = `${S.label} · ${S.desc}`;
+        $('stage').setAttribute(
+          'aria-label',
+          `${ROLES[app.sel]} Dot, a ${SPECIES[d.species].label} penguin: ${S.label}. ${S.desc}`,
+        );
+        $('editing').textContent = `Editing ${ROLES[app.sel]}`;
+        team.forEach((m, i) => {
+          const s = document.querySelector(`[data-slot="${i}"] span`);
+          if (s)
+            s.textContent = `${SPECIES[m.species].label} · ${STATES[m.mood].label}`;
+        });
+      }
+      function mountStage() {
+        stageBot = new Bot($('stage'), dot, { variant: () => app.variant });
+        captions();
+      }
+      function stageCtx(now) {
+        if (app.follow && live.pointer) {
+          const r = $('stage').getBoundingClientRect();
+          const k = Math.max(r.width, 1) * 0.9;
+          const tx =
+            clamp((live.pointer[0] - (r.left + r.width / 2)) / k, -1, 1) * 3.4;
+          const ty =
+            clamp((live.pointer[1] - (r.top + r.height * 0.52)) / k, -1, 1) *
+            2.8;
+          live.gaze = [
+            lerp(live.gaze[0], tx, 0.18),
+            lerp(live.gaze[1], ty, 0.18),
+          ];
+        }
+        const ctx = { gaze: app.follow ? live.gaze : null };
+        if (now < live.boopUntil)
+          ctx.override = (P) =>
+            P.face > 0.5
+              ? {
+                  ...P,
+                  eyes: both({ mode: 'happy' }),
+                  cheeks: Math.max(P.cheeks, 0.8),
+                }
+              : P;
+        else if (live.asleep)
+          ctx.override = (P) =>
+            P.face > 0.5 ? { ...P, eyes: both({ mode: 'dash' }) } : P;
+        return ctx;
+      }
+      let lastSmall = 0;
+      function frame(now) {
+        if (stageBot) {
+          if (
+            dot().mood === 'idle' &&
+            app.follow &&
+            app.motion &&
+            !live.asleep &&
+            now - live.lastMove > 14000
+          ) {
+            live.asleep = true;
+            $('hint').textContent =
+              'It dozed off. Move the pointer to wake it.';
+          }
+          stageBot.frame(now, stageCtx(now));
+        }
+        if (now - lastSmall > 33) {
+          lastSmall = now;
+          for (const b of bots) b.frame(now);
+        }
+        requestAnimationFrame(frame);
+      }
+      addEventListener('pointermove', (ev) => {
+        live.pointer = [ev.clientX, ev.clientY];
+        live.lastMove = performance.now();
+        if (live.asleep) {
+          live.asleep = false;
+          $('hint').textContent = 'Move the pointer · click to boop';
+        }
+      });
+      $('stage').addEventListener('click', () => {
+        live.lastMove = performance.now();
+        live.asleep = false;
+        live.boopUntil = performance.now() + 900;
+        const el = $('stage');
+        if (app.motion && el.animate) {
+          el.style.transformOrigin = '50% 90%';
+          el.animate(
+            [
+              { transform: 'scale(1,1)' },
+              { transform: 'scale(1.1,.88)', offset: 0.25 },
+              { transform: 'scale(.95,1.06)', offset: 0.55 },
+              { transform: 'scale(1.02,.98)', offset: 0.8 },
+              { transform: 'scale(1,1)' },
+            ],
+            { duration: 520, easing: 'ease-out' },
+          );
+        }
+      });
+
+      // ---------- Panel ----------
+      const setPressed = (root, attr, value) =>
+        root
+          .querySelectorAll(`[data-${attr}]`)
+          .forEach((b) =>
+            b.setAttribute('aria-pressed', String(b.dataset[attr] === value)),
+          );
+      const thumb = (d, state = 'idle') =>
+        `<img alt="" src="${dataUri(stillSvg(d, state, 'avatar', { rim: isDark() }))}"/>`;
+      function renderTab() {
+        const d = dot();
+        let html = '';
+        if (app.tab === 'mood') {
+          const btn = (id) =>
+            `<button class="pick" data-mood="${id}">${thumb(d, id)}${STATES[id].label}</button>`;
+          html = `<div class="subhead">Agent states</div><div class="picks four" style="margin-top:8px">${STATE_IDS.map(btn).join('')}</div><div class="subhead" style="margin-top:12px">Reactions</div><div class="picks four" style="margin-top:8px">${REACT_IDS.map(btn).join('')}</div>`;
+        } else if (app.tab === 'species')
+          html = `<div class="picks">${Object.entries(SPECIES)
+            .map(
+              ([id, s]) =>
+                `<button class="pick" data-species="${id}">${thumb({ ...d, species: id, gear: 'none' })}<b>${s.label}</b><small>${s.blurb}</small></button>`,
+            )
+            .join('')}</div>`;
+        else if (app.tab === 'color')
+          html = `<div class="picks">${COLORS.map((c) => `<button class="pick" data-color="${c.id}">${thumb({ ...d, color: c.id })}<b>${c.name}</b></button>`).join('')}</div>`;
+        else
+          html = `<div class="picks">${Object.entries(GEAR)
+            .map(
+              ([id, label]) =>
+                `<button class="pick" data-gear="${id}">${thumb({ ...d, gear: id })}<b>${label}</b></button>`,
+            )
+            .join('')}</div>`;
+        $('tabBody').innerHTML = html;
+        for (const attr of ['species', 'color', 'gear', 'mood'])
+          setPressed($('tabBody'), attr, d[attr]);
+        $('tabs')
+          .querySelectorAll('button')
+          .forEach((b) =>
+            b.setAttribute('aria-selected', String(b.dataset.tab === app.tab)),
+          );
+      }
+      $('tabs').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        app.tab = b.dataset.tab;
+        store.set('tab', app.tab);
+        renderTab();
+      });
+      $('tabBody').addEventListener('click', (e) => {
+        const b = e.target.closest('.pick');
+        if (!b) return;
+        const d = dot();
+        for (const attr of ['species', 'color', 'gear', 'mood'])
+          if (b.dataset[attr]) d[attr] = b.dataset[attr];
+        saveTeam();
+        live.asleep = false;
+        live.lastMove = performance.now();
+        if (b.dataset.mood) {
+          setPressed($('tabBody'), 'mood', d.mood);
+          captions();
+          return;
+        }
+        refresh();
+      });
+      $('variants').innerHTML = Object.entries(VARIANTS)
+        .map(([id, v]) => `<button data-variant="${id}">${v.label}</button>`)
+        .join('');
+      $('variants').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        app.variant = b.dataset.variant;
+        store.set('variant', app.variant);
+        setPressed($('variants'), 'variant', app.variant);
+      });
+      $('optFollow').addEventListener(
+        'change',
+        (e) => (app.follow = e.target.checked),
+      );
+      $('optMotion').checked = app.motion;
+      $('optMotion').addEventListener(
+        'change',
+        (e) => (app.motion = e.target.checked),
+      );
+      function applyTheme() {
+        if (app.theme === 'system')
+          document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.dataset.theme = app.theme;
+        setPressed($('theme'), 'theme', app.theme);
+      }
+      $('theme').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        app.theme = b.dataset.theme;
+        store.set('theme', app.theme);
+        applyTheme();
+        refresh();
+      });
+      matchMedia('(prefers-color-scheme: dark)').addEventListener?.(
+        'change',
+        () => refresh(),
+      );
+
+      // ---------- Team and galleries ----------
+      const observer = new IntersectionObserver((entries) => {
+        for (const en of entries) {
+          const b = bots.find((x) => x.el === en.target);
+          if (b) b.visible = en.isIntersecting;
+        }
+      });
+      function addBot(el, get, opt) {
+        const b = new Bot(el, get, opt);
+        bots.push(b);
+        observer.observe(el);
+      }
+      const STATUS = {
+        idle: 'Ready when you are',
+        thinking: 'Comparing three sources…',
+        working: 'Writing the report',
+        waiting: 'Approve the new header?',
+        done: 'Draft is ready',
+        error: 'The build failed',
+        paused: 'Paused until tomorrow',
+      };
+      const agentMood = (m) =>
+        STATES[m.mood].group === 'state' ? m.mood : 'idle';
+      function renderLive() {
+        bots.forEach((b) => observer.unobserve(b.el));
+        bots = [];
+        $('team').innerHTML = team
+          .map(
+            (d, i) =>
+              `<button class="card slot" data-slot="${i}" aria-pressed="${i === app.sel}"><div class="bot"></div><b>${ROLES[i]}</b><span>${SPECIES[d.species].label} · ${STATES[d.mood].label}</span></button>`,
+          )
+          .join('');
+        team.forEach((_, i) =>
+          addBot(
+            $('team').querySelector(`[data-slot="${i}"] .bot`),
+            () => team[i],
+            { offset: i * 370 },
+          ),
+        );
+        const card = (id) =>
+          `<div class="card state" data-mood="${id}" role="button" tabindex="0" aria-label="Show ${STATES[id].label}"><div class="bot"></div><b>${STATES[id].label}</b><span>${STATES[id].desc}</span></div>`;
+        $('stateGrid').innerHTML = STATE_IDS.map(card).join('');
+        $('reactGrid').innerHTML = REACT_IDS.map(card).join('');
+        [...STATE_IDS, ...REACT_IDS].forEach((id, i) =>
+          addBot(
+            document.querySelector(`.state[data-mood="${id}"] .bot`),
+            () => ({ ...dot(), mood: id }),
+            { offset: i * 211 },
+          ),
+        );
+        $('statesNote').textContent =
+          `${ROLES[app.sel]}, the ${SPECIES[dot().species].label}. Click a card to show it on the stage.`;
+        $('sidebar').innerHTML = team
+          .map(
+            (m, i) =>
+              `<div class="row"><div class="bot" data-side="${i}"></div><div class="who"><b>${ROLES[i]}</b><span>${STATUS[agentMood(m)]}</span></div><span class="pill">${STATES[agentMood(m)].label}</span></div>`,
+          )
+          .join('');
+        team.forEach((_, i) =>
+          addBot(
+            document.querySelector(`[data-side="${i}"]`),
+            () => ({ ...team[i], mood: agentMood(team[i]) }),
+            { offset: i * 250 },
+          ),
+        );
+      }
+      $('team').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-slot]');
+        if (!b) return;
+        app.sel = +b.dataset.slot;
+        store.set('sel', app.sel);
+        refresh();
+      });
+      const shuffled = (xs) => [...xs].sort(() => Math.random() - 0.5);
+      $('shuffle').addEventListener('click', () => {
+        const species = shuffled(Object.keys(SPECIES));
+        const gear = shuffled(Object.keys(GEAR).filter((g) => g !== 'none'));
+        const moods = shuffled(STATE_IDS.filter((s) => s !== 'error'));
+        const colors = shuffled(COLORS.map((c) => c.id));
+        team = team.map((d, i) => ({
+          ...d,
+          species: species[i % species.length],
+          gear: gear[i % gear.length],
+          mood: moods[i % moods.length],
+          color: colors[i % colors.length],
+        }));
+        saveTeam();
+        refresh();
+        toast('A new team.');
+      });
+      $('reset').addEventListener('click', () => {
+        team = DEFAULT_TEAM.map((d) => ({ ...d }));
+        saveTeam();
+        refresh();
+      });
+      for (const id of ['stateGrid', 'reactGrid']) {
+        const choose = (c) => {
+          dot().mood = c.dataset.mood;
+          saveTeam();
+          renderTab();
+          captions();
+          scrollTo({ top: 0, behavior: app.motion ? 'smooth' : 'auto' });
+        };
+        $(id).addEventListener('click', (e) => {
+          const c = e.target.closest('[data-mood]');
+          if (c) choose(c);
+        });
+        $(id).addEventListener('keydown', (e) => {
+          const c = e.target.closest('[data-mood]');
+          if (c && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            choose(c);
+          }
+        });
+      }
+      function renderStatic() {
+        const d = dot();
+        const sizes = [16, 20, 24, 32, 48, 64, 96, 128];
+        const row = (dark) =>
+          sizes
+            .map((s) => {
+              const variant = s <= 24 ? 'favicon' : s <= 64 ? 'icon' : 'avatar';
+              return `<figure><img alt="" width="${s}" height="${s}" src="${dataUri(stillSvg(d, 'idle', variant, { rim: dark }))}"/><figcaption>${s}</figcaption></figure>`;
+            })
+            .join('');
+        $('sizesLight').innerHTML = row(false);
+        $('sizesDark').innerHTML = row(true);
+        $('favicon').href = dataUri(stillSvg(d, 'idle', 'favicon'));
+        $('logo').src = dataUri(stillSvg(d, 'idle', 'icon', { rim: isDark() }));
+        $('tree').textContent = packTree();
+      }
+      function refresh() {
+        setPressed($('variants'), 'variant', app.variant);
+        mountStage();
+        renderTab();
+        renderLive();
+        renderStatic();
+      }
+
+      // ---------- Export ----------
+      const slug = () =>
+        `fulldots-${ROLES[app.sel].toLowerCase()}-${dot().species}`;
+      const fileBase = () => `${slug()}-${dot().mood}-${app.variant}`;
+      function download(name, blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }
+      const svgBlob = (svg) => new Blob([svg], { type: 'image/svg+xml' });
+      function loadImage(svg) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Could not draw the SVG.'));
+          img.src = dataUri(svg);
+        });
+      }
+      const BG = { transparent: null, light: '#ffffff', dark: '#15171f' };
+      async function rasterize(svg, size, bg, type = 'image/png') {
+        const img = await loadImage(svg);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (bg) {
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, size, size);
+        }
+        ctx.drawImage(img, 0, 0, size, size);
+        return new Promise((resolve, reject) =>
+          canvas.toBlob(
+            (b) =>
+              b
+                ? resolve(b)
+                : reject(new Error('This browser cannot write ' + type)),
+            type,
+            0.92,
+          ),
+        );
+      }
+      async function guarded(button, fn) {
+        button.disabled = true;
+        try {
+          await fn();
+        } catch (error) {
+          toast(error.message || 'Export failed.', 4000);
+        } finally {
+          button.disabled = false;
+          $('menu').open = false;
+        }
+      }
+      const bgSel = () => BG[$('exBg').value];
+      const still = (opt = {}) =>
+        stillSvg(dot(), dot().mood, app.variant, { size: 512, ...opt });
+      $('exPng').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          const size = +$('exSize').value,
+            bg = bgSel();
+          download(
+            `${fileBase()}-${size}.png`,
+            await rasterize(still({ rim: bg === BG.dark }), size, bg),
+          );
+          toast('Saved the PNG.');
+        }),
+      );
+      $('exWebp').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          const size = +$('exSize').value,
+            bg = bgSel();
+          download(
+            `${fileBase()}-${size}.webp`,
+            await rasterize(
+              still({ rim: bg === BG.dark }),
+              size,
+              bg,
+              'image/webp',
+            ),
+          );
+          toast('Saved the WebP.');
+        }),
+      );
+      $('exSvg').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          download(fileBase() + '.svg', svgBlob(still()));
+          toast('Saved the SVG.');
+        }),
+      );
+      $('exAnim').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          download(
+            fileBase() + '-animated.svg',
+            svgBlob(animatedSvg(dot(), dot().mood, app.variant, { size: 512 })),
+          );
+          toast('Saved the animated SVG.');
+        }),
+      );
+      $('exCopy').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          const svg = still();
+          try {
+            await navigator.clipboard.writeText(svg);
+          } catch {
+            const ta = document.createElement('textarea');
+            ta.value = svg;
+            document.body.append(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          toast('Copied the SVG code.');
+        }),
+      );
+
+      /** Poses for a run of states, blending between them like the live view does. */
+      function timeline(segments, fps) {
+        const poses = [];
+        let prevEnd = null;
+        for (const seg of segments) {
+          const S = STATES[seg.state];
+          const morph = S.morph || 0.45;
+          const n = Math.round(seg.dur * fps);
+          let last = null;
+          for (let i = 0; i < n; i++) {
+            const t = i / fps;
+            let P = poseAt(seg.state, t);
+            if (prevEnd && t < morph)
+              P = lerpPose(prevEnd, P, easeOutQuint(t / morph));
+            poses.push(P);
+            last = P;
+          }
+          prevEnd = last;
+        }
+        return poses;
+      }
+      async function record(segments, name) {
+        if (
+          !('MediaRecorder' in window) ||
+          !HTMLCanvasElement.prototype.captureStream
+        )
+          throw new Error('This browser cannot record video.');
+        const mime = [
+          'video/webm;codecs=vp9',
+          'video/webm;codecs=vp8',
+          'video/webm',
+        ].find((m) => MediaRecorder.isTypeSupported(m));
+        if (!mime) throw new Error('This browser cannot record WebM.');
+        const size = 512,
+          fps = 30;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const bg = bgSel() || (isDark() ? BG.dark : BG.light);
+        const poses = timeline(segments, fps);
+        const d = dot();
+        const svgAt = (P) =>
+          svgOf(d, P, app.variant, { size, rim: bg === BG.dark });
+        const rec = new MediaRecorder(canvas.captureStream(fps), {
+          mimeType: mime,
+          videoBitsPerSecond: 4_000_000,
+        });
+        const chunks = [];
+        rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+        const done = new Promise((r) => (rec.onstop = r));
+        const paint = (img) => {
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, 0, 0, size, size);
+        };
+        paint(await loadImage(svgAt(poses[0])));
+        rec.start();
+        const t0 = performance.now();
+        let next = loadImage(svgAt(poses[0]));
+        for (let i = 0; i < poses.length; i++) {
+          const img = await next;
+          if (i + 1 < poses.length) next = loadImage(svgAt(poses[i + 1]));
+          const wait = t0 + (i * 1000) / fps - performance.now();
+          if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+          paint(img);
+          if (i % 15 === 0)
+            toast(`Recording… ${Math.round((i / poses.length) * 100)}%`, 0);
+        }
+        await new Promise((r) => setTimeout(r, 1000 / fps));
+        rec.stop();
+        await done;
+        download(name, new Blob(chunks, { type: 'video/webm' }));
+        toast('Saved the video.');
+      }
+      $('exClip').addEventListener('click', (e) =>
+        guarded(e.currentTarget, () => {
+          const S = STATES[dot().mood];
+          const dur =
+            (S.warm || 0) + Math.max(1, Math.ceil(2.4 / S.loop)) * S.loop;
+          return record(
+            [{ state: dot().mood, dur: Math.min(6, dur) }],
+            fileBase() + '.webm',
+          );
+        }),
+      );
+      $('exMontage').addEventListener('click', (e) =>
+        guarded(e.currentTarget, () =>
+          record(
+            [
+              'idle',
+              'thinking',
+              'working',
+              'waiting',
+              'idle',
+              'done',
+              'error',
+              'paused',
+              'idle',
+            ].map((s) => ({ state: s, dur: s === 'done' ? 3 : 2 })),
+            `${slug()}-montage.webm`,
+          ),
+        ),
+      );
+
+      // Asset pack: a stored (uncompressed) ZIP built in the page.
+      const CRC = (() => {
+        const t = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+          let c = n;
+          for (let k = 0; k < 8; k++)
+            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+          t[n] = c >>> 0;
+        }
+        return t;
+      })();
+      const crc32 = (bytes) => {
+        let c = 0xffffffff;
+        for (let i = 0; i < bytes.length; i++)
+          c = CRC[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+        return (c ^ 0xffffffff) >>> 0;
+      };
+      function zip(files) {
+        const enc = new TextEncoder();
+        const parts = [],
+          central = [];
+        let offset = 0;
+        const put = (view, fields) =>
+          fields.forEach(([o, v, n]) =>
+            n === 4 ? view.setUint32(o, v, true) : view.setUint16(o, v, true),
+          );
+        for (const file of files) {
+          const name = enc.encode(file.name),
+            data = file.data,
+            crc = crc32(data);
+          const local = new DataView(new ArrayBuffer(30));
+          put(local, [
+            [0, 0x04034b50, 4],
+            [4, 20, 2],
+            [6, 0x0800, 2],
+            [12, 0x21, 2],
+            [14, crc, 4],
+            [18, data.length, 4],
+            [22, data.length, 4],
+            [26, name.length, 2],
+          ]);
+          parts.push(new Uint8Array(local.buffer), name, data);
+          const cd = new DataView(new ArrayBuffer(46));
+          put(cd, [
+            [0, 0x02014b50, 4],
+            [4, 20, 2],
+            [6, 20, 2],
+            [8, 0x0800, 2],
+            [14, 0x21, 2],
+            [16, crc, 4],
+            [20, data.length, 4],
+            [24, data.length, 4],
+            [28, name.length, 2],
+            [42, offset, 4],
+          ]);
+          central.push(new Uint8Array(cd.buffer), name);
+          offset += 30 + name.length + data.length;
+        }
+        const cdSize = central.reduce((n, p) => n + p.length, 0);
+        const end = new DataView(new ArrayBuffer(22));
+        put(end, [
+          [0, 0x06054b50, 4],
+          [8, files.length, 2],
+          [10, files.length, 2],
+          [12, cdSize, 4],
+          [16, offset, 4],
+        ]);
+        return new Blob([...parts, ...central, new Uint8Array(end.buffer)], {
+          type: 'application/zip',
+        });
+      }
+      function packTree() {
+        return `${slug()}/
+├── brand/
+│   ├── fulldots-penguin.png          mascot, 1024
+│   ├── fulldots-penguin.webp         optimised web version
+│   ├── fulldots-penguin.svg          vector mascot
+│   ├── fulldots-penguin-animated.svg
+│   ├── fulldots-icon.svg             small app icon
+│   ├── fulldots-icon-dark.svg        with a rim for dark UIs
+│   ├── fulldots-icon.png             256
+│   ├── favicon.svg
+│   └── apple-touch-icon.png          180
+├── states/                           every state and reaction, still and animated
+├── species/                          all five penguins in this colour
+├── team/                             your six Dots
+└── README.txt`;
+      }
+      $('exPack').addEventListener('click', (e) =>
+        guarded(e.currentTarget, async () => {
+          toast('Building the asset pack…', 0);
+          const enc = new TextEncoder();
+          const d = dot();
+          const root = slug() + '/';
+          const files = [];
+          const addSvg = (name, svg) =>
+            files.push({ name: root + name, data: enc.encode(svg) });
+          const addBlob = async (name, blob) =>
+            files.push({
+              name: root + name,
+              data: new Uint8Array(await blob.arrayBuffer()),
+            });
+          const mascot = stillSvg(d, 'idle', 'mascot', { size: 512 });
+          addSvg('brand/fulldots-penguin.svg', mascot);
+          addSvg(
+            'brand/fulldots-penguin-animated.svg',
+            animatedSvg(d, 'idle', 'mascot', { size: 512 }),
+          );
+          await addBlob(
+            'brand/fulldots-penguin.png',
+            await rasterize(mascot, 1024, null),
+          );
+          await addBlob(
+            'brand/fulldots-penguin.webp',
+            await rasterize(mascot, 1024, null, 'image/webp'),
+          );
+          const icon = stillSvg(d, 'idle', 'icon', { size: 256 });
+          addSvg('brand/fulldots-icon.svg', icon);
+          addSvg(
+            'brand/fulldots-icon-dark.svg',
+            stillSvg(d, 'idle', 'icon', { size: 256, rim: true }),
+          );
+          await addBlob(
+            'brand/fulldots-icon.png',
+            await rasterize(icon, 256, null),
+          );
+          addSvg(
+            'brand/favicon.svg',
+            stillSvg(d, 'idle', 'favicon', { size: 32 }),
+          );
+          await addBlob(
+            'brand/apple-touch-icon.png',
+            await rasterize(
+              stillSvg(d, 'idle', 'icon', { size: 180 }),
+              180,
+              '#ffffff',
+            ),
+          );
+          for (const id of Object.keys(STATES)) {
+            addSvg(
+              `states/${id}.svg`,
+              stillSvg(d, id, 'avatar', { size: 256 }),
+            );
+            addSvg(
+              `states/${id}-animated.svg`,
+              animatedSvg(d, id, 'avatar', { size: 256 }),
+            );
+          }
+          for (const id of Object.keys(SPECIES))
+            addSvg(
+              `species/${id}.svg`,
+              stillSvg({ ...d, species: id, gear: 'none' }, 'idle', 'avatar', {
+                size: 256,
+              }),
+            );
+          team.forEach((m, i) => {
+            addSvg(
+              `team/${ROLES[i].toLowerCase()}.svg`,
+              stillSvg(m, 'idle', 'avatar', { size: 256 }),
+            );
+            addSvg(
+              `team/${ROLES[i].toLowerCase()}-${m.mood}-animated.svg`,
+              animatedSvg(m, m.mood, 'avatar', { size: 256 }),
+            );
+          });
+          addSvg(
+            'README.txt',
+            `FullDots penguins: ${ROLES[app.sel]} Dot, ${SPECIES[d.species].label}, ${colorById(d.color).name}, ${GEAR[d.gear]}.\n\n` +
+              `brand/    Mascot, app icon and favicon. Use SVG inside the app, PNG/WebP for marketing.\n` +
+              `states/   One avatar per state and reaction. *-animated.svg play one loop with SMIL and work as <img src>.\n` +
+              `species/  All five penguins in this colour.\n` +
+              `team/     The six Dots of your team.\n\n` +
+              `States: ${STATE_IDS.join(', ')}.\nReactions: ${REACT_IDS.join(', ')}.\n`,
+          );
+          download(root.slice(0, -1) + '.zip', zip(files));
+          toast(`Saved the asset pack (${files.length} files).`);
+        }),
+      );
+      document.addEventListener('click', (e) => {
+        if ($('menu').open && !$('menu').contains(e.target))
+          $('menu').open = false;
+      });
+
+      // ---------- Start ----------
+      applyTheme();
+      refresh();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>

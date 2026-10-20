@@ -14,7 +14,7 @@ import {
 import type { LiveEventType } from '../../shared/live-events';
 import type { MissionDot, MissionResponse } from '../../shared/inbox';
 import type { TurnSource } from '../../shared/types';
-import { Mascot, dotColor } from '../Mascot';
+import { Mascot, dotColor, dotLook } from '../Mascot';
 import { api } from '../api';
 import { useLiveRefresh } from '../live-refresh';
 import './mission.css';
@@ -162,8 +162,9 @@ function DotCard({ dot, ...props }: { dot: MissionDot } & MissionViewProps) {
     >
       <div className="mission-face">
         <Mascot
+          hero
           identity={dot.id}
-          color={dot.color}
+          {...dotLook(dot)}
           name={dot.name}
           state={dot.state}
         />

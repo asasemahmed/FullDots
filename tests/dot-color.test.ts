@@ -46,7 +46,7 @@ const send = (method: string, body: unknown) => ({
 });
 
 describe('Dot colours', () => {
-  it('offers the eight palettes', () => {
+  it('offers the nine palettes', () => {
     expect(DOT_COLORS).toEqual([
       'indigo',
       'mint',
@@ -56,6 +56,7 @@ describe('Dot colours', () => {
       'sky',
       'rose',
       'moss',
+      'ink',
     ]);
   });
 
@@ -73,7 +74,7 @@ describe('Dot colours', () => {
       null,
       'sensitive',
       null,
-      'coral',
+      { color: 'coral' },
     );
     expect(chosen.color).toBe('coral');
     expect(workspace.dot(chosen.id)?.color).toBe('coral');

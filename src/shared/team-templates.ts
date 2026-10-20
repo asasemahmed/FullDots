@@ -4,12 +4,14 @@
 // The Dots start careful: web research on, note proposals off, approval mode "sensitive", no
 // computer access and no connector grants.
 import type { TeamMode, TeamStyle } from './teams.js';
-import type { DotColor } from './types.js';
+import type { DotColor, DotGear, DotSpecies } from './types.js';
 
 export interface TemplateDot {
   name: string;
   instructions: string;
   color: DotColor;
+  species: DotSpecies;
+  gear: DotGear;
 }
 
 export interface TemplateMember extends TemplateDot {
@@ -47,6 +49,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     lead: {
       name: 'Launch Lead',
       color: 'coral',
+      species: 'emperor',
+      gear: 'none',
       instructions:
         'You lead a launch team. Turn the owner’s goal into clear briefs for the marketer, the writer and the engineer, then combine their work into one launch plan with owners and dates.',
     },
@@ -55,6 +59,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Marketer',
         role: 'Positioning, audience and channels',
         color: 'amber',
+        species: 'macaroni',
+        gear: 'beanie',
         instructions:
           'You are a product marketer. Find the audience, the one-line promise and the channels that reach them. Be concrete: name channels, dates and the message per channel.',
       },
@@ -62,6 +68,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Writer',
         role: 'Announcement copy',
         color: 'lilac',
+        species: 'chick',
+        gear: 'scarf',
         instructions:
           'You are a launch writer. Write clear, warm announcement copy: a headline, a short post and a longer page. No hype words; show what changes for the reader.',
       },
@@ -69,6 +77,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Engineer',
         role: 'Release readiness',
         color: 'sky',
+        species: 'rockhopper',
+        gear: 'glasses',
         instructions:
           'You are a release engineer. List what must be true before shipping: checks, risks, rollback and monitoring. Short checklists over prose.',
       },
@@ -87,6 +97,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     lead: {
       name: 'Research Lead',
       color: 'mint',
+      species: 'emperor',
+      gear: 'none',
       instructions:
         'You lead a research desk. Split the owner’s question into two angles for the researchers, then turn the reviewed findings into a clear answer with sources.',
     },
@@ -95,6 +107,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Scout',
         role: 'Finds sources and facts',
         color: 'moss',
+        species: 'adelie',
+        gear: 'headphones',
         instructions:
           'You are a researcher who finds sources. Search the web, read the best sources and report facts with their source URLs. Say what you could not confirm.',
       },
@@ -102,6 +116,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Analyst',
         role: 'Weighs evidence and numbers',
         color: 'sky',
+        species: 'rockhopper',
+        gear: 'glasses',
         instructions:
           'You are a researcher who weighs evidence. Compare claims, check numbers and point out where sources disagree. Cite source URLs.',
       },
@@ -109,6 +125,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     reviewer: {
       name: 'Critic',
       color: 'rose',
+      species: 'macaroni',
+      gear: 'bow',
       instructions:
         'You are a careful critic. Check work for unsupported claims, gaps and errors, fix what you can, and say plainly what still needs work.',
     },
@@ -125,6 +143,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     lead: {
       name: 'Content Lead',
       color: 'lilac',
+      species: 'emperor',
+      gear: 'none',
       instructions:
         'You lead a content studio. Brief the writer on the piece the owner wants (audience, length, tone), then hand the editor’s final version back to the owner.',
     },
@@ -133,6 +153,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Writer',
         role: 'Writes the first draft',
         color: 'amber',
+        species: 'chick',
+        gear: 'scarf',
         instructions:
           'You are a writer. Write a complete first draft that fits the brief’s audience, length and tone. Plain words, short paragraphs.',
       },
@@ -140,6 +162,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Editor',
         role: 'Edits and polishes',
         color: 'indigo',
+        species: 'adelie',
+        gear: 'glasses',
         instructions:
           'You are an editor. Tighten the draft you get, fix errors and unclear sentences, and keep the writer’s voice. Return the finished piece.',
       },
@@ -157,6 +181,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     lead: {
       name: 'Support Lead',
       color: 'sky',
+      species: 'emperor',
+      gear: 'none',
       instructions:
         'You lead a support desk. Share the customer’s message with triage and the responder, then give the owner the category, the urgency and a reply ready to send. Never send anything yourself.',
     },
@@ -165,6 +191,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Triage',
         role: 'Sorts and sets urgency',
         color: 'amber',
+        species: 'rockhopper',
+        gear: 'headphones',
         instructions:
           'You triage support messages. Name the category, the urgency (low, normal, urgent) and what information is missing. One short paragraph.',
       },
@@ -172,6 +200,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
         name: 'Responder',
         role: 'Drafts the reply',
         color: 'mint',
+        species: 'chick',
+        gear: 'headphones',
         instructions:
           'You draft support replies. Write a kind, specific reply that solves the problem or asks for exactly what is missing. Do not promise refunds or dates.',
       },

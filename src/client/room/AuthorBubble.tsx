@@ -2,7 +2,7 @@
 // owner message shows which Dot it was addressed to.
 import type { CSSProperties, ReactNode } from 'react';
 import type { Dot } from '../../shared/types';
-import { Mascot, dotPalette } from '../Mascot';
+import { Mascot, dotPalette, dotLook } from '../Mascot';
 import './room.css';
 
 type Author = Pick<Dot, 'id' | 'name' | 'color'>;
@@ -29,7 +29,7 @@ export function AuthoredBubble({
       <div className="fd-authored-head">
         <Mascot
           identity={author.id}
-          color={author.color}
+          {...dotLook(author)}
           name={author.name}
           small
           decorative
@@ -57,7 +57,7 @@ export function AddressedLine({
     >
       <Mascot
         identity={to.id}
-        color={to.color}
+        {...dotLook(to)}
         name={to.name}
         small
         decorative

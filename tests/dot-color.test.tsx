@@ -64,25 +64,28 @@ describe('Dot colour', () => {
 
 describe('DotCharacter hand-off states', () => {
   it.each(['handing-off', 'receiving', 'reviewing', 'stopped'])(
-    'renders the %s state',
+    'renders the %s state as the penguin',
     (state) => {
       const html = renderToStaticMarkup(
         <DotCharacter state={state} label="Scout" />,
       );
       expect(html).toContain(`class="dot-figure ${state} `);
+      expect(html).toContain(`data-pose="${state}"`);
       expect(html).toContain('role="img"');
-      expect(html).toContain('dot-mouth-flat');
+      // The body and the belly of the penguin.
+      expect(html).toContain('<circle cx="64" cy="68" r="46"');
+      expect(html).toContain('<path d="M64 46C57 37');
     },
   );
 });
 
 describe('DotColorPicker', () => {
-  it('is a radiogroup of nine options including Automatic', () => {
+  it('is a radiogroup of ten options including Automatic', () => {
     const html = renderToStaticMarkup(
       <DotColorPicker value="sky" onChange={() => {}} identity="dot-1" />,
     );
     expect(html).toContain('role="radiogroup"');
-    expect(html.match(/role="radio"/g)).toHaveLength(9);
+    expect(html.match(/role="radio"/g)).toHaveLength(10);
     expect(html).toContain('aria-label="Automatic"');
     for (const color of DOT_COLORS)
       expect(html).toContain(

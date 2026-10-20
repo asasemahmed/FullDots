@@ -2,7 +2,14 @@
 // `ask_owner` call; results are written once when a background turn finishes; memory items are a
 // Dot's proposal for its note (`remember_preference`), kept or dropped by the owner. Approvals and
 // handoffs keep their own tables and are listed beside them.
-import type { Approval, DotColor, Handoff, TurnSource } from './types.js';
+import type {
+  Approval,
+  DotColor,
+  DotGear,
+  DotSpecies,
+  Handoff,
+  TurnSource,
+} from './types.js';
 
 export type InboxKind = 'question' | 'result' | 'memory';
 
@@ -65,6 +72,8 @@ export interface MissionDot {
   id: string;
   name: string;
   color?: DotColor;
+  species?: DotSpecies;
+  gear?: DotGear;
   /** Paused on its own (the top bar's "pause all" shows in `state` and `allPaused`). */
   paused: boolean;
   state: MissionState;

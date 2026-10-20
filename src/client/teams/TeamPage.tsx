@@ -21,7 +21,7 @@ import {
 } from '../../shared/teams';
 import type { Dot } from '../../shared/types';
 import { api } from '../api';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { useLiveRefresh } from '../live-refresh';
 import { StyleDiagram } from './StyleDiagram';
 import { TeamOrbit } from './TeamCharacters';
@@ -114,7 +114,7 @@ export function TeamPage({
 
   const name = (id: string) =>
     dots.find((dot) => dot.id === id)?.name ?? 'A removed Dot';
-  const color = (id: string) => dots.find((dot) => dot.id === id)?.color;
+  const look = (id: string) => dotLook(dots.find((dot) => dot.id === id));
   const memberIds = team.members.map((member) => member.dotId);
   const busy = [team.leadDotId, ...memberIds].some((id) => working?.has(id));
   const createSpace = async () => {
@@ -252,7 +252,7 @@ export function TeamPage({
               <span className="tp-face">
                 <Mascot
                   identity={team.leadDotId}
-                  color={color(team.leadDotId)}
+                  {...look(team.leadDotId)}
                   name={name(team.leadDotId)}
                   small
                   decorative
@@ -271,7 +271,7 @@ export function TeamPage({
                 <span className="tp-face">
                   <Mascot
                     identity={member.dotId}
-                    color={color(member.dotId)}
+                    {...look(member.dotId)}
                     name={name(member.dotId)}
                     small
                     decorative

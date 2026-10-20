@@ -645,6 +645,7 @@ describe('sidebar entry point', () => {
         onDeleteThreads={async () => true}
         onExportThread={async () => {}}
         onOpenPage={() => {}}
+        onOpenFile={() => {}}
         onView={() => {}}
         onDialog={() => {}}
         onOpenPalette={onOpenPalette}

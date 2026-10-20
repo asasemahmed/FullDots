@@ -183,8 +183,28 @@ export const DOT_COLORS = [
   'sky',
   'rose',
   'moss',
+  'ink',
 ] as const;
 export type DotColor = (typeof DOT_COLORS)[number];
+/** The penguin a Dot is drawn as. A Dot without one gets a species derived from its id. */
+export const DOT_SPECIES = [
+  'emperor',
+  'adelie',
+  'rockhopper',
+  'macaroni',
+  'chick',
+] as const;
+export type DotSpecies = (typeof DOT_SPECIES)[number];
+/** What a Dot's penguin wears; unset means nothing. */
+export const DOT_GEAR = [
+  'none',
+  'headphones',
+  'glasses',
+  'beanie',
+  'scarf',
+  'bow',
+] as const;
+export type DotGear = (typeof DOT_GEAR)[number];
 export interface Dot {
   id: string;
   /** Default destination for saved pages, not ownership. */
@@ -205,6 +225,10 @@ export interface Dot {
   approvalMode?: ApprovalMode | null;
   /** Chosen palette; unset means the palette derived from the id. */
   color?: DotColor;
+  /** Chosen penguin; unset means the species derived from the id. */
+  species?: DotSpecies;
+  /** Chosen accessory; unset means none. */
+  gear?: DotGear;
   /** Off by default: when on, the Dot may propose a line for its note, which waits in the inbox. */
   notesProposals?: boolean;
 }

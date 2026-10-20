@@ -1,7 +1,7 @@
 // The owner's one confirm before a Dot joins a chat: mentions never add a Dot by themselves.
 import { useEffect, useRef } from 'react';
 import type { Dot } from '../../shared/types';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import './room.css';
 
 export function AddDotDialog({
@@ -44,7 +44,7 @@ export function AddDotDialog({
       >
         <Mascot
           identity={dot.id}
-          color={dot.color}
+          {...dotLook(dot)}
           name={dot.name}
           state="receiving"
           decorative

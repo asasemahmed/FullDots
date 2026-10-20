@@ -4,7 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { LaneProgress } from '../../shared/lanes';
-import { Mascot, dotPalette } from '../Mascot';
+import { Mascot, dotPalette, dotLook } from '../Mascot';
 import { deliveredWith } from './lane-model';
 import { useLanesContext, type LanesValue } from './lanes-context';
 import { runResultLanes } from './team-run-model';
@@ -87,7 +87,7 @@ function ResultCard({
       <header className="fd-result-head">
         <Mascot
           identity={lane.childDotId}
-          color={member?.color}
+          {...dotLook(member)}
           name={name}
           small
           decorative
@@ -169,7 +169,7 @@ export function BuiltFrom({ refId }: { refId: string }) {
           >
             <Mascot
               identity={lane.childDotId}
-              color={member?.color}
+              {...dotLook(member)}
               name={name}
               small
               decorative

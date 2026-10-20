@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { Dot } from '../../shared/types';
-import { Mascot, dotPalette } from '../Mascot';
+import { Mascot, dotPalette, dotLook } from '../Mascot';
 import { roleLine } from './mentions';
 import './room.css';
 
@@ -62,7 +62,7 @@ export function ParticipantStrip({
               >
                 <Mascot
                   identity={dot.id}
-                  color={dot.color}
+                  {...dotLook(dot)}
                   name={dot.name}
                   small
                   state={runningDotId === dot.id ? 'working' : 'idle'}
@@ -125,7 +125,7 @@ export function ParticipantStrip({
             >
               <Mascot
                 identity={dot.id}
-                color={dot.color}
+                {...dotLook(dot)}
                 name={dot.name}
                 small
                 decorative

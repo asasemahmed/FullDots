@@ -161,7 +161,7 @@ A lead's `start_team_run` call draws its run's work band in the chat, with the s
 | Content studio | Content Lead; Writer, Editor                  | Step by step    |
 | Support desk   | Support Lead; Triage, Responder               | All at once     |
 
-Choosing one shows what it creates, a team name and **Create a team space** (on by default); **Create** calls `POST /api/teams/from-template { templateId, name?, space? }`. It creates each Dot with its name, instructions and colour, web research on, note proposals off, approval mode **sensitive**, no computer access and **no connector grants**; then the team with its roles, style, mode (Lead plans) and reviewer; and, when asked, its Space. A taken name gets " 2", " 3", … (Dots, the team and the Space alike), so a template can be used again. Everything it creates is an ordinary Dot, team and Space: edit or archive them like any other. The templates live in `src/shared/team-templates.ts`.
+Choosing one shows what it creates, a team name and **Create a team space** (on by default); **Create** calls `POST /api/teams/from-template { templateId, name?, space? }`. It creates each Dot with its name, instructions, colour, penguin and gear, web research on, note proposals off, approval mode **sensitive**, no computer access and **no connector grants**; then the team with its roles, style, mode (Lead plans) and reviewer; and, when asked, its Space. A taken name gets " 2", " 3", … (Dots, the team and the Space alike), so a template can be used again. Everything it creates is an ordinary Dot, team and Space: edit or archive them like any other. The templates live in `src/shared/team-templates.ts`.
 
 ### Team space
 

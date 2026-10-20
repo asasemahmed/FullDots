@@ -7,7 +7,7 @@ import type {
   ComposerTrigger,
   ComposerTriggerContext,
 } from '../composer/Composer';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import {
   filterMentionDots,
   mentionKey,
@@ -66,7 +66,7 @@ export function MentionList({
           >
             <Mascot
               identity={dot.id}
-              color={dot.color}
+              {...dotLook(dot)}
               name={dot.name}
               small
               decorative

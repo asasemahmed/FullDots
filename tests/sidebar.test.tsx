@@ -221,6 +221,7 @@ const sidebar = (
       onDeleteThreads={noop}
       onExportThread={async () => {}}
       onOpenPage={() => {}}
+      onOpenFile={() => {}}
       onView={() => {}}
       onDialog={() => {}}
     />,

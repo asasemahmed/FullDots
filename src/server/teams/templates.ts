@@ -35,7 +35,7 @@ export function createFromTemplate(
         null,
         'sensitive',
         null,
-        spec.color,
+        { color: spec.color, species: spec.species, gear: spec.gear },
       ),
     );
   }

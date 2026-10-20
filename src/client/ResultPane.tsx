@@ -1,17 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowDownToLine,
   ArrowUpRight,
   BookOpen,
   ExternalLink,
+  FileText,
   Monitor,
   X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Dot, Result, Status } from '../shared/types';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
 import { ComputerPanel } from './ComputerPanel';
+import { FilePane } from './FilePane';
+import { PagePane } from './PagePane';
+import type { PaneItem } from './chat-turns';
 export function ResultPane({
   latest,
   status,
@@ -20,17 +24,26 @@ export function ResultPane({
   dots,
   defaultDotId,
   threadId,
+  item,
 }: {
   dots: Dot[];
   defaultDotId: string;
   /** The open conversation, for the computer's Replay tab. */
   threadId?: string;
+  /** A file or page the owner opened from the chat; it gets its own tab and is shown first. */
+  item?: PaneItem;
   latest?: Result | null;
   status?: Status;
   dotState: string;
   onClose: () => void;
 }) {
-  const [resultTab, setResultTab] = useState<'Brief' | 'Computer'>('Computer');
+  const [resultTab, setResultTab] = useState<'Brief' | 'Computer' | 'Item'>(
+    item ? 'Item' : 'Computer',
+  );
+  // Opening another file or page from the chat brings its tab forward.
+  useEffect(() => {
+    if (item) setResultTab('Item');
+  }, [item?.type, item?.spaceId, item?.id]);
   const [computerDotId, setComputerDotId] = useState(defaultDotId);
   const computerDot =
     dots.find((dot) => dot.id === computerDotId) ??
@@ -47,6 +60,14 @@ export function ResultPane({
             <BookOpen size={15} />
             Brief
           </button>
+          {item && (
+            <button
+              className={resultTab === 'Item' ? 'selected' : ''}
+              onClick={() => setResultTab('Item')}
+            >
+              <FileText size={15} /> {item.type === 'page' ? 'Page' : 'File'}
+            </button>
+          )}
           <button
             className={resultTab === 'Computer' ? 'selected' : ''}
             onClick={() => setResultTab('Computer')}
@@ -62,7 +83,13 @@ export function ResultPane({
           <X size={16} />
         </button>
       </div>
-      {resultTab === 'Computer' ? (
+      {resultTab === 'Item' && item ? (
+        item.type === 'page' ? (
+          <PagePane spaceId={item.spaceId} pageId={item.id} />
+        ) : (
+          <FilePane spaceId={item.spaceId} fileId={item.id} />
+        )
+      ) : resultTab === 'Computer' ? (
         <>
           {computerDot ? (
             <ComputerPanel
@@ -173,8 +200,9 @@ export function ResultPane({
       ) : (
         <div className="pane-empty">
           <Mascot
+            hero
             identity={defaultDotId}
-            color={dots.find((dot) => dot.id === defaultDotId)?.color}
+            {...dotLook(dots.find((dot) => dot.id === defaultDotId))}
             name={dots.find((dot) => dot.id === defaultDotId)?.name}
             state={dotState}
           />

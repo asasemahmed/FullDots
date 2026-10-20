@@ -25,7 +25,7 @@ import { inboxRoutes } from './inbox-routes.js';
 import { dotNotesRoutes } from './dot-notes-routes.js';
 import { exportRoutes } from './export-routes.js';
 import { missionRoutes } from './mission.js';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
@@ -63,16 +63,32 @@ export function createApp({
       '/api',
       hookRoutes({ triggers: platform.triggers, ownerToken, origin }),
     );
-  app.use(
-    '/api/*',
-    bodyLimit({
-      // Leave room for the largest computer file write (UTF-8, JSON-encoded).
-      maxSize: Math.max(
-        1_000_000,
-        (platform?.config.limits?.fileChars ?? 0) * 4 + 64_000,
+  const tooLarge = (c: Context) =>
+    c.json({ error: 'Request is too large.' }, 413);
+  const generalLimit = bodyLimit({
+    // Leave room for the largest computer file write (UTF-8, JSON-encoded).
+    maxSize: Math.max(
+      1_000_000,
+      (platform?.config.limits?.fileChars ?? 0) * 4 + 64_000,
+    ),
+    onError: tooLarge,
+  });
+  // A file kept in a Space arrives as base64 JSON, a third larger than the file itself.
+  const fileBytes = platform?.config.limits?.spaceFileBytes ?? 10_485_760;
+  const uploadLimit = bodyLimit({
+    maxSize: Math.ceil((fileBytes * 4) / 3) + 64_000,
+    onError: (c) =>
+      c.json(
+        {
+          error: `Files can be at most ${Math.floor(fileBytes / 1024 / 1024)} MB. Raise SPACE_FILE_MAX_MB to allow more.`,
+        },
+        413,
       ),
-      onError: (c) => c.json({ error: 'Request is too large.' }, 413),
-    }),
+  });
+  const isUpload = (c: Context) =>
+    c.req.method === 'POST' && /^\/api\/spaces\/[^/]+\/files$/.test(c.req.path);
+  app.use('/api/*', (c, next) =>
+    isUpload(c) ? uploadLimit(c, next) : generalLimit(c, next),
   );
   app.use('/api/*', async (c, next) => {
     c.header('Cache-Control', 'no-store');

@@ -21,11 +21,17 @@ export function pageAccess(
   };
   const linked = <T extends { id: string; spaceId: string }>(page: T) => ({
     ...page,
+    // The Space's name is for the card the owner sees in the chat.
+    space: workspace.spaces().find((space) => space.id === page.spaceId)?.name,
     url: `/#/spaces/${page.spaceId}/pages/${page.id}`,
   });
   return {
     /** Where pages go when no Space is named and no page is open. */
     destination,
+    /** The Space a request names (or the default) after checking this Dot may use it. */
+    space: resolve,
+    spaceName: (id: string) =>
+      workspace.spaces().find((space) => space.id === id)?.name ?? '',
     context: () => workspace.pages.forThread(threadId, resolve()),
     spaces: () => {
       check();
