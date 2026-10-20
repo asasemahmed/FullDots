@@ -10,7 +10,12 @@ import {
   deriveTitle,
   hasDefaultTitle,
 } from '../shared/conversation-title.js';
-import { DOT_COLORS, type ConversationSummary } from '../shared/types.js';
+import {
+  DOT_COLORS,
+  DOT_GEAR,
+  DOT_SPECIES,
+  type ConversationSummary,
+} from '../shared/types.js';
 const dotSchema = z
   .object({
     name: z.string().trim().min(1).max(40),
@@ -39,6 +44,9 @@ const dotSchema = z
     approvalMode: z.enum(['sensitive', 'writes', 'off']).optional(),
     // null clears the colour: the palette then follows the Dot's id again.
     color: z.enum(DOT_COLORS).nullable().optional(),
+    // null clears the penguin, which then follows the Dot's id again; 'none' or null removes the gear.
+    species: z.enum(DOT_SPECIES).nullable().optional(),
+    gear: z.enum(DOT_GEAR).nullable().optional(),
     // Lets the Dot propose lines for its note; they wait in the inbox. Off until the owner says so.
     notesProposals: z.boolean().optional(),
   })
@@ -250,7 +258,11 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
         data.data.model ?? null,
         data.data.approvalMode ?? 'sensitive',
         data.data.modelProviderId ?? null,
-        data.data.color ?? null,
+        {
+          color: data.data.color ?? null,
+          species: data.data.species ?? null,
+          gear: data.data.gear ?? null,
+        },
       ),
       201,
     );

@@ -7,7 +7,7 @@ import { Fragment, useState, type ReactNode } from 'react';
 import type { ToolCall } from '@ag-ui/core';
 import { ArrowDown, ShieldCheck, Undo2 } from 'lucide-react';
 import type { TeamRunBand as RunBandData } from '../../shared/teams';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { laneView } from './lane-model';
 import { useLanesContext, type LanesValue } from './lanes-context';
 import {
@@ -205,7 +205,7 @@ function RunBand({ run, lanes }: { run: RunBandData; lanes: LanesValue }) {
         <span className="fd-band-sender">
           <Mascot
             identity={lead.id}
-            color={lead.color}
+            {...dotLook(lead)}
             name={lead.name}
             small
             decorative
@@ -337,7 +337,7 @@ function WaitingStep({
         <span className="fd-lane-avatar">
           <Mascot
             identity={entry.step.dotId}
-            color={dot?.color}
+            {...dotLook(dot)}
             name={name}
             small
             decorative

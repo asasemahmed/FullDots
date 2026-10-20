@@ -27,18 +27,38 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   DOT_COLORS,
+  DOT_GEAR,
+  DOT_SPECIES,
   type ApprovalMode,
   type CallReceipt,
   type Conversation,
   type Dot,
   type DotColor,
+  type DotGear,
+  type DotSpecies,
   type Space,
 } from '../shared/types.js';
 /** A call still marked active after this long is treated as abandoned. */
 const LIVE_CALL_MS = 60 * 60 * 1000;
-/** NULL (every Dot from before colours) or an unknown value leaves the palette to the Dot's id. */
-function knownColor<T extends { color?: unknown }>({ color, ...row }: T) {
-  return DOT_COLORS.includes(color as DotColor) ? { ...row, color } : row;
+/**
+ * NULL (every Dot from before colours, species or gear) or an unknown value drops the field, so the
+ * palette and the penguin follow the Dot's id and the penguin wears nothing.
+ */
+function knownLook<
+  T extends { color?: unknown; species?: unknown; gear?: unknown },
+>({ color, species, gear, ...row }: T) {
+  return {
+    ...row,
+    ...(DOT_COLORS.includes(color as DotColor) ? { color } : {}),
+    ...(DOT_SPECIES.includes(species as DotSpecies) ? { species } : {}),
+    ...(DOT_GEAR.includes(gear as DotGear) && gear !== 'none' ? { gear } : {}),
+  };
+}
+/** How a Dot is drawn; every field is optional and null clears it. */
+export interface DotLook {
+  color?: DotColor | null;
+  species?: DotSpecies | null;
+  gear?: DotGear | null;
 }
 export class WorkspaceStore {
   private db: DatabaseSync;
@@ -95,6 +115,8 @@ export class WorkspaceStore {
       ['dots', 'paused', 'INTEGER NOT NULL DEFAULT 0'],
       ['dots', 'modelProviderId', 'TEXT'],
       ['dots', 'color', 'TEXT'],
+      ['dots', 'species', 'TEXT'],
+      ['dots', 'gear', 'TEXT'],
       // A branch remembers the conversation and message it was copied from.
       ['thread_bindings', 'branchedFromThreadId', 'TEXT'],
       ['thread_bindings', 'branchedFromMessageId', 'TEXT'],
@@ -201,7 +223,7 @@ export class WorkspaceStore {
         // Columns from the removed Automatic Learning feature stay in the table but are not read.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .map(({ learningContainerId, skillDeliveryEnabled, ...row }) => ({
-          ...knownColor(row),
+          ...knownLook(row),
           spaceIds: this.db
             .prepare(
               'SELECT spaceId FROM dot_spaces WHERE dotId=? ORDER BY spaceId',
@@ -230,8 +252,11 @@ export class WorkspaceStore {
     model: string | null = null,
     approvalMode: ApprovalMode = 'sensitive',
     modelProviderId: string | null = null,
-    color: DotColor | null = null,
+    look: DotLook = {},
   ): Dot {
+    const color = look.color ?? null;
+    const species = look.species ?? null;
+    const gear = look.gear && look.gear !== 'none' ? look.gear : null;
     this.validateSpaceAccess(spaceId, spaceIds);
     const dot: Dot = {
       id: randomUUID(),
@@ -247,13 +272,15 @@ export class WorkspaceStore {
       paused: false,
       notesProposals: false,
       ...(color ? { color } : {}),
+      ...(species ? { species } : {}),
+      ...(gear ? { gear } : {}),
       createdAt: Date.now(),
     };
     this.db.exec('BEGIN');
     try {
       this.db
         .prepare(
-          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, model, approvalMode, modelProviderId, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO dots (id, spaceId, name, instructions, researchAllowed, memoryAllowed, createdAt, model, approvalMode, modelProviderId, color, species, gear) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(
           dot.id,
@@ -267,6 +294,8 @@ export class WorkspaceStore {
           approvalMode,
           modelProviderId,
           color,
+          species,
+          gear,
         );
       for (const id of dot.spaceIds)
         this.db.prepare('INSERT INTO dot_spaces VALUES (?, ?)').run(dot.id, id);
@@ -302,6 +331,10 @@ export class WorkspaceStore {
       approvalMode?: ApprovalMode | null;
       /** Undefined keeps the current colour; null clears it. */
       color?: DotColor | null;
+      /** Undefined keeps the current species; null clears it. */
+      species?: DotSpecies | null;
+      /** Undefined keeps the current gear; null or 'none' clears it. */
+      gear?: DotGear | null;
       /** Undefined keeps the current choice. */
       notesProposals?: boolean;
     },
@@ -321,13 +354,18 @@ export class WorkspaceStore {
       patch.approvalMode ?? current.approvalMode ?? 'sensitive';
     const color =
       patch.color === undefined ? (current.color ?? null) : patch.color;
+    const species =
+      patch.species === undefined ? (current.species ?? null) : patch.species;
+    const gearChoice =
+      patch.gear === undefined ? (current.gear ?? null) : patch.gear;
+    const gear = gearChoice === 'none' ? null : gearChoice;
     const notesProposals =
       patch.notesProposals ?? current.notesProposals ?? false;
     this.db.exec('BEGIN');
     try {
       this.db
         .prepare(
-          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, model=?, approvalMode=?, modelProviderId=?, color=?, notesProposals=? WHERE id=?',
+          'UPDATE dots SET name=?, instructions=?, researchAllowed=?, memoryAllowed=?, model=?, approvalMode=?, modelProviderId=?, color=?, species=?, gear=?, notesProposals=? WHERE id=?',
         )
         .run(
           patch.name,
@@ -338,6 +376,8 @@ export class WorkspaceStore {
           approvalMode,
           modelProviderId,
           color,
+          species,
+          gear,
           +notesProposals,
           id,
         );

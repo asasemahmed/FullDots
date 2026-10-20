@@ -145,7 +145,7 @@ export function TaskRow({
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="large-empty">
-      <Mascot />
+      <Mascot hero />
       <h2>{title}</h2>
       <p>{text}</p>
     </div>

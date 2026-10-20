@@ -91,7 +91,7 @@ describe('Dot dialog', () => {
     const html = render({ type: 'dot', dot, spaceId: 's1' });
     expect(html).toContain('Scout is idle');
     expect(html).toContain('value="Scout"');
-    expect(html).toContain('Each Dot keeps its own colour.');
+    expect(html).toContain('Each Dot keeps its own penguin and colour.');
     expect(html).toContain('28 / 2000');
     expect(html).toContain('maxLength="2000"');
     expect(render({ type: 'dot', spaceId: 's1' })).toContain('New Dot is idle');
@@ -171,7 +171,11 @@ describe('Dot dialog colour', () => {
   it('offers the colour picker and preselects the Dot colour', () => {
     const fresh = render({ type: 'dot', spaceId: 's1' });
     expect(fresh).toContain('aria-label="Dot colour"');
-    expect(fresh.match(/role="radio"/g)).toHaveLength(9);
+    const colours = fresh.slice(
+      fresh.indexOf('aria-label="Dot colour"'),
+      fresh.indexOf('class="dot-look-picker"'),
+    );
+    expect(colours.match(/role="radio"/g)).toHaveLength(10);
     expect(fresh).toMatch(/aria-checked="true"[^>]*aria-label="Automatic"/);
     const edit = render({
       type: 'dot',

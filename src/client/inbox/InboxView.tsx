@@ -31,7 +31,7 @@ import type {
 } from '../../shared/inbox';
 import { ApprovalCard, type DecideApproval } from '../ApprovalCard';
 import { relativeTime } from '../ApprovalsView';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { api } from '../api';
 import { takeOverHere } from '../computer-panel/take-over';
 import { notificationPermission, type NotifyPermission } from './notifications';
@@ -105,7 +105,7 @@ function Who({
         <Mascot
           small
           identity={dot?.id}
-          color={dot?.color}
+          {...dotLook(dot)}
           name={dot?.name}
           state={state}
           decorative

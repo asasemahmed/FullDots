@@ -24,7 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Dot, WorkspaceState } from '../../shared/types';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { SpaceNav } from '../SpaceNav';
 import { ThreadList } from '../ThreadList';
 import type { Dialog } from '../WorkspaceDialog';
@@ -279,7 +279,7 @@ export function Sidebar({
             <span className="sb-new-avatar">
               <Mascot
                 identity={dot.id}
-                color={dot.color}
+                {...dotLook(dot)}
                 name={dot.name}
                 small
                 decorative
@@ -379,7 +379,7 @@ export function Sidebar({
                     <span className="sb-avatar">
                       <Mascot
                         identity={item.id}
-                        color={item.color}
+                        {...dotLook(item)}
                         name={item.name}
                         small
                         decorative

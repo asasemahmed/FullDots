@@ -12,7 +12,7 @@ import {
 import { History, LoaderCircle, NotebookPen, RotateCcw, X } from 'lucide-react';
 import { api } from './api';
 import { relativeTime } from './ApprovalsView';
-import { dotColor, Mascot } from './Mascot';
+import { dotColor, Mascot, dotLook } from './Mascot';
 import {
   NOTE_MAX,
   type DotNote,
@@ -83,7 +83,7 @@ export function DotNotesView(props: DotNotesViewProps) {
             small
             decorative
             identity={dot.id}
-            color={dot.color}
+            {...dotLook(dot)}
             name={dot.name}
           />
         </span>

@@ -31,7 +31,7 @@ import {
 } from '../../shared/teams';
 import type { Dot } from '../../shared/types';
 import { api } from '../api';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import {
   addToTeam,
   draftFromTeam,
@@ -445,7 +445,7 @@ export function TeamBuilder({
                             <span className="tb-tray-face">
                               <Mascot
                                 identity={dot.id}
-                                color={dot.color}
+                                {...dotLook(dot)}
                                 name={dot.name}
                                 small
                                 decorative
@@ -480,7 +480,7 @@ export function TeamBuilder({
                       <span className="tb-row-face">
                         <Mascot
                           identity={lead}
-                          color={dots.find((dot) => dot.id === lead)?.color}
+                          {...dotLook(dots.find((dot) => dot.id === lead))}
                           name={dotName(lead)}
                           small
                           decorative
@@ -548,7 +548,7 @@ export function TeamBuilder({
                             <span className="tb-row-face">
                               <Mascot
                                 identity={member.dotId}
-                                color={dot?.color}
+                                {...dotLook(dot)}
                                 name={name}
                                 small
                                 decorative
@@ -680,7 +680,7 @@ export function TeamBuilder({
                             <>
                               <Mascot
                                 identity={dot.id}
-                                color={dot.color}
+                                {...dotLook(dot)}
                                 name={dot.name}
                                 small
                                 decorative

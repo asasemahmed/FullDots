@@ -14,7 +14,7 @@ import {
   type Team,
 } from '../../shared/teams';
 import { api } from '../api';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { Switch } from './controls';
 
 export function TemplatePicker({
@@ -78,7 +78,7 @@ export function TemplatePicker({
                   <span key={dot.name} className="tb-template-face">
                     <Mascot
                       identity={`template-${template.id}-${dot.name}`}
-                      color={dot.color}
+                      {...dotLook(dot)}
                       name={dot.name}
                       small
                       decorative

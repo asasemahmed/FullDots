@@ -11,7 +11,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Dot, Result, Status } from '../shared/types';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
 import { ComputerPanel } from './ComputerPanel';
 import { FilePane } from './FilePane';
 import { PagePane } from './PagePane';
@@ -200,8 +200,9 @@ export function ResultPane({
       ) : (
         <div className="pane-empty">
           <Mascot
+            hero
             identity={defaultDotId}
-            color={dots.find((dot) => dot.id === defaultDotId)?.color}
+            {...dotLook(dots.find((dot) => dot.id === defaultDotId))}
             name={dots.find((dot) => dot.id === defaultDotId)?.name}
             state={dotState}
           />

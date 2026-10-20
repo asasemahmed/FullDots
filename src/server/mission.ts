@@ -81,6 +81,8 @@ export function missionSnapshot(
       id: dot.id,
       name: dot.name,
       ...(dot.color ? { color: dot.color } : {}),
+      ...(dot.species ? { species: dot.species } : {}),
+      ...(dot.gear ? { gear: dot.gear } : {}),
       paused: !!dot.paused,
       state: turn
         ? 'working'

@@ -29,6 +29,7 @@ import {
   type GrantInput,
 } from './DotConnectorGrants';
 import { DotColorPicker } from './DotColorPicker';
+import { DotLookPicker } from './DotLookPicker';
 import { DotNotes } from './DotNotes';
 import { DotRulesEditor } from './DotRulesEditor';
 import { Mascot } from './Mascot';
@@ -41,6 +42,8 @@ import type {
   ConnectorView,
   Dot,
   DotColor,
+  DotGear,
+  DotSpecies,
   DotConnectorGrant,
   Memory,
   State,
@@ -250,6 +253,12 @@ export function WorkspaceDialog({
   const [color, setColor] = useState<DotColor | null>(
     dialog.type === 'dot' ? (dialog.dot?.color ?? null) : null,
   );
+  const [species, setSpecies] = useState<DotSpecies | null>(
+    dialog.type === 'dot' ? (dialog.dot?.species ?? null) : null,
+  );
+  const [gear, setGear] = useState<DotGear>(
+    dialog.type === 'dot' ? (dialog.dot?.gear ?? 'none') : 'none',
+  );
   const [connectors, setConnectors] = useState<ConnectorView[]>([]);
   const [grants, setGrants] = useState<GrantInput[]>([]);
   const [grantsDirty, setGrantsDirty] = useState(false);
@@ -450,6 +459,8 @@ export function WorkspaceDialog({
                 ...modelFields(modelChoice),
                 approvalMode,
                 color,
+                species,
+                gear,
               };
             }
             if (dialog.type === 'settings') {
@@ -536,6 +547,8 @@ export function WorkspaceDialog({
                       <Mascot
                         identity={dialog.dot?.id}
                         color={color}
+                        species={species}
+                        gear={gear}
                         name={name || 'New Dot'}
                       />
                     </span>
@@ -553,7 +566,9 @@ export function WorkspaceDialog({
                         onChange={(e) => setName(e.target.value)}
                         required
                       />
-                      <p className="dlg-hint">Each Dot keeps its own colour.</p>
+                      <p className="dlg-hint">
+                        Each Dot keeps its own penguin and colour.
+                      </p>
                     </div>
                   </div>
                   <span className="dlg-label">Colour</span>
@@ -562,6 +577,16 @@ export function WorkspaceDialog({
                     onChange={setColor}
                     identity={dialog.dot?.id}
                     name={name || 'New Dot'}
+                    species={species}
+                    gear={gear}
+                  />
+                  <DotLookPicker
+                    identity={dialog.dot?.id}
+                    color={color}
+                    species={species}
+                    gear={gear}
+                    onSpecies={setSpecies}
+                    onGear={setGear}
                   />
                   <label className="dlg-label" htmlFor="entity-text">
                     Role instructions

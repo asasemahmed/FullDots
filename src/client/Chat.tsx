@@ -31,7 +31,8 @@ import type {
   Dot,
   Handoff,
 } from '../shared/types';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
+import { activityText, turnActivity } from './turn-activity';
 import { useVoice } from './useVoice';
 import { CallView } from './CallView';
 import {
@@ -435,6 +436,10 @@ export function Chat({
   );
   // This page's own turn, or one it attached to.
   const working = running || !!attach.remoteRunId;
+  // A turn this page streams shows what it is doing; one it only attached to reads as thinking.
+  const activity = running
+    ? turnActivity(agent.messages)
+    : { kind: 'thinking' as const };
   const workingName = (!running && room.runningName) || dot.name;
   const visible = agent.messages.filter(
     (message) =>
@@ -479,14 +484,14 @@ export function Chat({
       <header className="chat-persona">
         <Mascot
           identity={dot.id}
-          color={dot.color}
+          {...dotLook(dot)}
           name={dot.name}
           small
           state={
             lanes.handingOff
               ? 'handing-off'
               : working
-                ? 'working'
+                ? activity.kind
                 : paused
                   ? 'paused'
                   : 'idle'
@@ -500,7 +505,7 @@ export function Chat({
                 ? 'Paused. Resume it from its menu in the sidebar.'
                 : 'Paused'
               : working
-                ? 'Thinking…'
+                ? activityText(activity)
                 : loaded && contextReady
                   ? 'Here with you'
                   : 'Connecting to your conversation…'}

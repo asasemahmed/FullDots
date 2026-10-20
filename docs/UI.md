@@ -1,6 +1,6 @@
 # The FullDots interface
 
-A short map of the parts of the chat that are not plain messages. Light theme only; colours come from `src/client/tokens.css`, and each Dot keeps its own colour everywhere it appears.
+A short map of the parts of the chat that are not plain messages. Light theme only; colours come from `src/client/tokens.css`, and each Dot keeps its own penguin and colour everywhere it appears (see [the brand notes](brand/README.md#the-dot) for its states).
 
 ## In a chat
 

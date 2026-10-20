@@ -326,6 +326,7 @@ function PaletteDialog({
           {!count && (
             <div className="pal-empty">
               <Mascot
+                hero
                 name="Dot"
                 state={search.loading ? 'working' : 'idle'}
                 decorative

@@ -39,7 +39,7 @@ import {
   type Notices,
 } from './poll-notice';
 import { deriveTitle } from '../shared/conversation-title';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
 import { Chat } from './Chat';
 import { InboxPage } from './inbox/InboxView';
 import { useInbox, useNeedsYouTitle } from './inbox/useInbox';
@@ -417,7 +417,7 @@ export function App() {
   if (needsAuth)
     return (
       <main className="unlock">
-        <Mascot />
+        <Mascot hero />
         <h1>Your own little corner.</h1>
         <p>
           Enter the owner access token configured on this template’s server.
@@ -460,7 +460,7 @@ export function App() {
   if (!state || !workspace || !dot)
     return (
       <main className="unlock">
-        <Mascot state="working" />
+        <Mascot hero state="working" />
         <h1>Finding your dots…</h1>
         {error && (
           <>
@@ -665,8 +665,9 @@ export function App() {
                 <div className="new-conversation">
                   <div className="empty-chat-persona">
                     <Mascot
+                      hero
                       identity={dot.id}
-                      color={dot.color}
+                      {...dotLook(dot)}
                       name={dot.name}
                       state={state.settings.paused ? 'paused' : 'idle'}
                     />
@@ -837,7 +838,7 @@ export function App() {
                 </div>
                 {!state.memories.length && (
                   <div className="large-empty">
-                    <Mascot />
+                    <Mascot hero />
                     <h2>A little context goes a long way.</h2>
                     <p>
                       Add a preference like “Keep my research briefs short.” You

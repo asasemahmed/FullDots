@@ -1,7 +1,7 @@
 import type { Ref } from 'react';
 import { Power, Settings, X } from 'lucide-react';
 import type { Dot } from '../../shared/types';
-import { Mascot } from '../Mascot';
+import { Mascot, dotLook } from '../Mascot';
 import { HANDOFF_PILL, PHASE_PILL, type PanelPhase } from './model';
 
 export type Working = 'start' | 'stop' | 'take' | 'release';
@@ -47,7 +47,7 @@ export function PanelHeader({
       <span className="cp-avatar">
         <Mascot
           identity={dot.id}
-          color={dot.color}
+          {...dotLook(dot)}
           name={dot.name}
           decorative
         />

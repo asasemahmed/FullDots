@@ -1,0 +1,53 @@
+/* The penguin and gear pickers in the Dot form: small previews in a wrapping row. */
+.dot-look-picker {
+  display: grid;
+  gap: var(--space-2);
+}
+.dot-look-picker .dlp-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dot-look-picker .dlp-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 76px;
+  padding: var(--space-2) 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.dot-look-picker .dlp-option:hover {
+  transform: translateY(-1px);
+}
+.dot-look-picker .dlp-option[aria-checked='true'] {
+  color: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.dot-look-picker .dlp-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dot-look-picker .dlp-thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-look-picker .dlp-option {
+    transition: none;
+  }
+  .dot-look-picker .dlp-option:hover {
+    transform: none;
+  }
+}

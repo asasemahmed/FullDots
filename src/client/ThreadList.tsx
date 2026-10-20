@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { ConversationSummary, Dot } from '../shared/types';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../shared/conversation-title';
-import { Mascot } from './Mascot';
+import { Mascot, dotLook } from './Mascot';
 import { RowMenu } from './sidebar/RowMenu';
 import { filterChats, groupChats, listableChats } from './sidebar/chat-groups';
 import { nestChats, workRunning, type ChatTree } from './sidebar/chat-tree';
@@ -220,7 +220,7 @@ function ChatRow({
           <span className="sb-chat-dot">
             <Mascot
               identity={dot.id}
-              color={dot.color}
+              {...dotLook(dot)}
               name={dot.name}
               small
               decorative

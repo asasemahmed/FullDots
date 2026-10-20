@@ -23,7 +23,7 @@ import {
 import type { LaneProgress } from '../../shared/lanes';
 import type { Dot } from '../../shared/types';
 import { ApprovalCard } from '../ApprovalCard';
-import { Mascot, dotPalette } from '../Mascot';
+import { Mascot, dotPalette, dotLook } from '../Mascot';
 import {
   bandLanes,
   bandSettled,
@@ -196,7 +196,7 @@ function Band({
         <span className="fd-band-sender" ref={sender}>
           <Mascot
             identity={senderDot.id}
-            color={senderDot.color}
+            {...dotLook(senderDot)}
             name={senderDot.name}
             small
             decorative
@@ -292,7 +292,7 @@ export function ResultChip({
     >
       <Mascot
         identity={dot?.id ?? lane?.childDotId}
-        color={dot?.color}
+        {...dotLook(dot)}
         name={name}
         small
         decorative
@@ -391,7 +391,7 @@ export function Lane({
         <span className="fd-lane-avatar">
           <Mascot
             identity={lane.childDotId}
-            color={member?.color}
+            {...dotLook(member)}
             name={name}
             small
             decorative
