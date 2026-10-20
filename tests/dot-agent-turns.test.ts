@@ -593,7 +593,7 @@ it('runs search_web in the Dot browser when Browser access is on, and reports ho
     const url = String(input);
     if (url.startsWith('https://html.duckduckgo.com/'))
       return new Response(duckDuckGoAnomalyPage, { status: 202 });
-    if (!url.startsWith('https://unused.invalid'))
+    if (new URL(url).hostname !== 'unused.invalid')
       return fakeTransport(computer, blocked.dot.id)(input, init);
     blocked.requests.push(JSON.parse(String(init?.body)));
     const reply = [

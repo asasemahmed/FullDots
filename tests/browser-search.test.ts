@@ -226,6 +226,35 @@ describe('display URL normalization', () => {
     ).toBe('https://example.org/guide');
   });
 
+  it('unwraps redirects only on DuckDuckGo itself, not a look-alike host', () => {
+    expect(
+      parseDisplayUrl(
+        'https://links.duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fa',
+      ),
+    ).toBe('https://example.org/a');
+    expect(
+      parseDisplayUrl(
+        'https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fa',
+      ),
+    ).not.toBe('https://example.org/a');
+  });
+
+  it('parses a long breadcrumb of truncated segments without backtracking', () => {
+    const page = (text: string) => ({
+      engine: 'duckduckgo' as const,
+      url: 'https://duckduckgo.com/?q=x',
+      title: 'Search',
+      text,
+      elements: [],
+    });
+    const started = performance.now();
+    parseBrowserSearchResults(
+      page(`Title example.org${' › ...'.repeat(4000)} !`),
+    );
+    parseBrowserSearchResults(page(`example.org${' › ...'.repeat(4000)}!`));
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it('rejects truncated URLs, engine internal URLs, credentials, and plain text', () => {
     expect(
       parseDisplayUrl('https://example.org › docs › ... › guide'),

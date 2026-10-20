@@ -319,7 +319,8 @@ function unwrapSearchRedirect(raw: string): string {
   try {
     const parsed = new URL(raw, 'https://duckduckgo.com');
     if (
-      parsed.hostname.endsWith('duckduckgo.com') &&
+      (parsed.hostname === 'duckduckgo.com' ||
+        parsed.hostname.endsWith('.duckduckgo.com')) &&
       parsed.pathname === '/l/'
     ) {
       const target = parsed.searchParams.get('uddg');
@@ -456,7 +457,7 @@ function splitCompoundLink(
   }
   // Trailing breadcrumb URL (e.g. `Title https://example.org › docs` or `Title example.org › ... › docs`).
   const trailingBreadcrumb =
-    /^(.*\S)\s+((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\s*›\s*(?:[A-Za-z0-9._~:@!$&'()*+,;=%-]+|…|\.\.\.))+)$/i.exec(
+    /^(.*\S)\s+((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\s*›\s*(?:[A-Za-z0-9._~:@!$&'()*+,;=%-]+|…))+)$/i.exec(
       flat,
     );
   if (trailingBreadcrumb) {
@@ -477,7 +478,7 @@ function splitCompoundLink(
   }
   // Leading breadcrumb URL (e.g. `github.com › owner › repo Title of the page`).
   const leadingBreadcrumb =
-    /^((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\s*›\s*(?:[A-Za-z0-9._~:@!$&'()*+,;=%-]+|…|\.\.\.))+)\s+(\S.*)$/i.exec(
+    /^((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\s*›\s*(?:[A-Za-z0-9._~:@!$&'()*+,;=%-]+|…))+)\s+(\S.*)$/i.exec(
       flat,
     );
   if (leadingBreadcrumb) {
