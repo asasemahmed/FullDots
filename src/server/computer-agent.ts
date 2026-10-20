@@ -6,6 +6,20 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ComputerAction } from '../shared/computer-types.js';
 import {
+  clearEngineBlocks,
+  DEFAULT_SEARCH_ENGINES,
+  detectSearchBlock,
+  findConsentButton,
+  markEngineBlocked,
+  orderSearchEngines,
+  parseBrowserSearchResults,
+  searchEngineUrl,
+  searchInputSchema,
+  type BrowserSearchEngine,
+  type SearchInput,
+} from './browser-search.js';
+export { searchInputSchema } from './browser-search.js';
+import {
   ComputerActionError,
   ComputerConflictError,
 } from './computer-conflict.js';
@@ -35,7 +49,8 @@ export const selectInputSchema = z
   })
   .strict();
 
-export type AgentAction = Exclude<ComputerAction, `human_${string}`> | 'select';
+export type AgentAction =
+  Exclude<ComputerAction, `human_${string}`> | 'select' | 'search';
 type PageAction = 'navigate' | 'click' | 'type' | 'key' | 'scroll';
 
 export interface PageElement {
@@ -274,6 +289,8 @@ export interface AgentComputerOptions {
   settleMs?: number;
   /** The conversation the turn belongs to. Browser steps are kept for its replay when set. */
   threadId?: string;
+  /** Preferred browser search engines and fallback order (`WEB_SEARCH_ENGINE`). */
+  searchEngines?: readonly BrowserSearchEngine[];
 }
 
 export class AgentComputer implements GateComputer {
@@ -283,6 +300,7 @@ export class AgentComputer implements GateComputer {
   private focus?: Identity;
   private readonly settleMs: number;
   private readonly threadId?: string;
+  private readonly searchEngines: readonly BrowserSearchEngine[];
 
   constructor(
     private readonly service: ComputerService,
@@ -292,6 +310,7 @@ export class AgentComputer implements GateComputer {
   ) {
     this.settleMs = options.settleMs ?? 250;
     this.threadId = options.threadId;
+    this.searchEngines = options.searchEngines ?? DEFAULT_SEARCH_ENGINES;
   }
 
   /** `toolCallId` names the step in the conversation's replay. */
@@ -330,6 +349,14 @@ export class AgentComputer implements GateComputer {
         return this.session(
           'select',
           (call) => this.select(call, parsed),
+          replay,
+        );
+      }
+      case 'search': {
+        const parsed = searchInputSchema.parse(input);
+        return this.session(
+          'search',
+          (call) => this.search(call, parsed),
           replay,
         );
       }
@@ -377,7 +404,7 @@ export class AgentComputer implements GateComputer {
   }
 
   private session<T>(
-    label: ComputerAction | 'select',
+    label: ComputerAction | 'select' | 'search',
     body: (call: ComputerSessionCall) => Promise<T>,
     replay?: ReplayContext,
   ) {
@@ -804,6 +831,203 @@ export class AgentComputer implements GateComputer {
   private async afterOpening(call: ComputerSessionCall): Promise<Snapshot> {
     await this.pause(this.settleMs);
     return this.takeSnapshot(call);
+  }
+
+  private async navigateForSearch(
+    call: ComputerSessionCall,
+    url: string,
+  ): Promise<{ text: string; snapshot: Snapshot }> {
+    let nav: Record<string, unknown>;
+    try {
+      nav = record(await call('navigate', { url }));
+    } catch (error) {
+      if (
+        !(error instanceof ComputerConflictError) ||
+        error.kind !== 'snapshot_required'
+      )
+        throw error;
+      await this.takeSnapshot(call);
+      try {
+        nav = record(await call('navigate', { url }));
+      } catch (again) {
+        if (
+          again instanceof ComputerConflictError &&
+          again.kind === 'snapshot_required'
+        )
+          throw new Error(
+            'The computer still asks for a refresh after computer_snapshot. Do not keep retrying; tell the user what is blocking you.',
+            { cause: again },
+          );
+        throw again;
+      }
+    }
+    this.focus = undefined;
+    await this.pause(this.settleMs * 2);
+    let snapshot = await this.takeSnapshot(call);
+    if (!snapshot.elements.length && this.settleMs > 0) {
+      await this.pause(this.settleMs * 4);
+      snapshot = await this.takeSnapshot(call);
+    }
+    const navChallenge =
+      nav.challenge && typeof nav.challenge === 'object'
+        ? (nav.challenge as Record<string, unknown>)
+        : undefined;
+    if (
+      !snapshot.challenge &&
+      navChallenge &&
+      typeof navChallenge.reason === 'string'
+    ) {
+      snapshot = {
+        ...snapshot,
+        challenge: {
+          kind:
+            typeof navChallenge.kind === 'string'
+              ? navChallenge.kind
+              : 'challenge',
+          reason: navChallenge.reason,
+          ...(typeof navChallenge.requestId === 'string'
+            ? { requestId: navChallenge.requestId }
+            : {}),
+        },
+      };
+    }
+    return {
+      text: typeof nav.text === 'string' ? nav.text : '',
+      snapshot,
+    };
+  }
+
+  /**
+   * Searches the web in the Dot's own browser: opens the engine's results page, dismisses a
+   * cookie banner when one blocks the results, rotates to the next engine on a soft bot check,
+   * and returns only the short structured result list (with element refs from the remembered
+   * snapshot) instead of dumping the whole page.
+   */
+  private async search(
+    call: ComputerSessionCall,
+    input: SearchInput,
+  ): Promise<Record<string, unknown>> {
+    const limit = input.limit ?? 8;
+    const engines = orderSearchEngines(
+      this.dotId,
+      this.searchEngines,
+      input.engine,
+    );
+    const fallbackFrom: BrowserSearchEngine[] = [];
+    let lastBlocked:
+      | { engine: BrowserSearchEngine; snapshot: Snapshot; reason: string }
+      | undefined;
+
+    for (const engine of engines) {
+      const targetUrl = searchEngineUrl(engine, input.query);
+      let { text, snapshot } = await this.navigateForSearch(call, targetUrl);
+
+      if (snapshot.challenge) {
+        clearEngineBlocks(this.dotId, engine);
+        return {
+          action: 'search',
+          query: input.query,
+          engine,
+          ...(fallbackFrom.length ? { fallbackFrom } : {}),
+          url: snapshot.url || targetUrl,
+          title: clip(snapshot.title, 200),
+          snapshotId: snapshot.snapshotId,
+          results: [],
+          challenge: snapshot.challenge,
+        };
+      }
+
+      const consent = findConsentButton(engine, snapshot);
+      if (consent) {
+        try {
+          await call('click', {
+            ref: consent.ref,
+            snapshotId: snapshot.snapshotId,
+          });
+          await this.pause(this.settleMs * 2);
+          snapshot = await this.takeSnapshot(call);
+          const readResult = record(await call('read', {}));
+          if (typeof readResult.text === 'string') text = readResult.text;
+        } catch (error) {
+          if (isOwnerControl(error)) throw error;
+        }
+        if (snapshot.challenge) {
+          clearEngineBlocks(this.dotId, engine);
+          return {
+            action: 'search',
+            query: input.query,
+            engine,
+            ...(fallbackFrom.length ? { fallbackFrom } : {}),
+            url: snapshot.url || targetUrl,
+            title: clip(snapshot.title, 200),
+            snapshotId: snapshot.snapshotId,
+            results: [],
+            challenge: snapshot.challenge,
+          };
+        }
+      }
+
+      const blockReason = detectSearchBlock(engine, snapshot, text);
+      if (blockReason) {
+        markEngineBlocked(this.dotId, engine);
+        fallbackFrom.push(engine);
+        lastBlocked = { engine, snapshot, reason: blockReason };
+        continue;
+      }
+
+      clearEngineBlocks(this.dotId, engine);
+      const results = parseBrowserSearchResults(
+        {
+          engine,
+          url: snapshot.url || targetUrl,
+          title: snapshot.title,
+          elements: snapshot.elements,
+          text,
+        },
+        limit,
+      );
+      return {
+        action: 'search',
+        query: input.query,
+        engine,
+        ...(fallbackFrom.length ? { fallbackFrom } : {}),
+        url: snapshot.url || targetUrl,
+        title: clip(snapshot.title, 200),
+        snapshotId: snapshot.snapshotId,
+        results,
+      };
+    }
+
+    // Every engine in the rotation showed a bot check: leave the browser on the last one and
+    // hand off to the owner once so they can solve it on the live screen.
+    if (lastBlocked) {
+      clearEngineBlocks(this.dotId, lastBlocked.engine);
+      return {
+        action: 'search',
+        query: input.query,
+        engine: lastBlocked.engine,
+        ...(fallbackFrom.length > 1
+          ? { fallbackFrom: fallbackFrom.slice(0, -1) }
+          : {}),
+        url: lastBlocked.snapshot.url,
+        title: clip(lastBlocked.snapshot.title, 200),
+        snapshotId: lastBlocked.snapshot.snapshotId,
+        results: [],
+        challenge: {
+          kind: 'captcha',
+          reason: lastBlocked.reason,
+        },
+      };
+    }
+
+    return {
+      action: 'search',
+      query: input.query,
+      engine: engines[0] ?? 'duckduckgo',
+      url: '',
+      title: '',
+      results: [],
+    };
   }
 }
 

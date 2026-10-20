@@ -32,9 +32,10 @@ services:
       VOICE_API_KEY: ${VOICE_API_KEY:-}
       VOICE_MODEL: ${VOICE_MODEL:-}
       VOICE_NAME: ${VOICE_NAME:-marin}
-      # Web search: duckduckgo (no key), searxng (the `searxng` service below) or disabled.
-      # DuckDuckGo often blocks VPS addresses; then use searxng with COMPOSE_PROFILES=search.
+      # Web search: duckduckgo (no key), browser (the Dot's computer), searxng (the `searxng` service below) or disabled.
+      # DuckDuckGo often blocks VPS addresses; then use browser or searxng with COMPOSE_PROFILES=search.
       WEB_SEARCH_PROVIDER: ${WEB_SEARCH_PROVIDER:-duckduckgo}
+      WEB_SEARCH_ENGINE: ${WEB_SEARCH_ENGINE:-}
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       # The connector key defaults to a file in the data volume. Set your own to keep it outside
       # the volume (then back it up separately).

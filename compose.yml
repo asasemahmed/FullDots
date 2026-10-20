@@ -19,9 +19,10 @@ services:
       VOICE_API_KEY: ${VOICE_API_KEY:-}
       VOICE_MODEL: ${VOICE_MODEL:-}
       VOICE_NAME: ${VOICE_NAME:-marin}
-      # Web search: duckduckgo (no key), searxng or disabled. For searxng, start the
+      # Web search: duckduckgo (no key), browser (the Dot's computer), searxng or disabled. For searxng, start the
       # `searxng` service below with COMPOSE_PROFILES=search (or --profile search).
       WEB_SEARCH_PROVIDER: ${WEB_SEARCH_PROVIDER:-duckduckgo}
+      WEB_SEARCH_ENGINE: ${WEB_SEARCH_ENGINE:-}
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       # Connectors and approvals. The connector key defaults to a file in the
       # data volume; set CONNECTOR_SECRET_KEY to supply your own.

@@ -59,6 +59,7 @@ export interface ReplayContext {
 /** Steps that change the page, so a picture of the screen after them is worth keeping. */
 const REPLAY_ACTIONS = new Set<string>([
   'navigate',
+  'search',
   'click',
   'type',
   'select',
@@ -574,7 +575,7 @@ export class ComputerService {
    */
   async session<T>(
     id: string,
-    label: ComputerAction | 'select',
+    label: ComputerAction | 'select' | 'search',
     actor: 'owner' | 'agent',
     signal: AbortSignal | undefined,
     body: (call: ComputerSessionCall) => Promise<T>,

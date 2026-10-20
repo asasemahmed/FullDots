@@ -17,6 +17,7 @@ import { displayUrl } from './model';
 /** Browser tools, in the words of their computer action. Files and the terminal are not replayed. */
 const BROWSER_ACTIONS = new Set([
   'navigate',
+  'search',
   'click',
   'type',
   'select',

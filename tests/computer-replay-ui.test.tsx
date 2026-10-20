@@ -177,6 +177,7 @@ describe('replay steps', () => {
       content: '',
       toolCalls: [
         call('nav', 'computer_navigate', { url: 'https://form.test/' }),
+        call('search', 'computer_search', { query: 'fulldots' }),
         call('files', 'computer_files_list', {}),
         call('web', 'search_web', { query: 'x' }),
       ],
@@ -188,6 +189,18 @@ describe('replay steps', () => {
       content: JSON.stringify({
         url: 'https://form.test/',
         page: { url: 'https://form.test/', title: 'Form', elements: [] },
+      }),
+    },
+    {
+      id: 't1b',
+      role: 'tool',
+      toolCallId: 'search',
+      content: JSON.stringify({
+        action: 'search',
+        query: 'fulldots',
+        url: 'https://duckduckgo.com/?q=fulldots',
+        title: 'fulldots at DuckDuckGo',
+        results: [],
       }),
     },
     { id: 'u2', role: 'user', content: 'Fill it in' },
@@ -224,6 +237,16 @@ describe('replay steps', () => {
         detail: 'form.test',
         url: 'https://form.test/',
         title: 'Form',
+        state: 'done',
+        turn: 1,
+      }),
+      expect.objectContaining({
+        toolCallId: 'search',
+        action: 'search',
+        label: 'Searching the web',
+        detail: '“fulldots”',
+        url: 'https://duckduckgo.com/?q=fulldots',
+        title: 'fulldots at DuckDuckGo',
         state: 'done',
         turn: 1,
       }),
@@ -274,10 +297,11 @@ describe('replay steps', () => {
     const merged = mergeReplay(transcriptReplaySteps(messages), server);
     expect(merged.map((step) => [step.toolCallId, step.frameId])).toEqual([
       ['nav', 'frame-nav'],
+      ['search', undefined],
       ['type', undefined],
       ['older', 'frame-old'],
     ]);
-    expect(merged[2]).toMatchObject({
+    expect(merged[3]).toMatchObject({
       label: 'Scrolling page',
       detail: 'elsewhere.test/a',
       state: 'done',

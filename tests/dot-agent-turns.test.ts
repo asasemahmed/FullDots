@@ -10,6 +10,10 @@ import { Store } from '../src/server/store.js';
 import { WorkspaceStore } from '../src/server/workspace.js';
 import { completion } from './fixtures/model-stream.js';
 import { FakeComputer, fakeTransport, page } from './fixtures/fake-computer.js';
+import {
+  duckDuckGoAnomalyPage,
+  duckDuckGoBrowserPage,
+} from './fixtures/web-search.js';
 
 const closers: Array<{ close(): void }> = [];
 afterEach(() => {
@@ -408,11 +412,16 @@ it('teaches the model to work through the page it gets back, and offers the sele
   await f.run();
   const names = f.requests[0].tools.map((tool: Request) => tool.function.name);
   expect(names).toEqual(
-    expect.arrayContaining(['computer_select', 'computer_snapshot']),
+    expect.arrayContaining([
+      'computer_search',
+      'computer_select',
+      'computer_snapshot',
+    ]),
   );
   const prompt = systemText(f.requests[0]);
   for (const expected of [
     'plan briefly',
+    'computer_search',
     'returns a fresh `page`',
     'instead of calling computer_snapshot again',
     'Use computer_select for dropdowns',
@@ -529,4 +538,76 @@ it('lets the model fill a form from the page each action returns, with no extra 
   expect(
     f.workspace.frames.steps(f.dot.id, 'thread').map((step) => step.toolCallId),
   ).toEqual(['nav', 'type']);
+});
+
+it('runs search_web in the Dot browser when Browser access is on, and reports honestly when it is off', async () => {
+  const computer = new FakeComputer();
+  computer.pages['https://duckduckgo.com/?q=fulldots'] = duckDuckGoBrowserPage;
+  const f = setup({
+    computer,
+    replies: [
+      () => toolCall('web-1', 'search_web', { query: 'fulldots' }),
+      () => text('Found FullDots on GitHub.'),
+    ],
+  });
+  const events = await f.run();
+  const toolResult = events.find(
+    (event) => event.type === EventType.TOOL_CALL_RESULT,
+  ) as BaseEvent & { content: string };
+  expect(JSON.parse(toolResult.content)).toMatchObject({
+    action: 'search',
+    query: 'fulldots',
+    engine: 'duckduckgo',
+    results: [
+      expect.objectContaining({
+        title: 'FullDots: self-hosted & local-first AI coworkers',
+        url: 'https://github.com/asasemahmed/FullDots',
+        ref: 'e6',
+      }),
+      expect.objectContaining({
+        title: 'Postgraduate Studies | DIT',
+        url: 'https://www.th-deg.de/en/postgraduate',
+        ref: 'e9',
+      }),
+    ],
+  });
+  expect(
+    f.workspace.frames
+      .steps(f.dot.id, 'thread')
+      .map((step) => [step.toolCallId, step.action]),
+  ).toEqual([['web-1', 'search']]);
+
+  // Turn Browser permission off: search_web says so honestly and falls back to HTTP search
+  // (or reports both reasons without inventing results when DuckDuckGo blocks the server IP).
+  f.workspace.computers.patch(f.dot.id, { browser: false });
+  const blocked = setup({
+    computer,
+    config: { webSearchProvider: 'browser' },
+    replies: [
+      () => toolCall('web-2', 'search_web', { query: 'fulldots' }),
+      () => text('Search was unavailable.'),
+    ],
+  });
+  blocked.workspace.computers.patch(blocked.dot.id, { browser: false });
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.startsWith('https://html.duckduckgo.com/'))
+      return new Response(duckDuckGoAnomalyPage, { status: 202 });
+    if (!url.startsWith('https://unused.invalid'))
+      return fakeTransport(computer, blocked.dot.id)(input, init);
+    blocked.requests.push(JSON.parse(String(init?.body)));
+    const reply = [
+      () => toolCall('web-2', 'search_web', { query: 'fulldots' }),
+      () => text('Search was unavailable.'),
+    ][blocked.requests.length - 1];
+    return reply();
+  });
+  const blockedEvents = await blocked.run();
+  const blockedResult = blockedEvents.find(
+    (event) => event.type === EventType.TOOL_CALL_RESULT,
+  ) as BaseEvent & { content: string };
+  expect(blockedResult.content).toContain(
+    'Browser permission is disabled for this Dot.',
+  );
+  expect(blockedResult.content).toContain('Do not invent results.');
 });

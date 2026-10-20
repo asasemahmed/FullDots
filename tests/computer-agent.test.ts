@@ -1,4 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
+import { resetAllEngineBlocks } from '../src/server/browser-search.js';
 import { computerTools } from '../src/server/computer-tools.js';
 import {
   AgentComputer,
@@ -11,11 +12,18 @@ import {
   page,
   type FakeElement,
 } from './fixtures/fake-computer.js';
+import {
+  braveBrowserPage,
+  duckDuckGoBrowserPage,
+  googleBrowserPage,
+  googleConsentPage,
+} from './fixtures/web-search.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Result = Record<string, any>;
 const fixtures: ReturnType<typeof computerFixture>[] = [];
 afterEach(() => {
+  resetAllEngineBlocks();
   for (const f of fixtures.splice(0)) f.workspace.close();
 });
 
@@ -909,4 +917,133 @@ it('challenge requestId survives parsing', () => {
       }),
     ).challenge,
   ).toEqual({ kind: 'challenge', reason: 'A CAPTCHA' });
+});
+
+it('searches in the browser, returns compact structured results, and lets the agent click a result ref', async () => {
+  const f = setup();
+  f.fake.pages['https://duckduckgo.com/?q=fulldots'] = duckDuckGoBrowserPage;
+  f.fake.pages['https://github.com/asasemahmed/FullDots'] = page(
+    'FullDots Repo',
+    [{ ref: 'r1', role: 'link', name: 'README.md' }],
+  );
+  f.fake.onClick = (ref, computer) => {
+    if (ref === 'e6') {
+      computer.url = 'https://github.com/asasemahmed/FullDots';
+      computer.show(
+        page('FullDots Repo', [{ ref: 'r1', role: 'link', name: 'README.md' }]),
+      );
+    }
+  };
+  const search = await f.run('search', { query: 'fulldots' });
+  expect(search).toEqual({
+    action: 'search',
+    query: 'fulldots',
+    engine: 'duckduckgo',
+    url: 'https://duckduckgo.com/?q=fulldots',
+    title: 'fulldots at DuckDuckGo',
+    snapshotId: f.fake.snapshotId,
+    results: [
+      {
+        title: 'FullDots: self-hosted & local-first AI coworkers',
+        url: 'https://github.com/asasemahmed/FullDots',
+        snippet:
+          'Run AI coworkers on your own server with persistent computers.',
+        ref: 'e6',
+      },
+      {
+        title: 'Postgraduate Studies | DIT',
+        url: 'https://www.th-deg.de/en/postgraduate',
+        snippet: 'Master Degrees at Deggendorf Institute of Technology.',
+        ref: 'e9',
+      },
+    ],
+  });
+  expect(search).not.toHaveProperty('page');
+  // The snapshot from the search is registered in this turn, so clicking a result ref works directly.
+  const clicked = await f.run('click', {
+    ref: 'e6',
+    snapshotId: search.snapshotId,
+  });
+  expect(clicked.page).toMatchObject({
+    title: 'FullDots Repo',
+    elements: [{ ref: 'r1', role: 'link', name: 'README.md' }],
+  });
+  expect(
+    f.workspace.computers.audit(f.id).map((entry) => entry.action),
+  ).toEqual(['click', 'search']);
+});
+
+it('dismisses a cookie consent banner on the search engine host before extracting results', async () => {
+  const f = setup();
+  f.fake.pages['https://www.google.com/search?q=fulldots'] = googleConsentPage;
+  f.fake.onClick = (ref, computer) => {
+    if (ref === 'g2') computer.show(googleBrowserPage);
+  };
+  const search = await f.run('search', { query: 'fulldots', engine: 'google' });
+  expect(f.fake.bodies.click).toEqual([expect.objectContaining({ ref: 'g2' })]);
+  expect(search.results).toEqual([
+    {
+      title: 'Truncated Result Title',
+      url: '',
+      snippet: 'Should not guess a truncated breadcrumb.',
+      ref: 'g10',
+    },
+    {
+      title: 'FullDots Documentation',
+      url: 'https://docs.fulldots.dev/guide/search',
+      snippet: 'Configure web search with the Dot browser or SearXNG.',
+      ref: 'g11',
+    },
+  ]);
+});
+
+it('rotates to the next search engine on a soft bot block and remembers the cool-down', async () => {
+  const f = setup();
+  f.fake.pages['https://duckduckgo.com/?q=fulldots'] = {
+    title: 'DuckDuckGo',
+    text: 'Unfortunately, bots use DuckDuckGo too. Please complete the following challenge.',
+    elements: [],
+  };
+  f.fake.pages['https://search.brave.com/search?q=fulldots'] = braveBrowserPage;
+  const first = await f.run('search', { query: 'fulldots' });
+  expect(first.engine).toBe('brave');
+  expect(first.results).toHaveLength(2);
+  expect(f.fake.bodies.navigate).toEqual([
+    { url: 'https://duckduckgo.com/?q=fulldots' },
+    { url: 'https://search.brave.com/search?q=fulldots' },
+  ]);
+
+  // The next search starts directly on Brave while DuckDuckGo cools down for this Dot.
+  f.fake.bodies.navigate = [];
+  f.fake.pages['https://search.brave.com/search?q=second'] = braveBrowserPage;
+  const second = await f.run('search', { query: 'second' });
+  expect(second.engine).toBe('brave');
+  expect(f.fake.bodies.navigate).toEqual([
+    { url: 'https://search.brave.com/search?q=second' },
+  ]);
+});
+
+it('returns a challenge for owner handoff when the container detects a widget challenge or all engines block', async () => {
+  const f = setup();
+  f.fake.pages['https://duckduckgo.com/?q=fulldots'] = {
+    title: 'Security Check',
+    text: 'Verify you are human',
+    elements: [],
+    challenge: {
+      kind: 'captcha',
+      reason: 'DuckDuckGo requires a CAPTCHA check.',
+      requestId: 'req-ddg',
+    },
+  };
+  const widgetChallenge = await f.run('search', { query: 'fulldots' });
+  // Stops immediately without rotating because the container locked control for the owner.
+  expect(f.fake.bodies.navigate).toEqual([
+    { url: 'https://duckduckgo.com/?q=fulldots' },
+  ]);
+  expect(widgetChallenge.challenge).toEqual({
+    kind: 'captcha',
+    reason: 'DuckDuckGo requires a CAPTCHA check.',
+    requestId: 'req-ddg',
+  });
+  expect(widgetChallenge.results).toEqual([]);
 });

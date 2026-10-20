@@ -4,6 +4,7 @@ import type { TurnSource } from './types.js';
 
 export const COMPUTER_STEP_LABELS: Record<string, string> = {
   navigate: 'Opening website',
+  search: 'Searching the web',
   snapshot: 'Inspecting browser',
   read: 'Reading page',
   screenshot: 'Viewing browser',

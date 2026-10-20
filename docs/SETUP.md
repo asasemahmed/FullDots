@@ -83,11 +83,13 @@ Back up the SQLite database: it contains page content, thread bindings, and conv
 
 ## Web search and page reader
 
-Dots search the public web with DuckDuckGo (`WEB_SEARCH_PROVIDER=duckduckgo`, the default). No API key is needed; search queries are sent to DuckDuckGo. Set `WEB_SEARCH_PROVIDER=disabled` to turn off search and research tools. Workspace and Dot research permissions, pause, and cancellation still apply.
+When a Dot has a running computer with Browser access on, `search_web` (and `computer_search`) searches inside that Dot's own Chromium browser, visible in the live view and Replay tab, and returns a short list of `{title, url, snippet, ref}` results instead of a page dump. Cookie banners on the search engine's host are dismissed automatically (preferring "Reject all" / "Only necessary"), and if an engine shows a soft bot check the Dot rotates to the next configured search engine (`WEB_SEARCH_ENGINE`, defaulting to `duckduckgo,brave,bing,startpage,google`). If the browser encounters a widget captcha or every engine asks for verification, it pauses once for you to take over in the live view; your solved cookies stay in the Dot's persistent browser profile.
+
+Without a running computer or Browser access, Dots search with DuckDuckGo (`WEB_SEARCH_PROVIDER=duckduckgo`, the default) and report why the browser was not used when a computer is configured or `WEB_SEARCH_PROVIDER=browser` is set. Set `WEB_SEARCH_PROVIDER=disabled` to turn off search and research tools. Workspace and Dot research permissions, pause, and cancellation still apply.
 
 ### Private search with SearXNG
 
-DuckDuckGo often blocks VPS and cloud servers: it answers with a bot check instead of results, and Dots report that DuckDuckGo is blocking the server's IP address. Waiting does not help. Run your own [SearXNG](https://docs.searxng.org) instead. It asks several search engines on FullDots' behalf, needs no API key, and keeps no account.
+DuckDuckGo's HTML endpoint often blocks VPS and cloud servers (and sometimes home or local connections): it answers with a bot check instead of results, and Dots report that DuckDuckGo is blocking the server's IP address. Waiting does not help. Either give the Dot a computer with Browser access (`WEB_SEARCH_PROVIDER=browser`) or run your own [SearXNG](https://docs.searxng.org) (`WEB_SEARCH_PROVIDER=searxng`). SearXNG asks several search engines on FullDots' behalf, needs no API key, and keeps no account.
 
 With Docker, both compose files include a `searxng` service behind the `search` profile. It has no published port and only the app can reach it. Add to `.env` (or Dokploy's Environment tab, see [Deploy on Dokploy](DEPLOY-DOKPLOY.md)):
 

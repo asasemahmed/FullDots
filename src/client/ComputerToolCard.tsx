@@ -25,6 +25,7 @@ import { computerStepText } from '../shared/step-label';
 
 const icons: Record<string, LucideIcon> = {
   navigate: Globe,
+  search: ScanSearch,
   snapshot: ScanSearch,
   read: BookOpen,
   screenshot: Camera,
@@ -292,6 +293,12 @@ export function describeComputerStep(
         full = url;
         detail = formatUrl(url);
         break;
+      case 'search': {
+        const query = text(args.query) || text(data.query);
+        full = query || url;
+        detail = query ? `“${clipText(query, 60)}”` : formatUrl(url);
+        break;
+      }
       case 'snapshot':
       case 'read':
         full = text(data.title) || url;
@@ -367,8 +374,19 @@ export function describeComputerSteps(
   const elements: ComputerElementIndex = new Map();
   return calls.map((call) => {
     const result = results.get(call.id);
-    if (computerActionName(call.name) === 'snapshot' && result !== undefined)
+    const action = computerActionName(call.name);
+    if (action === 'snapshot' && result !== undefined)
       indexSnapshotElements(parseResult(result), elements);
+    else if (action === 'search' && result !== undefined) {
+      const parsed = parseResult(result);
+      if (Array.isArray(parsed.results))
+        for (const entry of parsed.results) {
+          const item = asRecord(entry);
+          const ref = text(item.ref);
+          const title = text(item.title);
+          if (ref && title) elements.set(ref, { role: 'link', name: title });
+        }
+    }
     return describeComputerStep(call, result, { live, elements });
   });
 }

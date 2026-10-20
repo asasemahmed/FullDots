@@ -40,7 +40,11 @@ import {
   type ElementIdentity,
   type McpToolMeta,
 } from './approvals.js';
-import { selectInputSchema, type GateComputer } from './computer-agent.js';
+import {
+  searchInputSchema,
+  selectInputSchema,
+  type GateComputer,
+} from './computer-agent.js';
 import { detectChallenge, detectTypeHandoff } from './handoff-detect.js';
 import type { TurnBudget } from './turn-budget.js';
 import { askOwnerInput, type QuestionResult } from './inbox-tools.js';
@@ -111,6 +115,8 @@ export function gateParse(
     const action = toolName.slice('computer_'.length);
     if (action === 'select')
       return { ...selectInputSchema.parse(object) } as Record<string, unknown>;
+    if (action === 'search')
+      return { ...searchInputSchema.parse(object) } as Record<string, unknown>;
     if (!action.startsWith('human_') && Object.hasOwn(inputs, action))
       return inputs[action as keyof ComputerInputs].parse(object) as Record<
         string,
@@ -507,7 +513,12 @@ export function approvalGate(deps: GateDeps): {
       });
     },
     async onAfterToolCall(_ctx, info) {
-      if (!info.ok || !info.toolName.startsWith('computer_')) return;
+      if (
+        !info.ok ||
+        (!info.toolName.startsWith('computer_') &&
+          !(info.toolName === 'search_web' && deps.computer))
+      )
+        return;
       await challengeHandoff(info.result);
     },
   });

@@ -1,13 +1,49 @@
-// Keyless web search through DuckDuckGo's HTML endpoint or a self-hosted
-// SearXNG instance, plus page reading through the isolated read-only browser
-// service.
+// Keyless web search through DuckDuckGo's HTML endpoint, a self-hosted
+// SearXNG instance, or a Dot's own computer browser, plus page reading
+// through the isolated read-only browser service.
 import { z } from 'zod';
+import {
+  webSearchEngines,
+  type BrowserSearchEngine,
+} from './browser-search.js';
+export {
+  BROWSER_SEARCH_ENGINES,
+  DEFAULT_SEARCH_ENGINES,
+  ENGINE_LABELS,
+  clearEngineBlocks,
+  detectSearchBlock,
+  findConsentButton,
+  isEngineCoolingDown,
+  isEngineHost,
+  markEngineBlocked,
+  orderSearchEngines,
+  parseBrowserSearchResults,
+  parseDisplayUrl,
+  resetAllEngineBlocks,
+  searchEngineUrl,
+  searchInputSchema,
+  webSearchEngines,
+  type BrowserSearchEngine,
+  type BrowserSearchResult,
+  type SearchInput,
+  type SearchPageInput,
+  type SearchSnapshotElement,
+} from './browser-search.js';
 
-export type WebSearchProvider = 'duckduckgo' | 'searxng' | 'disabled';
+export type WebSearchProvider =
+  'duckduckgo' | 'searxng' | 'browser' | 'disabled';
 export interface WebConfig {
   webSearchProvider?: WebSearchProvider;
-  /** Base address of a self-hosted SearXNG instance (WEB_SEARCH_PROVIDER=searxng). */
+  /** Base address of a self-hosted SearXNG instance (WEB_SEARCH_PROVIDER=searxng, or fallback for browser). */
   searxngUrl?: string;
+  /** Preferred browser search engine or fallback list (WEB_SEARCH_ENGINE). */
+  webSearchEngines?: BrowserSearchEngine[];
+  /** Optional browser search callback when running inside a Dot turn with a computer. */
+  browserSearch?: (
+    query: string,
+    limit: number,
+    signal?: AbortSignal,
+  ) => Promise<SearchResult[]>;
   browserUrl?: string;
   browserSecret?: string;
 }
@@ -25,10 +61,15 @@ export interface WebSource {
 
 export function webSearchProvider(value?: string): WebSearchProvider {
   if (!value) return 'duckduckgo';
-  if (value === 'duckduckgo' || value === 'searxng' || value === 'disabled')
+  if (
+    value === 'duckduckgo' ||
+    value === 'searxng' ||
+    value === 'browser' ||
+    value === 'disabled'
+  )
     return value;
   throw new Error(
-    'WEB_SEARCH_PROVIDER must be duckduckgo, searxng or disabled.',
+    'WEB_SEARCH_PROVIDER must be duckduckgo, searxng, browser or disabled.',
   );
 }
 
@@ -55,18 +96,25 @@ export function searxngUrl(value?: string): string | undefined {
   return url.href.replace(/\/+$/, '');
 }
 
-/** Reads WEB_SEARCH_PROVIDER and, for SearXNG, the required SEARXNG_URL. */
+/** Reads WEB_SEARCH_PROVIDER, optional WEB_SEARCH_ENGINE, and for SearXNG the required SEARXNG_URL. */
 export function webSearchConfig(
   env: Record<string, string | undefined>,
-): Pick<WebConfig, 'webSearchProvider' | 'searxngUrl'> {
+): Pick<WebConfig, 'webSearchProvider' | 'searxngUrl' | 'webSearchEngines'> {
   const provider = webSearchProvider(env.WEB_SEARCH_PROVIDER);
-  if (provider !== 'searxng') return { webSearchProvider: provider };
+  const engines = webSearchEngines(env.WEB_SEARCH_ENGINE);
+  const withEngines = engines ? { webSearchEngines: engines } : {};
+  if (provider === 'disabled' || provider === 'duckduckgo')
+    return { webSearchProvider: provider, ...withEngines };
   const url = searxngUrl(env.SEARXNG_URL);
-  if (!url)
+  if (provider === 'searxng' && !url)
     throw new Error(
       `WEB_SEARCH_PROVIDER=searxng needs SEARXNG_URL, the address of your SearXNG instance, ${searxngExample}.`,
     );
-  return { webSearchProvider: provider, searxngUrl: url };
+  return {
+    webSearchProvider: provider,
+    ...(url ? { searxngUrl: url } : {}),
+    ...withEngines,
+  };
 }
 
 export const browserResponse = z.object({
@@ -352,6 +400,12 @@ export async function searchWeb(
   const provider = config.webSearchProvider ?? 'duckduckgo';
   if (provider === 'disabled')
     throw new Error('Web search is turned off (WEB_SEARCH_PROVIDER=disabled).');
+  if (provider === 'browser') {
+    if (config.browserSearch) return config.browserSearch(query, limit, signal);
+    if (config.searxngUrl)
+      return searchSearxng(query, config.searxngUrl, signal, limit);
+    return searchDuckDuckGo(query, signal, limit);
+  }
   return provider === 'searxng'
     ? searchSearxng(query, config.searxngUrl, signal, limit)
     : searchDuckDuckGo(query, signal, limit);

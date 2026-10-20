@@ -18,6 +18,8 @@ export interface FakeElement {
 export interface FakePage {
   title: string;
   elements: FakeElement[];
+  text?: string;
+  challenge?: { kind: string; reason: string; requestId?: string };
 }
 
 export class FakeComputer {
@@ -26,6 +28,8 @@ export class FakeComputer {
   resumeSnapshotRequired = false;
   url = 'about:blank';
   title = '';
+  text = 'Page text';
+  challenge?: { kind: string; reason: string; requestId?: string };
   elements: FakeElement[] = [];
   /** Pages by URL for navigate. */
   pages: Record<string, FakePage> = {};
@@ -66,6 +70,8 @@ export class FakeComputer {
   show(page: FakePage) {
     this.title = page.title;
     this.elements = page.elements.map((element) => ({ ...element }));
+    this.text = page.text ?? 'Page text';
+    this.challenge = page.challenge ? { ...page.challenge } : undefined;
   }
   private controlState() {
     return {
@@ -214,6 +220,7 @@ export class FakeComputer {
             ({ native, ...element }) => element,
           ),
           truncated: false,
+          ...(this.challenge ? { challenge: this.challenge } : {}),
         });
       }
       case '/navigate': {
@@ -225,9 +232,10 @@ export class FakeComputer {
         return Response.json({
           url: this.url,
           title: this.title,
-          text: 'Page text',
+          text: this.text,
           truncated: false,
           elapsedMs: 5,
+          ...(this.challenge ? { challenge: this.challenge } : {}),
         });
       }
       case '/click': {
@@ -281,8 +289,9 @@ export class FakeComputer {
         return Response.json({
           url: this.url,
           title: this.title,
-          text: 'Page text',
+          text: this.text,
           truncated: false,
+          ...(this.challenge ? { challenge: this.challenge } : {}),
         });
       case '/screenshot':
         return Response.json({

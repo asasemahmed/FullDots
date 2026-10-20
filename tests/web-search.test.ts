@@ -52,8 +52,9 @@ it('defaults to DuckDuckGo and rejects unknown providers', () => {
   expect(webSearchProvider()).toBe('duckduckgo');
   expect(webSearchProvider('disabled')).toBe('disabled');
   expect(webSearchProvider('searxng')).toBe('searxng');
+  expect(webSearchProvider('browser')).toBe('browser');
   expect(() => webSearchProvider('parallel')).toThrow(
-    'duckduckgo, searxng or disabled',
+    'duckduckgo, searxng, browser or disabled',
   );
 });
 
@@ -99,6 +100,15 @@ describe('SearXNG configuration', () => {
     expect(() => webSearchConfig({ WEB_SEARCH_PROVIDER: 'searxng' })).toThrow(
       'WEB_SEARCH_PROVIDER=searxng needs SEARXNG_URL',
     );
+    expect(
+      webSearchConfig({
+        WEB_SEARCH_PROVIDER: 'browser',
+        WEB_SEARCH_ENGINE: 'brave, startpage',
+      }),
+    ).toEqual({
+      webSearchProvider: 'browser',
+      webSearchEngines: ['brave', 'startpage'],
+    });
   });
 });
 

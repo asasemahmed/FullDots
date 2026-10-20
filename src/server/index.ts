@@ -72,6 +72,7 @@ const researchConfig = {
   models: platform.models,
   webSearchProvider: config.webSearchProvider,
   searxngUrl: config.searxngUrl,
+  webSearchEngines: config.webSearchEngines,
   browserUrl: config.browserUrl,
   browserSecret: config.browserSecret,
 };

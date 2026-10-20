@@ -151,6 +151,35 @@ it('names clicked and typed elements from the preceding snapshot and masks secre
   expect(steps[3].detail).toBe('“••••••” in textbox “Password”');
   expect(JSON.stringify(steps[3])).not.toContain('hunter2');
   expect(steps[4].detail).toBe('element unknown');
+  const searchSteps = describeComputerSteps(
+    [
+      call('computer_search', { query: 'fulldots setup' }, 'search'),
+      call('computer_click', { ref: 'e6', snapshotId: 4 }, 'open'),
+    ],
+    new Map([
+      [
+        'search',
+        JSON.stringify({
+          action: 'search',
+          query: 'fulldots setup',
+          snapshotId: 4,
+          results: [
+            {
+              title: 'FullDots Setup Guide',
+              url: 'https://docs.fulldots.dev/setup',
+              snippet: 'Setup guide',
+              ref: 'e6',
+            },
+          ],
+        }),
+      ],
+      ['open', '{"action":"click"}'],
+    ]),
+    false,
+  );
+  expect(searchSteps[0].label).toBe('Searching the web');
+  expect(searchSteps[0].detail).toBe('“fulldots setup”');
+  expect(searchSteps[1].detail).toBe('link “FullDots Setup Guide”');
 });
 
 const steps = describeComputerSteps(
