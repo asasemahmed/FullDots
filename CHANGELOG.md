@@ -29,6 +29,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- Dot computers run their browser headed on a virtual display by default (`COMPUTER_BROWSER_MODE=headed`). Headless Chrome announced itself to search engines, which answered most searches with a captcha. `COMPUTER_BROWSER_MODE=headless` keeps the old behaviour.
 - `compose.yml` passes `BACKGROUND_CONCURRENCY`, `DOT_DAILY_TOKEN_WARN` and `TEAM_MAX_DEPTH` to the app.
 - A model provider is shown as Ready only after a successful test, the built-in `.env` provider included.
 - When a Dot is busy, the chat says so, keeps the message and offers to send it again or to stop the other work and send.

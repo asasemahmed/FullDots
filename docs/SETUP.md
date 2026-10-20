@@ -85,6 +85,8 @@ Back up the SQLite database: it contains page content, thread bindings, and conv
 
 When a Dot has a running computer with Browser access on, `search_web` (and `computer_search`) searches inside that Dot's own Chromium browser, visible in the live view and Replay tab, and returns a short list of `{title, url, snippet, ref}` results instead of a page dump. Cookie banners on the search engine's host are dismissed automatically (preferring "Reject all" / "Only necessary"), and if an engine shows a soft bot check the Dot rotates to the next configured search engine (`WEB_SEARCH_ENGINE`, defaulting to `duckduckgo,brave,bing,startpage,google`). If the browser encounters a widget captcha or every engine asks for verification, it pauses once for you to take over in the live view; your solved cookies stay in the Dot's persistent browser profile.
 
+If searches keep hitting captchas: keep the computer's browser headed (`COMPUTER_BROWSER_MODE=headed`, the default; see [Dot computers](COMPUTERS.md)), leave Google out of the engines (for example `WEB_SEARCH_ENGINE=brave,startpage,bing,duckduckgo`), and start [SearXNG](#private-search-with-searxng) with `WEB_SEARCH_PROVIDER=browser`. The browser is still tried first, and SearXNG answers when the browser cannot.
+
 Without a running computer or Browser access, Dots search with DuckDuckGo (`WEB_SEARCH_PROVIDER=duckduckgo`, the default) and report why the browser was not used when a computer is configured or `WEB_SEARCH_PROVIDER=browser` is set. Set `WEB_SEARCH_PROVIDER=disabled` to turn off search and research tools. Workspace and Dot research permissions, pause, and cancellation still apply.
 
 ### Private search with SearXNG
@@ -98,7 +100,7 @@ COMPOSE_PROFILES=search
 WEB_SEARCH_PROVIDER=searxng
 ```
 
-`SEARXNG_URL` already points at the service (`http://searxng:8080`). Its settings are in [`deployment/searxng/settings.yml`](../deployment/searxng/settings.yml): the JSON format on, the bot limiter off, and everything else at SearXNG's defaults. The secret key is generated at every start. To combine profiles, list them, for example `COMPOSE_PROFILES=browser,search` with `compose.yml` or `COMPOSE_PROFILES=search,computers` on Dokploy.
+With `WEB_SEARCH_PROVIDER=browser` instead, Dots search in their computer's browser first and use SearXNG when the browser is unavailable. `SEARXNG_URL` already points at the service (`http://searxng:8080`). Its settings are in [`deployment/searxng/settings.yml`](../deployment/searxng/settings.yml): the JSON format on, the bot limiter off, and everything else at SearXNG's defaults. The secret key is generated at every start. To combine profiles, list them, for example `COMPOSE_PROFILES=browser,search` with `compose.yml` or `COMPOSE_PROFILES=search,computers` on Dokploy.
 
 To use a SearXNG you already run, set `SEARXNG_URL` to its base address, for example `http://127.0.0.1:8080`. It must allow the JSON format (`search.formats` includes `json`) and should have `server.limiter: false` when only FullDots uses it. FullDots only sends the query to `/search?format=json`, ignores redirects, waits at most 15 seconds and reads at most 2 MB. Search queries then go from SearXNG to the engines it has enabled.
 
