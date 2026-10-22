@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to FullDots are listed here. The project follows [Semantic Versioning](https://semver.org), and 0.x releases may change without notice.
+All notable changes to FullDots are listed here. The project follows [Semantic Versioning](https://semver.org), and releases before 1.0 may have changed without notice.
 
-## Unreleased
+## 2.0.0 — the flock (2026-10-22)
 
 ### Added
 

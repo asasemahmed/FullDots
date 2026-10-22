@@ -1,6 +1,6 @@
 {
   "name": "fulldots",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Self-hosted, local-first AI coworkers with their own computers. A fork of CopilotKit OpenDots.",
   "main": "index.js",
   "directories": {
