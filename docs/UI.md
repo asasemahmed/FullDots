@@ -1,6 +1,6 @@
 # The FullDots interface
 
-A short map of the parts of the chat that are not plain messages. Light theme only; colours come from `src/client/tokens.css`, and each Dot keeps its own penguin and colour everywhere it appears (see [the brand notes](brand/README.md#the-dot) for its states).
+A short map of the parts of the chat that are not plain messages. Colours come from `src/client/tokens.css` and follow the light or dark theme, while each Dot keeps its own penguin and colour everywhere it appears (see [the brand notes](brand/README.md#the-dot) for its states).
 
 ## In a chat
 
@@ -13,6 +13,12 @@ A short map of the parts of the chat that are not plain messages. Light theme on
 
 - **Dots** with what each is doing right now (**Working**, **Needs you**, **Paused**).
 - **Chats** by recency, with teammates' chats nested under the chat that handed the work over, and a pulse on chats with work running.
+
+## Themes
+
+FullDots follows the operating system by default and can be pinned to Light or Dark in **Settings → General → Appearance**. The choice is saved per browser (`fulldots-theme` in `localStorage`) and is applied before the first paint, so a dark screen never flashes light.
+
+All colour lives in `src/client/tokens.css` as custom properties. `:root` holds the light palette and `[data-theme='dark']` on `<html>` overrides the same names; components only ever read the names. `src/client/theme.ts` resolves and applies the theme, and `tests/theme.test.ts` keeps the two palettes in step and checks text contrast against WCAG AA.
 
 ## Motion and access
 

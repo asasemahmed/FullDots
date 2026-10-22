@@ -27,6 +27,8 @@ Every Dot is a round penguin. Its colour, species and gear make it recognisable;
 
 Gear: none, headphones, glasses, beanie, scarf or bow tie.
 
+A Dot keeps its colours in the light and the dark theme: the `--dot-*` tokens in `src/client/tokens.css` are the same in both, because the penguin is artwork rather than interface chrome. The brand mark and wordmark also keep their own colours; the "FullDots" wordmark's blue dots are used as a logo, which WCAG exempts from text-contrast rules.
+
 In the app the penguin is drawn by `src/client/DotCharacter.tsx`, animated by `src/client/penguin/live.ts`, and its state picks the effect. The three-dot effects follow [bloub](https://github.com/jeremy-prt/bloub) (MIT): the body becomes the middle dot, two more slide out of its sides, and a wave runs through them.
 
 | State       | Look                                                                   |

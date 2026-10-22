@@ -4,17 +4,17 @@
 
 .approval-card,
 .approvals-view {
-  --ap-ink: #242424;
-  --ap-muted: #707070;
-  --ap-line: #e7e7e7;
-  --ap-soft: #f6f6f5;
-  --ap-amber: #b7791f;
-  --ap-amber-bg: #fdf6e7;
-  --ap-green: #2f7d4f;
-  --ap-green-bg: #eaf6ef;
-  --ap-red: #b42318;
-  --ap-red-bg: #fdecea;
-  --ap-grey-bg: #efefed;
+  --ap-ink: var(--text);
+  --ap-muted: var(--text-muted);
+  --ap-line: var(--surface-6);
+  --ap-soft: var(--surface-3);
+  --ap-amber: var(--amber-ink);
+  --ap-amber-bg: var(--amber-50);
+  --ap-green: var(--green-ink);
+  --ap-green-bg: var(--green-50);
+  --ap-red: var(--red-ink);
+  --ap-red-bg: var(--red-50);
+  --ap-grey-bg: var(--surface-4);
 }
 
 /* ---- Card ---------------------------------------------------------- */
@@ -29,7 +29,7 @@
   padding: 16px;
   border: 1px solid var(--ap-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.04),
     0 6px 18px rgba(0, 0, 0, 0.04);
@@ -40,7 +40,7 @@
 }
 .approval-card.is-pending,
 .approval-card.is-handoff {
-  border-color: #eadfc4;
+  border-color: var(--amber-200);
 }
 .approval-card.is-denied,
 .approval-card.is-expired {
@@ -280,7 +280,7 @@
   padding: 10px 12px 24px;
   border: 1px solid var(--ap-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--ap-ink);
   font: inherit;
   font-size: 13.5px;
@@ -288,7 +288,7 @@
   resize: vertical;
 }
 .approval-card .approval-note-field textarea::placeholder {
-  color: #a3a3a3;
+  color: var(--text-faint);
 }
 .approval-card .approval-note-field textarea:focus {
   border-color: var(--ap-ink);
@@ -297,7 +297,7 @@
   position: absolute;
   right: 12px;
   bottom: 7px;
-  color: #a3a3a3;
+  color: var(--text-faint);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
@@ -316,7 +316,7 @@
 }
 .approval-decision .approval-footer {
   padding-top: 12px;
-  border-top: 1px solid #efefed;
+  border-top: 1px solid var(--surface-4);
 }
 .approval-footer-start {
   display: flex;
@@ -341,7 +341,7 @@
   padding: 7px 16px;
   border: 1px solid var(--ap-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--ap-ink);
   font-size: 13.5px;
   font-weight: 600;
@@ -352,17 +352,17 @@
     box-shadow 0.15s;
 }
 .approval-card .approval-btn.is-secondary:hover:not(:disabled) {
-  border-color: #d4d4d2;
+  border-color: var(--line-2);
   background: var(--ap-soft);
 }
 .approval-card .approval-btn.is-primary {
   border-color: var(--ap-ink);
   background: var(--ap-ink);
-  color: #fff;
+  color: var(--on-solid);
 }
 .approval-card .approval-btn.is-primary:hover:not(:disabled) {
-  border-color: #000;
-  background: #000;
+  border-color: var(--solid-2);
+  background: var(--solid-2);
 }
 .approval-card .approval-btn:disabled {
   cursor: not-allowed;
@@ -543,7 +543,7 @@ main.approvals-view {
   overflow: hidden;
   border: 1px solid var(--ap-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface-0);
   list-style: none;
 }
 .approvals-recent-row {
@@ -555,7 +555,7 @@ main.approvals-view {
   font-size: 13px;
 }
 .approvals-recent-row + .approvals-recent-row {
-  border-top: 1px solid #efefed;
+  border-top: 1px solid var(--surface-4);
 }
 .approvals-recent-row .approval-tile {
   width: 30px;

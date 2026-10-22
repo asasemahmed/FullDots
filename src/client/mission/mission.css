@@ -83,7 +83,7 @@ main.mission-view {
   transform: translateY(-2px);
 }
 .mission-card.is-needs-input {
-  border-color: #eadfc4;
+  border-color: var(--amber-200);
 }
 .mission-card.is-paused {
   background: var(--surface-raised);
@@ -138,15 +138,15 @@ main.mission-view {
   text-transform: uppercase;
 }
 .mission-state.is-working {
-  background: color-mix(in srgb, var(--mission-dot) 16%, #fff);
+  background: color-mix(in srgb, var(--mission-dot) 16%, var(--surface-0));
   color: var(--ink);
 }
 .mission-state.is-needs-input {
-  background: #fdf6e7;
+  background: var(--amber-50);
   color: var(--warning);
 }
 .mission-state.is-paused {
-  background: #efefed;
+  background: var(--surface-4);
   color: var(--muted);
 }
 .mission-source {
@@ -209,7 +209,7 @@ main.mission-view {
   height: 8px;
   overflow: hidden;
   border-radius: var(--radius-pill);
-  background: #efefed;
+  background: var(--surface-4);
 }
 .mission-bar > span {
   display: block;

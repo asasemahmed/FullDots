@@ -5,16 +5,16 @@
 
 .mp-picker,
 .mp-settings {
-  --mp-ink: #242424;
-  --mp-muted: #707070;
-  --mp-line: #e7e7e7;
-  --mp-soft: #f7f7f6;
-  --mp-green: #2f7d4f;
-  --mp-green-bg: #eaf6ef;
-  --mp-amber: #b7791f;
-  --mp-amber-bg: #fdf6e7;
-  --mp-red: #b42318;
-  --mp-red-bg: #fdecea;
+  --mp-ink: var(--text);
+  --mp-muted: var(--text-muted);
+  --mp-line: var(--surface-6);
+  --mp-soft: var(--surface-3);
+  --mp-green: var(--green-ink);
+  --mp-green-bg: var(--green-50);
+  --mp-amber: var(--amber-ink);
+  --mp-amber-bg: var(--amber-50);
+  --mp-red: var(--red-ink);
+  --mp-red-bg: var(--red-50);
 }
 
 /* ---- Badges and small gallery bits ----------------------------------------------- */
@@ -47,7 +47,7 @@
   color: var(--cx-muted);
 }
 .mp-card[data-tone='bad'] {
-  border-color: #f2c4bf;
+  border-color: var(--red-100);
 }
 
 /* ---- Default model bar --------------------------------------------------------------- */
@@ -70,7 +70,7 @@
   height: 40px;
   border-radius: 12px;
   background: var(--mp-ink);
-  color: #fff;
+  color: var(--on-solid);
 }
 .mp-default-text {
   display: flex;
@@ -159,7 +159,7 @@
   padding: 0 12px 0 10px;
   border: 1px solid var(--mp-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--mp-ink);
   font-size: 14px;
   text-align: left;
@@ -168,17 +168,17 @@
     box-shadow 0.15s;
 }
 .mp-picker .mp-trigger:hover:not(:disabled) {
-  background: #fff;
-  border-color: #d0d0d0;
+  background: var(--surface-0);
+  border-color: var(--line-3);
 }
 .mp-picker .mp-trigger[aria-expanded='true'],
 .mp-picker .mp-trigger:focus-visible {
   border-color: var(--mp-ink);
-  box-shadow: 0 0 0 3px #24242414;
+  box-shadow: 0 0 0 3px var(--shadow-focus);
   outline: none;
 }
 .mp-picker .mp-trigger[data-stale] {
-  border-color: #e3b76a;
+  border-color: var(--amber-400);
 }
 .mp-trigger-icon {
   display: grid;
@@ -206,7 +206,7 @@
   padding: 0 14px;
   border: 1px solid var(--mp-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--mp-ink);
   font-size: 14px;
   font-weight: 550;
@@ -214,7 +214,7 @@
 }
 .mp-picker .mp-trigger-btn:hover:not(:disabled) {
   background: var(--mp-soft);
-  border-color: #d6d6d6;
+  border-color: var(--line-2);
 }
 .mp-stale {
   display: flex;
@@ -242,7 +242,7 @@
   max-height: min(380px, 60vh);
   border: 1px solid var(--mp-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow:
     0 12px 36px #24242424,
     0 2px 6px #2424240d;
@@ -275,13 +275,13 @@
   padding: 0 12px 0 34px;
   border: 1px solid var(--mp-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--mp-ink);
   font-size: 14px;
 }
 .mp-picker .mp-search input:focus {
   border-color: var(--mp-ink);
-  box-shadow: 0 0 0 3px #24242414;
+  box-shadow: 0 0 0 3px var(--shadow-focus);
   outline: none;
 }
 .mp-list {
@@ -358,7 +358,7 @@
   color: var(--mp-muted);
 }
 .mp-opt[data-active] .mp-opt-icon {
-  background: #fff;
+  background: var(--surface-0);
 }
 .mp-opt-main {
   display: flex;
@@ -471,13 +471,13 @@
   padding: 0 12px;
   border: 1px solid var(--mp-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--mp-ink);
   font-size: 14px;
 }
 .mp-picker .mp-input:focus {
   border-color: var(--mp-ink);
-  box-shadow: 0 0 0 3px #24242414;
+  box-shadow: 0 0 0 3px var(--shadow-focus);
   outline: none;
 }
 .mp-picker .mp-input[aria-invalid='true'] {
@@ -502,7 +502,7 @@
   padding: 0 16px;
   border: 1px solid var(--mp-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--mp-ink);
   font-size: 14px;
   font-weight: 550;
@@ -513,10 +513,10 @@
 .mp-picker .mp-btn-primary {
   border-color: var(--mp-ink);
   background: var(--mp-ink);
-  color: #fff;
+  color: var(--on-solid);
 }
 .mp-picker .mp-btn-primary:hover:not(:disabled) {
-  background: #000;
+  background: var(--solid-2);
 }
 
 /* The General tab's note links to the Models tab. */
@@ -639,7 +639,7 @@
   padding: 9px 12px;
 }
 .mp-model + .mp-model {
-  border-top: 1px solid #eeeeed;
+  border-top: 1px solid var(--surface-4);
 }
 .mp-model-id {
   display: flex;
@@ -721,7 +721,7 @@
   width: 40px;
   height: 24px;
   border-radius: 999px;
-  background: #d0d0d0;
+  background: var(--line-3);
   transition: background 0.15s;
 }
 .mp-switch-track::after {
@@ -732,7 +732,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow: 0 1px 2px #0003;
   transition: transform 0.15s;
 }

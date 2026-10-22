@@ -1,19 +1,19 @@
 /*
  * Command palette (Ctrl+K) and the saved prompts settings. Every selector starts with `pal-` or
- * `pr-`. Colours follow the sidebar and dialogs: ink #242424, muted #707070, line #e7e7e7, accent
- * green #2f6b5f. Custom properties have fallbacks so the file works before shared tokens exist.
+ * `pr-`. Colours follow the sidebar and dialogs: ink var(--solid-1), muted var(--faint-3), line var(--surface-6), accent
+ * green var(--teal-500). Custom properties have fallbacks so the file works before shared tokens exist.
  */
 .pal-backdrop,
 .pr {
-  --pal-ink: var(--ink, #242424);
-  --pal-muted: #6b6b6b;
-  --pal-line: var(--line, #e7e7e7);
-  --pal-soft: #f7f7f6;
-  --pal-active: #e8eeeb;
-  --pal-accent: #2f6b5f;
-  --pal-accent-soft: #438c81;
-  --pal-mark: #fff0b3;
-  --pal-danger: #b3382c;
+  --pal-ink: var(--ink, var(--text));
+  --pal-muted: var(--text-muted);
+  --pal-line: var(--line, var(--surface-6));
+  --pal-soft: var(--surface-3);
+  --pal-active: var(--teal-50);
+  --pal-accent: var(--teal-500);
+  --pal-accent-soft: var(--teal-300);
+  --pal-mark: var(--amber-100);
+  --pal-danger: var(--red-300);
 }
 
 /* ---- Palette shell ---------------------------------------------------- */
@@ -25,7 +25,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 16px 16px;
-  background: #24242438;
+  background: var(--overlay);
   backdrop-filter: blur(3px);
   animation: pal-fade 0.14s ease-out;
 }
@@ -36,7 +36,7 @@
   max-width: 640px;
   max-height: min(560px, 76vh);
   overflow: hidden;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--pal-ink);
   border: 1px solid var(--pal-line);
   border-radius: 18px;
@@ -71,7 +71,7 @@
   outline: none;
 }
 .pal .pal-input::placeholder {
-  color: #9a9a9a;
+  color: var(--text-faint);
 }
 .pal-key {
   display: inline-grid;
@@ -91,8 +91,8 @@
 .pal-note {
   margin: 0;
   padding: 8px 18px;
-  background: #fbf3e4;
-  color: #7a5a14;
+  background: var(--amber-50);
+  color: var(--amber-ink);
   font-size: 12.5px;
 }
 
@@ -108,7 +108,7 @@
 }
 .pal-group-label {
   padding: 8px 10px 4px;
-  color: #8a8a8a;
+  color: var(--text-faint);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -176,7 +176,7 @@
   flex: none;
   max-width: 30%;
   overflow: hidden;
-  color: #8a8a8a;
+  color: var(--text-faint);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -300,15 +300,15 @@
 .pr .pr-add {
   gap: 6px;
   padding: 7px 12px;
-  border: 1px solid var(--pal-accent);
+  border: 1px solid var(--accent-solid);
   border-radius: 9px;
-  background: var(--pal-accent);
-  color: #fff;
+  background: var(--accent-solid);
+  color: var(--on-accent);
   font-weight: 560;
   white-space: nowrap;
 }
 .pr .pr-add:hover:not(:disabled) {
-  background: var(--pal-accent-soft);
+  background: var(--accent-solid-hover);
 }
 .pr-list {
   display: grid;
@@ -324,7 +324,7 @@
   padding: 12px 14px;
   border: 1px solid var(--pal-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-0);
 }
 .pr-row-main {
   display: flex;
@@ -393,9 +393,9 @@
 .pr-form textarea,
 .pr-form select {
   padding: 9px 10px;
-  border: 1px solid #dcdcd8;
+  border: 1px solid var(--line-1);
   border-radius: 9px;
-  background: #fff;
+  background: var(--surface-0);
   font-weight: 400;
 }
 .pr-form textarea {
@@ -403,7 +403,7 @@
   resize: vertical;
 }
 .pr-count {
-  color: #8a8a8a;
+  color: var(--text-faint);
   font-size: 11.5px;
   font-weight: 400;
   text-align: right;
@@ -420,7 +420,7 @@
 }
 .pr-empty {
   padding: 24px 12px;
-  border: 1px dashed #d8d8d4;
+  border: 1px dashed var(--line-2);
   border-radius: 12px;
   color: var(--pal-muted);
   text-align: center;

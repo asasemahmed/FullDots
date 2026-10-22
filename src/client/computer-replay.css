@@ -106,7 +106,7 @@
   overflow: hidden;
   border: 1px solid var(--cp-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-0);
   aspect-ratio: 16 / 10;
 }
 .cp-replay-frame[data-state='failed'] {
