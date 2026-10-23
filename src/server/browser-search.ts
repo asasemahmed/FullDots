@@ -258,7 +258,7 @@ const ENGINE_BLOCK_PATTERNS: Record<BrowserSearchEngine, RegExp> = {
   duckduckgo:
     /unfortunately,\s*bots use duckduckgo|confirm this search was made by a human|select all squares containing a duck|anomaly-modal|anomaly\.js/i,
   brave:
-    /too many requests|verify you are human|automated queries|rate limit exceeded|pow captcha/i,
+    /too many requests|verify you are human|automated queries|rate limit exceeded|pow captcha|verifying you'?re not a bot|switch to traditional captcha/i,
   bing: /verify you are a human|solve the challenge below|one more step[\s\S]{0,80}human/i,
   startpage:
     /sorry, we have detected unusual traffic|blocked your ip|automated requests/i,

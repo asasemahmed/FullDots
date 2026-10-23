@@ -2,6 +2,12 @@
 
 All notable changes to FullDots are listed here. The project follows [Semantic Versioning](https://semver.org), and releases before 1.0 may have changed without notice.
 
+## Unreleased
+
+### Fixed
+
+- Browser search recognises Brave's current bot check ("Verifying you're not a bot"), which a new browser profile often sees. It used to be read as a results page with no results; now the search moves on to the next engine in `WEB_SEARCH_ENGINE`.
+
 ## 2.0.0 — the flock (2026-10-22)
 
 The first major release since FullDots was forked: penguin Dots, teams, Spaces with files, browser search through each Dot's own computer, and work that runs on its own. The major version marks two changes to how an existing install behaves: Dot computers now run a headed browser, and the leftover Automatic Learning settings are gone (see Removed).
