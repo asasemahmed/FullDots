@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">How FullDots works</title>
+  <desc id="d">The web app talks to the FullDots server. The server stores everything in SQLite, calls model providers, and sends every Dot action through an approval gate. The gate leads to MCP connectors, Dot computers and teammate Dots. A Dot computer searches the web with its own browser.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6b7280" />
+    </marker>
+  </defs>
+  <rect width="960" height="400" rx="16" fill="#f8f8fb" stroke="#e2e2ea" />
+  <g fill="none" stroke="#6b7280" stroke-width="1.6" marker-end="url(#a)">
+    <path d="M200 200 H262" marker-start="url(#a)" />
+    <path d="M440 168 L500 90" />
+    <path d="M440 200 H500" />
+    <path d="M440 232 L500 310" />
+  </g>
+  <!-- web app -->
+  <rect x="40" y="165" width="160" height="70" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="120" y="196" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2230">Web app</text>
+  <text x="120" y="218" text-anchor="middle" font-size="13" fill="#5b5f72">React</text>
+  <!-- server -->
+  <rect x="262" y="150" width="178" height="100" rx="12" fill="#4f46e5" />
+  <text x="351" y="195" text-anchor="middle" font-size="17" font-weight="600" fill="#ffffff">FullDots server</text>
+  <text x="351" y="218" text-anchor="middle" font-size="13" fill="#e0e0ff">Hono + CopilotKit runtime</text>
+  <!-- sqlite -->
+  <rect x="500" y="50" width="200" height="80" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="600" y="80" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2230">SQLite</text>
+  <text x="600" y="100" text-anchor="middle" font-size="12.5" fill="#5b5f72">chats, pages, files,</text>
+  <text x="600" y="116" text-anchor="middle" font-size="12.5" fill="#5b5f72">settings, audit</text>
+  <!-- models -->
+  <rect x="500" y="160" width="200" height="80" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="600" y="194" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2230">Model providers</text>
+  <text x="600" y="216" text-anchor="middle" font-size="12.5" fill="#5b5f72">cloud or local</text>
+  <!-- gate -->
+  <rect x="500" y="275" width="160" height="70" rx="35" fill="#fff4e0" stroke="#e8a23a" stroke-width="1.6" />
+  <text x="580" y="305" text-anchor="middle" font-size="16" font-weight="600" fill="#6b4200">Approval gate</text>
+  <text x="580" y="324" text-anchor="middle" font-size="12.5" fill="#8a5a10">you decide</text>
+  <!-- targets -->
+  <rect x="712" y="195" width="208" height="64" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="816" y="224" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2230">MCP connectors</text>
+  <text x="816" y="243" text-anchor="middle" font-size="12.5" fill="#5b5f72">Notion, Linear, Stripe, more</text>
+  <rect x="712" y="280" width="208" height="64" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="816" y="309" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2230">Dot computers</text>
+  <text x="816" y="328" text-anchor="middle" font-size="12.5" fill="#5b5f72">browser, files, shell (Docker)</text>
+  <rect x="712" y="110" width="208" height="64" rx="12" fill="#ffffff" stroke="#c7c7d4" />
+  <text x="816" y="139" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2230">Teammate Dots</text>
+  <text x="816" y="158" text-anchor="middle" font-size="12.5" fill="#5b5f72">hand-offs</text>
+  <g fill="none" stroke="#6b7280" stroke-width="1.6" marker-end="url(#a)">
+    <path d="M660 298 L712 150" />
+    <path d="M660 306 L712 227" />
+    <path d="M660 312 L712 312" />
+  </g>
+  <text x="480" y="378" text-anchor="middle" font-size="12.5" fill="#5b5f72">A Dot computer also does the Dot's web search, with its own browser.</text>
+</svg>

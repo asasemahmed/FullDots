@@ -498,7 +498,7 @@ export class ConnectorRegistry {
       let flavor = entry.flavor ?? 'streamable';
       let connected: Client;
       for (;;) {
-        client = connected = new Client({ name: 'fulldots', version: '0.1.0' });
+        client = connected = new Client({ name: 'fulldots', version: '2.0.0' });
         const current = connected;
         current.onclose = () => this.closed(connector, entry, current);
         current.onerror = (error) =>

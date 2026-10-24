@@ -1,8 +1,23 @@
 # Changelog
 
-All notable changes to FullDots are listed here. The project follows [Semantic Versioning](https://semver.org), and 0.x releases may change without notice.
+All notable changes to FullDots are listed here. The project follows [Semantic Versioning](https://semver.org), and releases before 1.0 may have changed without notice.
 
 ## Unreleased
+
+### Fixed
+
+- Browser search recognises Brave's current bot check ("Verifying you're not a bot"), which a new browser profile often sees. It used to be read as a results page with no results; now the search moves on to the next engine in `WEB_SEARCH_ENGINE`.
+
+## 2.0.0 — the flock (2026-10-22)
+
+The first major release since FullDots was forked: penguin Dots, teams, Spaces with files, browser search through each Dot's own computer, and work that runs on its own. The major version marks two changes to how an existing install behaves: Dot computers now run a headed browser, and the leftover Automatic Learning settings are gone (see Removed).
+
+### Upgrading from 0.1.0
+
+1. Back up first. From source, run `npm run backup` while FullDots runs; it copies the database and `data/connector.key` together. With Docker, copy the data volume as shown in [Deploy on Dokploy](docs/DEPLOY-DOKPLOY.md#6-backups).
+2. Pull `v2.0.0`, then run `npm ci` (from source) or rebuild the images with the same compose files and profiles you started with plus `--build`. The database updates itself on start.
+3. Dot computers created before the upgrade keep a headless browser. To switch one, stop it, remove its container (`docker rm -f opendots-computer-<dot id>`; its files and browser profile live in volumes and stay), and start it again from the Computer panel. See [Dot computers](docs/COMPUTERS.md).
+4. Optional: for search with fewer captchas, set `WEB_SEARCH_PROVIDER=browser`, start SearXNG as the fallback (`COMPOSE_PROFILES=search`), and leave Google out of `WEB_SEARCH_ENGINE`. See [Web search](docs/SETUP.md#web-search-and-page-reader).
 
 ### Added
 
@@ -18,22 +33,26 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 - **`npm run backup`** writes a consistent copy of the database (and the connector key) while FullDots runs.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Deploy on Dokploy** with [`compose.dokploy.yml`](compose.dokploy.yml) and [`docs/DEPLOY-DOKPLOY.md`](docs/DEPLOY-DOKPLOY.md). The app image includes `scripts/backup.mjs`.
+- **Search with the Dot's own browser.** When a Dot has a running computer with Browser access, `search_web` and `computer_search` search in that Dot's Chromium, visible in the live view, and return a short list of `{title, url, snippet, ref}` results instead of a page dump. Cookie banners on the search host are declined, a soft bot check moves the search to the next engine in `WEB_SEARCH_ENGINE` (DuckDuckGo, Brave, Bing, Startpage, Google), and a captcha hands the screen to you once. Computers run their browser headed on a virtual display (`COMPUTER_BROWSER_MODE=headed`), which search engines challenge far less than headless Chrome, and Brave's results are read from its real page layout. With `WEB_SEARCH_PROVIDER=browser`, SearXNG answers when the browser cannot. See [Web search](docs/SETUP.md#web-search-and-page-reader).
+- **Export a conversation as Markdown** from its menu in the sidebar (`GET /api/conversations/:id/export.md`).
 - **Private web search with SearXNG.** `WEB_SEARCH_PROVIDER=searxng` searches through your own SearXNG at `SEARXNG_URL`, keyless, so Dots can search from a VPS that DuckDuckGo blocks. Both compose files run it with `COMPOSE_PROFILES=search`, on an internal network without a public port. When DuckDuckGo answers with its bot check, Dots now say the server's address is blocked and point to SearXNG instead of asking you to wait.
-
 - **Standing goals.** A goal runs on a schedule until the Dot calls `mark_goal_done`, with an optional run limit. Repeats get run limits too ([`docs/AUTOMATIONS.md`](docs/AUTOMATIONS.md)).
 - **Parallel background work.** `BACKGROUND_CONCURRENCY` (default 4) tasks run at once on different Dots.
 - **Triggers.** Webhooks with bearer, URL or HMAC secrets (hashed or sealed, shown once, rotatable), dedupe, rate and size limits; and polls of read-only connector tools that fire when the answer changes. Events become tasks in the trigger's conversation.
 - **Token use and budgets.** Provider-reported tokens per Dot per UTC day, a once-a-day warning (`DOT_DAILY_TOKEN_WARN`), and an optional daily budget that pauses a Dot's background work.
-
 - **Delete a page.** Its subpages move up to the deleted page's parent, and a retried review approval cannot recreate it (ported from OpenDots [#49](https://github.com/CopilotKit/OpenDots/pull/49)).
+
+### Changed
+
+- Dot computers run their browser headed by default. Set `COMPUTER_BROWSER_MODE=headless` to keep the 0.1.0 behaviour.
+- A new README with current screenshots and an architecture diagram ([`docs/brand/architecture.svg`](docs/brand/architecture.svg)).
+- Dependencies and GitHub Actions are up to date.
 
 ### Fixed
 
-- Dot computers run their browser headed on a virtual display by default (`COMPUTER_BROWSER_MODE=headed`). Headless Chrome announced itself to search engines, which answered most searches with a captcha. `COMPUTER_BROWSER_MODE=headless` keeps the old behaviour.
 - `compose.yml` passes `BACKGROUND_CONCURRENCY`, `DOT_DAILY_TOKEN_WARN` and `TEAM_MAX_DEPTH` to the app.
 - A model provider is shown as Ready only after a successful test, the built-in `.env` provider included.
 - When a Dot is busy, the chat says so, keeps the message and offers to send it again or to stop the other work and send.
-- Browser search reads Brave's results again. Brave names each result `🌐 Site domain › path › Title`, and the computer sends the page text as one line, so most searches came back empty or pointed at addresses made from names such as `Node.js`. Results now carry their real address, title and snippet; a result whose address Brave shows only as words keeps its ref for the Dot to click.
 
 Ported from OpenDots, adapted to FullDots and covered by tests:
 
