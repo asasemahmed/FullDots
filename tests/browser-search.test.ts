@@ -183,6 +183,19 @@ describe('bot check detection', () => {
       ),
     ).toMatch(/Brave Search is asking for a human verification check/);
 
+    // Brave's current check, as a fresh browser profile sees it.
+    expect(
+      detectSearchBlock(
+        'brave',
+        {
+          url: 'https://search.brave.com/search?q=latest%20remotion%20release',
+          title: 'Brave Search',
+          elements: [{ ref: 'e1', role: 'button', name: 'Verify' }],
+        },
+        "Verifying you're not a bot Quick check before you continue searching. Why am I seeing this?  Verify  Switch to traditional CAPTCHA Why am I seeing this?",
+      ),
+    ).toMatch(/Brave Search is asking for a human verification check/);
+
     expect(
       detectSearchBlock(
         'google',
