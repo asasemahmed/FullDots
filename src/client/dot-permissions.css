@@ -1,15 +1,15 @@
 /* Dot form: approval mode cards and connector grants. Selectors are scoped under
    .dp-root where needed so they win over the global input/button/label rules. */
 .dp-root {
-  --dp-ink: #242424;
-  --dp-muted: #707070;
-  --dp-line: #e7e7e7;
-  --dp-soft: #f6f6f5;
-  --dp-amber: #d99a1a;
-  --dp-amber-bg: #fff8e8;
-  --dp-red: #c4352c;
-  --dp-red-bg: #fdeeec;
-  --dp-green: #2f9e5f;
+  --dp-ink: var(--text);
+  --dp-muted: var(--text-muted);
+  --dp-line: var(--surface-6);
+  --dp-soft: var(--surface-3);
+  --dp-amber: var(--amber-ink);
+  --dp-amber-bg: var(--amber-50);
+  --dp-red: var(--red-ink);
+  --dp-red-bg: var(--red-50);
+  --dp-green: var(--green-ink);
   container-type: inline-size;
 }
 .dp-root .field-label {
@@ -43,7 +43,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 14px;
-  background: #fff;
+  background: var(--surface-0);
   border: 1px solid var(--dp-line);
   border-radius: 14px;
   cursor: pointer;
@@ -53,7 +53,7 @@
     background 0.15s;
 }
 .dp-option:hover {
-  border-color: #cfcfcf;
+  border-color: var(--line-3);
   box-shadow: 0 4px 14px #0000000f;
 }
 .dp-option[data-selected='true'] {
@@ -87,8 +87,8 @@
   margin-left: auto;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #e8f5ee;
-  color: #1f7a48;
+  background: var(--green-50);
+  color: var(--green-ink);
   font-size: 11px;
   font-weight: 550;
   line-height: 1.5;
@@ -101,10 +101,10 @@
   width: 20px;
   height: 20px;
   margin-left: auto;
-  border: 1.5px solid #cfcfcf;
+  border: 1.5px solid var(--line-3);
   border-radius: 50%;
-  background: #fff;
-  color: #fff;
+  background: var(--surface-0);
+  color: var(--on-solid);
 }
 .dp-chip + .dp-radio {
   margin-left: 0;
@@ -136,10 +136,10 @@
   gap: 10px;
   margin: 10px 0 0;
   padding: 10px 14px;
-  border: 1px solid #f3c7c2;
+  border: 1px solid var(--red-100);
   border-radius: 12px;
   background: var(--dp-red-bg);
-  color: #8f2018;
+  color: var(--red-ink);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -167,7 +167,7 @@
   list-style: none;
 }
 .dp-connector {
-  background: #fff;
+  background: var(--surface-0);
   border: 1px solid var(--dp-line);
   border-radius: 14px;
   transition:
@@ -178,7 +178,7 @@
   box-shadow: 0 4px 14px #0000000f;
 }
 .dp-connector[data-on='true'] {
-  border-color: #cfcfcf;
+  border-color: var(--line-3);
 }
 .dp-connector-head:has(.dp-switch input:focus-visible) {
   border-radius: 14px;
@@ -223,7 +223,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #cfcfcf;
+  background: var(--line-3);
 }
 .dp-dot-live,
 .dp-dot-reads {
@@ -254,7 +254,7 @@
   width: 36px;
   height: 20px;
   border-radius: 999px;
-  background: #d4d4d4;
+  background: var(--line-2);
   transition: background 0.15s;
 }
 .dp-switch-track::after {
@@ -264,7 +264,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow: 0 1px 2px #00000033;
   transition: transform 0.15s;
   content: '';
@@ -346,7 +346,7 @@
   padding: 9px 11px;
   border: 1px solid var(--dp-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-0);
   font-size: 12px;
   cursor: pointer;
   transition:
@@ -354,7 +354,7 @@
     background 0.15s;
 }
 .dp-tool:hover {
-  border-color: #cfcfcf;
+  border-color: var(--line-3);
 }
 .dp-tool-cell {
   display: flex;
@@ -434,7 +434,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px;
-  border: 1px dashed #d4d4d4;
+  border: 1px dashed var(--line-2);
   border-radius: 14px;
   background: var(--dp-soft);
 }
@@ -445,7 +445,7 @@
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow: inset 0 0 0 1px var(--dp-line);
   color: var(--dp-muted);
 }

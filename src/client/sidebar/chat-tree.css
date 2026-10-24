@@ -9,7 +9,7 @@
   top: 4px;
   bottom: 4px;
   width: 1px;
-  background: #dedee3;
+  background: var(--line-1);
 }
 .sb .sb-chat-twisty {
   display: inline-grid;
@@ -43,7 +43,7 @@
   height: 7px;
   margin-left: auto;
   border-radius: 50%;
-  background: var(--accent-soft, #438c81);
+  background: var(--accent-soft, var(--teal-300));
   box-shadow: 0 0 0 0 #438c8166;
   animation: sb-chat-pulse 1.6s ease-out infinite;
 }
@@ -61,15 +61,15 @@
   margin-left: auto;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #e6f1ee;
-  color: var(--accent, #2f6b5f);
+  background: var(--teal-50);
+  color: var(--accent, var(--teal-ink));
   font-size: 10.5px;
   font-weight: 600;
   white-space: nowrap;
 }
 .sb .sb-dot-live.needs-input {
-  background: #fdf0cf;
-  color: #8a5a00;
+  background: var(--amber-100);
+  color: var(--amber-ink);
 }
 @media (prefers-reduced-motion: reduce) {
   .sb-chat-pulse {

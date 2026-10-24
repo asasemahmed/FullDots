@@ -7,8 +7,8 @@
 }
 .automations-section {
   padding: 16px 18px;
-  background: #fff;
-  border: 1px solid #e9e8e6;
+  background: var(--surface-0);
+  border: 1px solid var(--surface-6);
   border-radius: 12px;
 }
 .automations-section > h2 {
@@ -18,14 +18,14 @@
   margin: 0 0 10px;
   font-size: 14px;
   font-weight: 600;
-  color: #242424;
+  color: var(--text);
 }
 .automations-empty,
 .automations-hint {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #6b6b6b;
+  color: var(--text-faint);
 }
 .automations-hint {
   margin-top: 10px;
@@ -38,8 +38,8 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fff1f1;
-  color: #a32b32;
+  background: var(--red-50);
+  color: var(--red-ink);
   font-size: 13px;
 }
 
@@ -56,7 +56,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-top: 1px solid #f0efed;
+  border-top: 1px solid var(--surface-4);
 }
 .trigger-row:first-child {
   border-top: 0;
@@ -71,8 +71,8 @@
   height: 32px;
   flex: 0 0 auto;
   border-radius: 9px;
-  background: #f4f5fe;
-  color: #5867e0;
+  background: var(--blue-50);
+  color: var(--blue-ink);
 }
 .trigger-main {
   display: flex;
@@ -84,19 +84,19 @@
 .trigger-main strong {
   font-size: 13.5px;
   font-weight: 600;
-  color: #242424;
+  color: var(--text);
 }
 .trigger-main > span {
   font-size: 12px;
   line-height: 1.45;
-  color: #6b6b6b;
+  color: var(--text-faint);
   overflow-wrap: anywhere;
 }
 .trigger-main .link-button {
   padding: 0;
   border: 0;
   background: none;
-  color: #5867e0;
+  color: var(--blue-ink);
   font: inherit;
   cursor: pointer;
 }
@@ -104,12 +104,12 @@
   text-decoration: underline;
 }
 .trigger-error {
-  color: #a32b32 !important;
+  color: var(--red-ink) !important;
 }
 .trigger-secret code {
   padding: 1px 5px;
   border-radius: 5px;
-  background: #f4f4f2;
+  background: var(--surface-3);
   font-size: 11.5px;
   user-select: all;
 }
@@ -118,11 +118,11 @@
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  color: #6b6b6b;
+  color: var(--text-faint);
   cursor: pointer;
 }
 .trigger-toggle input {
-  accent-color: #5867e0;
+  accent-color: var(--blue-400);
 }
 
 .usage-row {
@@ -131,7 +131,7 @@
   align-items: center;
   gap: 6px 14px;
   padding: 8px 0;
-  border-top: 1px solid #f0efed;
+  border-top: 1px solid var(--surface-4);
 }
 .usage-name {
   overflow: hidden;
@@ -139,11 +139,11 @@
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
-  color: #242424;
+  color: var(--text);
 }
 .usage-numbers {
   font-size: 12px;
-  color: #6b6b6b;
+  color: var(--text-faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -172,22 +172,22 @@
 }
 .usage-note {
   font-size: 12px;
-  color: #6b6b6b;
+  color: var(--text-faint);
 }
 .usage-bar {
   height: 6px;
   border-radius: 999px;
-  background: #f0efed;
+  background: var(--surface-4);
   overflow: hidden;
 }
 .usage-bar > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #5867e0;
+  background: var(--blue-400);
 }
 .usage-bar[data-over='true'] > span {
-  background: #d9822b;
+  background: var(--amber-400);
 }
 .usage-budget {
   display: flex;
@@ -200,31 +200,31 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #6b6b6b;
+  color: var(--text-faint);
 }
 .usage-budget input {
   width: 110px;
   height: 30px;
   padding: 0 9px;
-  border: 1px solid #e7e7e7;
+  border: 1px solid var(--surface-6);
   border-radius: 8px;
   font-size: 12.5px;
 }
 .usage-budget .ghost-button {
   height: 30px;
   padding: 0 12px;
-  border: 1px solid #e7e7e7;
+  border: 1px solid var(--surface-6);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-0);
   font-size: 12.5px;
   cursor: pointer;
 }
 .usage-budget .ghost-button:hover {
-  border-color: #d0d0d0;
+  border-color: var(--line-3);
 }
 .usage-error {
   font-size: 12px;
-  color: #a32b32;
+  color: var(--red-ink);
 }
 
 /* Trigger dialog extras */
@@ -259,9 +259,9 @@
   flex: 1;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #e7e7e7;
+  border: 1px solid var(--surface-6);
   border-radius: 10px;
-  background: #fafaf9;
+  background: var(--surface-1);
   font-size: 12.5px;
   overflow-wrap: anywhere;
   user-select: all;

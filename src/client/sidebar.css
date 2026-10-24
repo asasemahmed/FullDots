@@ -6,15 +6,15 @@
  */
 .sb,
 .sb-menu {
-  --sb-bg: #f9f9f9;
-  --sb-ink: var(--ink, #242424);
-  --sb-muted: #6b6b6b;
-  --sb-line: var(--line, #e7e7e7);
-  --sb-hover: rgba(36, 36, 36, 0.055);
-  --sb-active: #e8eeeb;
-  --sb-accent: #2f6b5f;
-  --sb-accent-soft: #438c81;
-  --sb-danger: #b3382c;
+  --sb-bg: var(--surface-1);
+  --sb-ink: var(--ink, var(--text));
+  --sb-muted: var(--text-muted);
+  --sb-line: var(--line, var(--surface-6));
+  --sb-hover: var(--hover-veil);
+  --sb-active: var(--teal-50);
+  --sb-accent: var(--teal-500);
+  --sb-accent-soft: var(--teal-300);
+  --sb-danger: var(--red-300);
   --sb-radius: 8px;
 }
 
@@ -131,7 +131,7 @@
   gap: 10px;
   height: 38px;
   padding: 0 12px;
-  background: #fff;
+  background: var(--surface-0);
   border: 1px solid var(--sb-line);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -139,8 +139,8 @@
   font-weight: 560;
 }
 .sb .sb-new:hover:not(:disabled) {
-  background: #fff;
-  border-color: #cfd8d4;
+  background: var(--surface-0);
+  border-color: var(--line-2);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .sb .sb-new svg {
@@ -167,14 +167,14 @@
   gap: 8px;
   height: 32px;
   padding: 0 6px 0 10px;
-  background: #fff;
+  background: var(--surface-0);
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-radius);
   color: var(--sb-muted);
 }
 .sb-search:focus-within {
   border-color: var(--sb-accent-soft);
-  box-shadow: 0 0 0 3px rgba(67, 140, 129, 0.16);
+  box-shadow: 0 0 0 3px var(--ring-accent);
 }
 .sb .sb-search input {
   flex: 1;
@@ -223,7 +223,7 @@
   border: 1px solid var(--sb-line);
   border-bottom-width: 2px;
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-0);
   color: var(--sb-muted);
   font: inherit;
   font-size: 11px;
@@ -247,7 +247,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #d2d2d2 transparent;
+  scrollbar-color: var(--line-3) transparent;
 }
 .sb-section {
   flex: none;
@@ -411,7 +411,7 @@
   overflow-y: auto;
   padding-bottom: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #d2d2d2 transparent;
+  scrollbar-color: var(--line-3) transparent;
 }
 .sb-group-label {
   position: sticky;
@@ -503,10 +503,10 @@
   padding: 0 8px;
   border: 1px solid var(--sb-accent-soft);
   border-radius: var(--sb-radius);
-  background: #fff;
+  background: var(--surface-0);
   color: var(--sb-ink);
   font-size: 13px;
-  box-shadow: 0 0 0 3px rgba(67, 140, 129, 0.16);
+  box-shadow: 0 0 0 3px var(--ring-accent);
 }
 .sb .sb-chat-input:focus-visible {
   outline: none;
@@ -519,7 +519,7 @@
   padding: 4px 6px 4px 10px;
 }
 .sb .sb-chat.confirming {
-  background: #fbefed;
+  background: var(--red-50);
 }
 .sb-confirm-text {
   flex: 1;
@@ -531,16 +531,16 @@
   padding: 0 10px;
   border: 1px solid var(--sb-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-0);
   font-size: 12px;
 }
 .sb .sb-pill.danger {
   border-color: var(--sb-danger);
   background: var(--sb-danger);
-  color: #fff;
+  color: var(--on-solid);
 }
 .sb .sb-pill.danger:hover:not(:disabled) {
-  background: #9c2f24;
+  background: var(--red-500);
 }
 .sb .sb-tidy {
   margin-top: 6px;
@@ -587,8 +587,8 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--sb-accent);
-  color: #fff;
+  background: var(--accent-solid);
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;
@@ -601,7 +601,7 @@
   z-index: 80;
   min-width: 168px;
   padding: 4px;
-  background: #fff;
+  background: var(--surface-0);
   border: 1px solid var(--sb-line);
   border-radius: 10px;
   box-shadow:
@@ -628,7 +628,7 @@
   color: var(--sb-danger);
 }
 .sb-menu .sb-menu-item.danger:hover:not(:disabled) {
-  background: #fbefed;
+  background: var(--red-50);
 }
 .sb-menu .sb-menu-item:focus-visible {
   background: var(--sb-hover);
@@ -776,8 +776,8 @@
   margin-left: auto;
   padding: 1px 7px;
   border-radius: 999px;
-  background: #f1f0ee;
-  color: #6b6b6b;
+  background: var(--surface-4);
+  color: var(--text-faint);
   font-size: 10.5px;
   font-weight: 600;
 }

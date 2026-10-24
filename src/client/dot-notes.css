@@ -38,7 +38,7 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background: #fff7e8;
+  background: var(--amber-50);
   color: var(--warning);
   font-size: var(--text-md);
   line-height: 1.5;
@@ -64,7 +64,11 @@
         var(--notes-light) 0
       )
       top right / 22px 22px no-repeat,
-    color-mix(in srgb, var(--notes-light, #fff) 22%, #fff);
+    color-mix(
+      in srgb,
+      var(--notes-light, var(--surface-0)) 22%,
+      var(--surface-0)
+    );
   color: var(--ink);
   font: inherit;
   line-height: 1.6;
@@ -148,14 +152,14 @@
   cursor: default;
 }
 .dot-notes-btn.is-primary {
-  border-color: var(--notes-dark, var(--accent));
-  background: var(--notes-dark, var(--accent));
-  color: #fff;
+  border-color: var(--notes-dark, var(--accent-solid));
+  background: var(--notes-dark, var(--accent-solid));
+  color: var(--on-accent);
 }
 .dot-notes-btn.is-danger {
   border-color: var(--danger);
   background: var(--danger);
-  color: #fff;
+  color: var(--on-solid);
 }
 .dot-notes-spin {
   animation: dot-notes-spin 0.9s linear infinite;
@@ -304,7 +308,7 @@
   width: 36px;
   height: 20px;
   border-radius: var(--radius-pill);
-  background: #d4d4d4;
+  background: var(--line-2);
   transition: background var(--dur-fast) var(--ease-out);
 }
 .dot-notes-track::after {
@@ -314,7 +318,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow: var(--shadow-sm);
   transition: transform var(--dur-med) var(--ease-spring);
   content: '';
@@ -338,7 +342,7 @@
   z-index: 60;
   display: flex;
   justify-content: flex-end;
-  background: #20263433;
+  background: var(--overlay);
 }
 .dot-notes-sheet {
   display: flex;

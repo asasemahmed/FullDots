@@ -3,11 +3,11 @@
 
 .inbox-view {
   --inbox-question: var(--dot-lilac-dark);
-  --inbox-question-bg: #f6f2ff;
+  --inbox-question-bg: var(--violet-50);
   --inbox-memory: var(--dot-amber-dark);
-  --inbox-memory-bg: #fff8e8;
+  --inbox-memory-bg: var(--amber-50);
   --inbox-result: var(--dot-mint-dark);
-  --inbox-result-bg: #ecfaf5;
+  --inbox-result-bg: var(--green-50);
 }
 
 /* ---- Header ------------------------------------------------------------ */
@@ -187,7 +187,11 @@
 }
 .inbox-card.is-question {
   border-color: var(--dot-lilac-light);
-  background: linear-gradient(180deg, var(--inbox-question-bg), #fff 60%);
+  background: linear-gradient(
+    180deg,
+    var(--inbox-question-bg),
+    var(--surface-0) 60%
+  );
 }
 .inbox-question {
   position: relative;
@@ -213,7 +217,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface-0);
   color: var(--ink);
   font: inherit;
   resize: vertical;
@@ -228,7 +232,11 @@
 
 .inbox-card.is-memory {
   border-color: var(--dot-amber-light);
-  background: linear-gradient(180deg, var(--inbox-memory-bg), #fff 60%);
+  background: linear-gradient(
+    180deg,
+    var(--inbox-memory-bg),
+    var(--surface-0) 60%
+  );
 }
 .inbox-memory-intro {
   margin: 0;
@@ -248,7 +256,7 @@
         var(--dot-amber-light) 0
       )
       top right / 20px 20px no-repeat,
-    #fffdf5;
+    var(--paper-50);
   box-shadow: var(--shadow-sm);
   font-size: var(--text-xl);
   line-height: 1.5;

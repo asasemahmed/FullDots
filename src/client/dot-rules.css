@@ -1,17 +1,17 @@
 /* Dot form: rules per category. Scoped under .dr-root so they win over the global input/label rules. */
 .dr-root {
-  --dr-ink: #242424;
-  --dr-muted: #707070;
-  --dr-line: #e7e7e7;
-  --dr-soft: #f6f6f5;
-  --dr-accent: #5867e0;
-  --dr-accent-bg: #f4f5fe;
-  --dr-amber: #b97a0d;
-  --dr-amber-bg: #fff8e8;
-  --dr-red: #c4352c;
-  --dr-red-bg: #fdeeec;
-  --dr-green: #2f7d4f;
-  --dr-green-bg: #eef8f2;
+  --dr-ink: var(--text);
+  --dr-muted: var(--text-muted);
+  --dr-line: var(--surface-6);
+  --dr-soft: var(--surface-3);
+  --dr-accent: var(--blue-ink);
+  --dr-accent-bg: var(--blue-50);
+  --dr-amber: var(--amber-ink);
+  --dr-amber-bg: var(--amber-50);
+  --dr-red: var(--red-ink);
+  --dr-red-bg: var(--red-50);
+  --dr-green: var(--green-ink);
+  --dr-green-bg: var(--green-50);
   container-type: inline-size;
 }
 .dr-intro {
@@ -41,7 +41,7 @@
   padding: 10px 12px;
   border: 1px solid var(--dr-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-0);
 }
 .dr-icon {
   grid-area: icon;
@@ -112,7 +112,7 @@
   color: var(--dr-ink);
 }
 .dr-root .dr-segment[data-checked='true'] {
-  background: #fff;
+  background: var(--surface-0);
   color: var(--dr-ink);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
 }

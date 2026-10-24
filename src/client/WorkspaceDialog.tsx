@@ -15,9 +15,12 @@ import {
   ListChecks,
   Plug,
   Users,
+  Monitor,
+  Moon,
   Settings2,
   ShieldCheck,
   Sparkles,
+  Sun,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,6 +39,7 @@ import { Mascot } from './Mascot';
 import { ModelPicker, modelFields, type ModelChoice } from './ModelPicker';
 import { ModelProvidersSettings } from './ModelProvidersSettings';
 import { PromptsSettings } from './palette/PromptsSettings';
+import { useThemePreference, type ThemePreference } from './theme';
 import { DotDelegatesField } from './teams/DotDelegatesField';
 import type {
   ApprovalMode,
@@ -116,6 +120,51 @@ function DotSection({
       </div>
       <div className="dlg-section-body">{children}</div>
     </div>
+  );
+}
+
+const THEME_OPTIONS: {
+  value: ThemePreference;
+  label: string;
+  icon: LucideIcon;
+}[] = [
+  { value: 'system', label: 'System', icon: Monitor },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+];
+
+/** Appearance: follow the operating system, or pin one theme. Applies at once and is saved per browser. */
+function ThemeField() {
+  const { preference, theme, setPreference } = useThemePreference();
+  return (
+    <fieldset className="theme-field">
+      <legend className="theme-field-label">Appearance</legend>
+      <p className="theme-field-note">
+        Follows your device setting unless you pick one. Every screen has a
+        light and a dark version.
+      </p>
+      <div className="theme-choice">
+        {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+          <label
+            key={value}
+            className={`theme-option${preference === value ? ' is-active' : ''}`}
+          >
+            <input
+              type="radio"
+              name="theme"
+              value={value}
+              checked={preference === value}
+              onChange={() => setPreference(value)}
+            />
+            <Icon size={16} aria-hidden="true" />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+      <p className="theme-field-status" role="status">
+        Using the {theme} theme.
+      </p>
+    </fieldset>
   );
 }
 
@@ -926,6 +975,7 @@ export function WorkspaceDialog({
                     aria-labelledby="settings-tab-general"
                     hidden={tab !== 'general'}
                   >
+                    <ThemeField />
                     <PermissionRows
                       research={research}
                       memory={memory}

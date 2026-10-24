@@ -3,22 +3,22 @@
    the few that have no token are defined once below. Everything is scoped under .cp-panel because
    the app's base styles for buttons, inputs and paragraphs are heavier than a bare class. */
 .cp-panel {
-  --cp-ink: var(--ink, #242424);
-  --cp-muted: var(--muted, #707070);
-  --cp-line: var(--line, #e7e7e7);
+  --cp-ink: var(--ink, var(--text));
+  --cp-muted: var(--muted, var(--text-muted));
+  --cp-line: var(--line, var(--surface-6));
   --cp-edge: color-mix(in srgb, var(--cp-ink) 22%, transparent);
-  --cp-surface: #fff;
+  --cp-surface: var(--surface-0);
   --cp-soft: color-mix(in srgb, var(--cp-ink) 6%, transparent);
   --cp-soft-strong: color-mix(in srgb, var(--cp-ink) 11%, transparent);
   --cp-strong: var(--cp-ink);
-  --cp-strong-ink: #fff;
-  --cp-focus: #476ba0;
-  --cp-ok: #1f6b3d;
-  --cp-ok-bg: #e5f3ea;
-  --cp-warn: #7a5200;
-  --cp-warn-bg: #fdf0d2;
-  --cp-bad: #a32b32;
-  --cp-bad-bg: #fff0f0;
+  --cp-strong-ink: var(--on-solid);
+  --cp-focus: var(--blue-300);
+  --cp-ok: var(--green-500);
+  --cp-ok-bg: var(--green-50);
+  --cp-warn: var(--amber-500);
+  --cp-warn-bg: var(--amber-100);
+  --cp-bad: var(--red-500);
+  --cp-bad-bg: var(--red-50);
   container-type: inline-size;
   container-name: cp;
   display: flex;
@@ -72,7 +72,7 @@
   color: var(--cp-strong-ink);
 }
 .cp-panel .cp-btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--cp-strong) 82%, #fff);
+  background: color-mix(in srgb, var(--cp-strong) 82%, var(--surface-0));
 }
 .cp-panel .cp-btn-quiet {
   border-color: transparent;
@@ -121,7 +121,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: #345681;
+  color: var(--text-muted);
   font-size: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -130,7 +130,7 @@
 }
 .cp-panel .cp-link:hover:not(:disabled) {
   background: none;
-  color: #1f3f66;
+  color: var(--text-soft);
 }
 .cp-actions {
   display: flex;
@@ -307,7 +307,7 @@
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: #fff;
+  background: var(--surface-0);
   line-height: 0;
   cursor: default;
   transform: none;
@@ -377,7 +377,7 @@
   animation: cp-pulse 1.8s ease-in-out infinite;
 }
 .cp-badge-wait i {
-  background: #f2b53c;
+  background: var(--amber-300);
   animation: cp-pulse 1s ease-in-out infinite;
 }
 .cp-activity i {
@@ -829,7 +829,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #345681;
+  color: var(--text-muted);
   text-decoration: underline;
 }
 .cp-settings {
@@ -899,7 +899,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-0);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   transition: transform 0.15s;
 }

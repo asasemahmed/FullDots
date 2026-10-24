@@ -10,6 +10,25 @@
       content="FullDots is a self-hosted workspace for your documents and personal AI assistants."
     />
     <title>FullDots</title>
+    <script>
+      // Apply the saved theme before the first paint. Keep this in step with src/client/theme.ts.
+      (function () {
+        try {
+          var saved = localStorage.getItem('fulldots-theme');
+          var dark =
+            saved === 'dark' ||
+            (saved !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var theme = dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#14171b' : '#f8f7f4');
+        } catch (error) {
+          /* localStorage can be blocked; the light theme still renders. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

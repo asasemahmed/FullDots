@@ -181,7 +181,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: #20263466;
+  background: var(--overlay);
 }
 .fd-add-dot {
   display: flex;

@@ -15,7 +15,11 @@
   margin-left: 6px;
   padding: 0 7px;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--lane, var(--accent)) 14%, white);
+  background: color-mix(
+    in srgb,
+    var(--lane, var(--accent)) 14%,
+    var(--surface-0)
+  );
   color: var(--ink);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -49,7 +53,7 @@
 .fd-lane.is-step-skipped,
 .fd-lane.is-step-cancelled,
 .fd-lane.is-step-failed {
-  border-left-color: #c9ccd1;
+  border-left-color: var(--line-3);
   background: var(--surface-raised);
   color: var(--muted);
 }
@@ -94,12 +98,12 @@
   animation: fd-run-badge-in var(--dur-med) var(--ease-out) both;
 }
 .fd-run-badge.is-checked {
-  background: color-mix(in srgb, var(--dot-mint-base) 22%, white);
+  background: color-mix(in srgb, var(--dot-mint-base) 22%, var(--surface-0));
   color: var(--dot-mint-dark, var(--ink));
 }
 .fd-run-badge.is-sent-back {
-  background: #fff1d6;
-  color: #8a5a00;
+  background: var(--amber-100);
+  color: var(--amber-ink);
 }
 .fd-run-badge.is-unchecked {
   background: var(--surface-raised);
