@@ -2,6 +2,9 @@
 
 FullDots runs a React app and a Node server. The server stores pages, Space and Dot configuration, and conversation history in SQLite, and calls your configured model provider.
 
+To talk to a Dot from Slack or Telegram, configure **Settings → Channels**. See
+[Channels](CHANNELS.md) for bot setup, owner lists, approval buttons and privacy.
+
 ## Local development
 
 Use Node.js 24 and npm.
