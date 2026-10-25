@@ -27,6 +27,7 @@ services:
       COMPUTER_BROWSER_MODE: ${COMPUTER_BROWSER_MODE:-headed}
       COMPUTER_NETWORK: ''
       COMPUTER_MEMORY_BYTES: ${COMPUTER_MEMORY_BYTES:-2147483648}
+      COMPUTER_CPUS: ${COMPUTER_CPUS:-2}
       COMPUTER_RUNTIME: ${COMPUTER_RUNTIME:-}
     volumes:
       - ${ENGINE_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
