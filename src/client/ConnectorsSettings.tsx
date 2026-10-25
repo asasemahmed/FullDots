@@ -141,6 +141,7 @@ export function ConnectorsSettings({
             presets={data.presets}
             allowStdio={data.allowStdio}
             registrySearch={!!data.registrySearch}
+            onAddRegistry={(draft) => openSheet({ kind: 'registry', draft })}
             {...(connectingId ? { connectingId } : {})}
             onOpenConnector={(connector) =>
               openSheet({ kind: 'connector', id: connector.id })

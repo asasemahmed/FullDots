@@ -71,7 +71,15 @@ describe('searchRegistry', () => {
           remotes: [
             { type: 'streamable-http', url: 'https://weather.example/mcp' },
           ],
-          packages: [{ registryType: 'npm', transport: 'stdio' }],
+          packages: [
+            {
+              registryType: 'npm',
+              transport: 'stdio',
+              identifier: '@example/weather',
+              version: '1.2.0',
+              envNames: ['API_KEY'],
+            },
+          ],
         },
       ],
       nextCursor: 'page-2',
@@ -126,6 +134,22 @@ describe('searchRegistry', () => {
     const result = await searchRegistry('empty-repo');
     expect(result.servers).toHaveLength(1);
     expect(result.servers[0]).not.toHaveProperty('repository');
+  });
+
+  it('keeps a package without a version or env vars, leaving those out', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      answer({
+        servers: [
+          entry({
+            packages: [{ registryType: 'oci', transport: { type: 'stdio' } }],
+          }),
+        ],
+      }),
+    );
+    const result = await searchRegistry('no-version');
+    expect(result.servers[0]?.packages).toEqual([
+      { registryType: 'oci', transport: 'stdio', envNames: [] },
+    ]);
   });
 
   it('rejects an answer it cannot read', async () => {

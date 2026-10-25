@@ -37,14 +37,18 @@ describe('registry badges and titles', () => {
     ).toEqual(['Remote']);
     expect(
       registryBadges(
-        server({ packages: [{ registryType: 'npm', transport: 'stdio' }] }),
+        server({
+          packages: [{ registryType: 'npm', transport: 'stdio', envNames: [] }],
+        }),
       ),
     ).toEqual(['Local program']);
     expect(
       registryBadges(
         server({
           remotes: [{ type: 'sse', url: 'https://notes.example/sse' }],
-          packages: [{ registryType: 'pypi', transport: 'stdio' }],
+          packages: [
+            { registryType: 'pypi', transport: 'stdio', envNames: [] },
+          ],
         }),
       ),
     ).toEqual(['Remote', 'Local program']);

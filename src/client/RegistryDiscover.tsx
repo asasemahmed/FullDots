@@ -1,6 +1,8 @@
 import { useId, useReducer, useRef, useState, type FormEvent } from 'react';
 import { LoaderCircle, Search } from 'lucide-react';
 import { api } from './api';
+import { LOCAL_PROGRAMS_DOCS_URL, registryAddPlan } from './registry-connector';
+import type { ConnectorDraft } from './ConnectorSheet';
 import type { RegistrySearchResult, RegistryServer } from '../shared/registry';
 
 export const REGISTRY_HOST = 'registry.modelcontextprotocol.io';
@@ -63,7 +65,67 @@ export function discoverReducer(
   }
 }
 
-export function RegistryCard({ server }: { server: RegistryServer }) {
+/**
+ * The Add control for one result. Its only action is `onAdd`, which opens the
+ * connector form; nothing is saved or connected until the owner presses Save there.
+ */
+export function AddAction({
+  server,
+  allowStdio,
+  onAdd,
+}: {
+  server: RegistryServer;
+  allowStdio: boolean;
+  onAdd: (draft: ConnectorDraft) => void;
+}) {
+  const plan = registryAddPlan(server, allowStdio);
+  if (plan.kind === 'draft')
+    return (
+      <div className="cg-registry-action">
+        <button
+          type="button"
+          className="cs-btn cs-btn-primary"
+          onClick={() => onAdd(plan.draft)}
+        >
+          Add
+        </button>
+        <span className="cs-muted">
+          Opens the connector form to review. Nothing is saved or connected
+          until you press Save.
+        </span>
+      </div>
+    );
+  if (plan.kind === 'local-off')
+    return (
+      <div className="cg-registry-action">
+        <button type="button" className="cs-btn" disabled>
+          Add
+        </button>
+        <span className="cg-card-note">
+          {plan.reason}{' '}
+          <a
+            className="cs-link"
+            href={LOCAL_PROGRAMS_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Read the docs
+          </a>
+        </span>
+      </div>
+    );
+  return <p className="cg-card-note">{plan.reason}</p>;
+}
+
+export function RegistryCard({
+  server,
+  allowStdio = false,
+  onAdd,
+}: {
+  server: RegistryServer;
+  allowStdio?: boolean;
+  onAdd?: ((draft: ConnectorDraft) => void) | undefined;
+}) {
   const title = registryTitle(server);
   return (
     <li className="cg-card" data-registry={server.name}>
@@ -94,12 +156,25 @@ export function RegistryCard({ server }: { server: RegistryServer }) {
           </a>
         )}
       </div>
+      {onAdd && (
+        <AddAction server={server} allowStdio={allowStdio} onAdd={onAdd} />
+      )}
     </li>
   );
 }
 
 /** Settings > Connectors > Discover: search the public MCP registry. Read-only; nothing is installed. */
-export function RegistryDiscover({ enabled }: { enabled: boolean }) {
+export function RegistryDiscover({
+  enabled,
+  allowStdio = false,
+  onAdd,
+}: {
+  enabled: boolean;
+  /** CONNECTORS_ALLOW_STDIO: whether a local program can be added from here. */
+  allowStdio?: boolean;
+  /** Opens the connector form for a result. Without it, results have no Add control. */
+  onAdd?: ((draft: ConnectorDraft) => void) | undefined;
+}) {
   const [text, setText] = useState('');
   const [state, dispatch] = useReducer(discoverReducer, initialDiscover);
   const latest = useRef(0);
@@ -218,7 +293,12 @@ export function RegistryDiscover({ enabled }: { enabled: boolean }) {
       {state.servers.length > 0 && (
         <ul className="cg-grid" aria-label="Registry results">
           {state.servers.map((server) => (
-            <RegistryCard key={server.name} server={server} />
+            <RegistryCard
+              key={server.name}
+              server={server}
+              allowStdio={allowStdio}
+              {...(onAdd ? { onAdd } : {})}
+            />
           ))}
         </ul>
       )}

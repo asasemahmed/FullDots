@@ -564,6 +564,32 @@
 .cg-registry-link {
   margin-left: auto;
 }
+.cg-registry-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The command a local program connector runs, shown above Save. */
+.cs-run-note {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.cx-root .cs-command {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-radius: 10px;
+  background: var(--cx-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cx-ink);
+}
 
 /* ---- Detail page ------------------------------------------------------------------- */
 /* Opening a connector replaces the gallery: a top bar with the way back, one

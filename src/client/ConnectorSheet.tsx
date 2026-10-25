@@ -43,6 +43,7 @@ import {
   prettyName,
 } from './ConnectorGallery';
 import { ConnectorLogo } from './connector-logos';
+import { draftCommandLine } from './registry-connector';
 import type { ConnectorAuthController } from './useConnectorAuth';
 import { SECRET_NAME, looksLikeCredential } from '../shared/connector-config';
 import type { ConnectorPreset } from '../shared/connector-presets';
@@ -812,6 +813,7 @@ export function ConnectorForm({
   warnings,
   saveLabel,
   envStatus,
+  beforeSave,
   onChange,
   onSave,
   onCancel,
@@ -827,6 +829,8 @@ export function ConnectorForm({
   saveLabel?: string;
   /** Which environment variables the server is known to have set. */
   envStatus?: Map<string, boolean>;
+  /** Shown above the buttons; it sees the live draft, so it can follow edits. */
+  beforeSave?: ReactNode;
   onChange: (draft: ConnectorDraft) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -1136,6 +1140,7 @@ export function ConnectorForm({
         />
       </Collapsible>
 
+      {beforeSave}
       <PageFooter
         messages={<ProblemList problems={problems} warnings={warnings} />}
       >
@@ -1173,7 +1178,9 @@ export function ConnectorForm({
 export type SheetTarget =
   | { kind: 'connector'; id: string }
   | { kind: 'preset'; preset: ConnectorPreset }
-  | { kind: 'custom' };
+  | { kind: 'custom' }
+  /** A server from the registry Discover tab, prefilled for review. Nothing is saved until Save. */
+  | { kind: 'registry'; draft: ConnectorDraft };
 
 export interface ConnectorSheetProps {
   target: SheetTarget;
@@ -1190,11 +1197,11 @@ export interface ConnectorSheetProps {
 type SheetView = 'main' | 'edit' | 'token' | 'oauth';
 
 function targetKey(target: SheetTarget): string {
-  return target.kind === 'connector'
-    ? `c:${target.id}`
-    : target.kind === 'preset'
-      ? `p:${target.preset.id}`
-      : 'custom';
+  if (target.kind === 'connector') return `c:${target.id}`;
+  if (target.kind === 'preset') return `p:${target.preset.id}`;
+  if (target.kind === 'registry')
+    return `r:${target.draft.name}:${target.draft.url}:${target.draft.command}`;
+  return 'custom';
 }
 
 export function ConnectorSheet(props: ConnectorSheetProps) {
@@ -1254,11 +1261,15 @@ export function ConnectorSheet(props: ConnectorSheetProps) {
     );
   }
 
+  // A server from the Discover tab: its draft stands in for a preset.
+  const registryDraft = target.kind === 'registry' ? target.draft : undefined;
   const title = connector
     ? connectorTitle(connector)
     : preset
       ? prettyName(preset.id)
-      : 'Custom connector';
+      : registryDraft
+        ? registryDraft.name
+        : 'Custom connector';
   const subtitle = connector
     ? connectorSubtitle(connector)
     : preset
@@ -1268,7 +1279,14 @@ export function ConnectorSheet(props: ConnectorSheetProps) {
           command: preset.command ?? null,
           args: preset.args ?? [],
         })
-      : 'Any MCP server';
+      : registryDraft
+        ? connectorSubtitle({
+            transport: registryDraft.transport,
+            url: registryDraft.url || null,
+            command: registryDraft.command || null,
+            args: registryDraft.args.split('\n').filter(Boolean),
+          })
+        : 'Any MCP server';
   // What a click on the subtitle copies: the full URL, or the command line.
   const copyText =
     target.kind === 'custom'
@@ -1280,9 +1298,22 @@ export function ConnectorSheet(props: ConnectorSheetProps) {
       <header className="cs-head">
         <ConnectorLogo
           presetId={connector?.presetId ?? preset?.id}
-          name={connector ? connector.name : (preset?.name ?? '')}
-          url={connector ? connector.url : (preset?.url ?? null)}
-          transport={connector?.transport ?? preset?.transport ?? 'http'}
+          name={
+            connector
+              ? connector.name
+              : (preset?.name ?? registryDraft?.name ?? '')
+          }
+          url={
+            connector
+              ? connector.url
+              : (preset?.url ?? registryDraft?.url) || null
+          }
+          transport={
+            connector?.transport ??
+            preset?.transport ??
+            registryDraft?.transport ??
+            'http'
+          }
           size={56}
         />
         <div className="cs-head-id">
@@ -1307,7 +1338,18 @@ export function ConnectorSheet(props: ConnectorSheetProps) {
           </a>
         )}
       </header>
-      {target.kind === 'custom' ? (
+      {registryDraft ? (
+        <NewConnectorForm
+          draft={registryDraft}
+          {...props}
+          onCancel={onClose}
+          beforeSave={(draft) =>
+            draft.transport === 'stdio' ? (
+              <RunNote command={draftCommandLine(draft)} />
+            ) : null
+          }
+        />
+      ) : target.kind === 'custom' ? (
         <NewConnectorForm draft={emptyDraft()} {...props} onCancel={onClose} />
       ) : !connector && preset ? (
         <PresetPanel preset={preset} view={view} setView={setView} {...props} />
@@ -1449,6 +1491,20 @@ function useAction() {
   return { busy, error, note, run, setError };
 }
 
+/** The exact command a local program connector runs, shown before Save. */
+function RunNote({ command }: { command: string }) {
+  return (
+    <div className="cs-run-note">
+      <pre className="cs-command">
+        <code>{command}</code>
+      </pre>
+      <p className="cs-muted">
+        This program will run on this machine when a Dot uses the connector.
+      </p>
+    </div>
+  );
+}
+
 /** Create a connector from a draft and return the view; throws a readable message. */
 async function createFrom(draft: ConnectorDraft): Promise<ConnectorView> {
   const local = validateDraft(draft);
@@ -1471,7 +1527,12 @@ function NewConnectorForm({
   auth,
   onSaved,
   onCancel,
-}: PanelProps & { draft: ConnectorDraft; onCancel: () => void }) {
+  beforeSave,
+}: PanelProps & {
+  draft: ConnectorDraft;
+  onCancel: () => void;
+  beforeSave?: (draft: ConnectorDraft) => ReactNode;
+}) {
   const [draft, setDraft] = useState(initial);
   const [problems, setProblems] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -1534,6 +1595,7 @@ function NewConnectorForm({
         problems={problems}
         warnings={warnings}
         envStatus={knownEnv(connectors)}
+        beforeSave={beforeSave?.(draft)}
         onChange={setDraft}
         onSave={() => void save()}
         onCancel={onCancel}
