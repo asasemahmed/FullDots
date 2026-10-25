@@ -1,4 +1,4 @@
-import { useId, useReducer, useRef, useState, type FormEvent } from 'react';
+import { useId, useReducer, useRef, useState } from 'react';
 import { LoaderCircle, Search } from 'lucide-react';
 import { api } from './api';
 import { LOCAL_PROGRAMS_DOCS_URL, registryAddPlan } from './registry-connector';
@@ -201,8 +201,9 @@ export function RegistryDiscover({
       });
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  // Not a <form>: this sits inside the Settings dialog's form, and a nested form's submit
+  // reloads the page (or saves and closes Settings) instead of searching.
+  const submit = () => {
     const query = text.trim();
     if (!query) return;
     dispatch({ type: 'search', query });
@@ -238,10 +239,10 @@ export function RegistryDiscover({
       </h4>
       <p className="cs-muted">
         Search the public MCP registry by server name. Each search sends the
-        text you type to {REGISTRY_HOST}. Installing from here is not available
-        yet; to add a server, use Custom connector on the Connectors tab.
+        text you type to {REGISTRY_HOST}. Add opens a server as a connector for
+        you to review; nothing is saved until you choose Save.
       </p>
-      <form className="cg-discover-form" onSubmit={submit}>
+      <div className="cg-discover-form" role="search">
         <div className="cg-search">
           <Search size={15} aria-hidden="true" />
           <input
@@ -254,16 +255,22 @@ export function RegistryDiscover({
             autoComplete="off"
             spellCheck={false}
             onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              submit();
+            }}
           />
         </div>
         <button
-          type="submit"
+          type="button"
           className="cs-btn cs-btn-primary"
           disabled={busy || !text.trim()}
+          onClick={submit}
         >
           Search
         </button>
-      </form>
+      </div>
 
       {state.phase === 'idle' && (
         <p className="cg-lead">
