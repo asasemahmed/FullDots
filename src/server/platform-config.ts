@@ -16,6 +16,8 @@ export interface PlatformConfig extends WebConfig {
   limits?: Limits;
   /** CONNECTORS_ALLOW_STDIO=true lets connectors start programs on this host. */
   connectorsAllowStdio?: boolean;
+  /** CONNECTORS_REGISTRY_SEARCH=true lets Settings > Connectors search the public MCP registry. */
+  connectorsRegistrySearch?: boolean;
   /** CONNECTOR_RESULT_MAX_CHARS, default 20_000. */
   connectorResultMaxChars?: number;
   /** APPROVAL_TTL in seconds, converted to ms; default 7 days. */

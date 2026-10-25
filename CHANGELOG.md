@@ -7,6 +7,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 ### Added
 
 - **A dark theme.** FullDots follows your operating system's light or dark setting, and you can pin Light or Dark in Settings → General → Appearance. The choice is saved per browser and applies before the first paint, so a dark screen never flashes light. Every screen has both versions, and text meets WCAG AA contrast in each. Dots keep their own colours in both themes. See [`docs/UI.md`](docs/UI.md) (by @naet001, closing [#7](https://github.com/asasemahmed/FullDots/issues/7)).
+- **Discover MCP servers.** Settings → Connectors has a Discover tab that searches the public MCP registry by server name and lists matches with a link to each repository. It only lists: nothing is installed from it yet. Off by default: set `CONNECTORS_REGISTRY_SEARCH=true` to turn it on, because each search sends the text you type to `registry.modelcontextprotocol.io`. See [`docs/CONNECTORS.md`](docs/CONNECTORS.md#discover-servers).
 
 ### Fixed
 
