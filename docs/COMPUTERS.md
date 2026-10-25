@@ -73,6 +73,45 @@ Revoking a capability cancels the application's active request and prevents subs
 
 The template uses standard Docker container isolation; containers share the host kernel. Shell access permits programs and network access inside the container and can read that Dot's own browser profile. Run this on infrastructure appropriate for that trust level. `COMPUTER_RUNTIME=runsc` can select an already-installed gVisor runtime; the template does not install it or claim stronger isolation by default. It does not configure a restrictive network-egress policy.
 
+## Coding agents
+
+Turn on **Coding agents** in a Dot's settings, save, and start its computer. The switch is off by default for every Dot. An enabled Dot with a running computer can use `delegate_to_coding_agent` to give Claude Code a coding task in that computer's `/workspace`. Progress appears in the chat. The worker never runs on the FullDots host. This switch grants coding access separately from the Browser, Files and Terminal switches; the computer itself must remain enabled.
+
+Rebuild the computer image and supervisor using the setup commands above before enabling this feature. The new computer image tag ends in `-acp1`. On the next start, the supervisor replaces an older computer image while retaining its workspace and browser-profile volumes. This ends active work, so coordinate the upgrade first. The bridge shares the existing authenticated computer API port and private network; there is no new service or port to publish.
+
+The first task downloads a pinned adapter inside the computer, using npm's registry, into `/workspace/.coding-agents/claude-0.95.0`. Allow up to three minutes for installation. The base computer image contains only the small bridge and adapter manifests, with no coding-worker binaries. The tested Linux installation used about **353 MiB per computer**, plus the worker's own caches, sign-in state and project files. These live in the workspace volume and survive stop/start. Unused computers do not download the adapter.
+
+### Sign in inside the computer
+
+Without an existing sign-in, the chat asks you to **Sign in to Claude Code in this Dot's computer** through the usual owner hand-off. Sign in yourself; never paste a password, API key or verification code into the chat or FullDots environment settings. The app does not collect or forward coding-agent credentials.
+
+After the first task has installed the adapter, open an owner terminal inside that computer. Replace the container name with your namespace and Dot ID:
+
+```sh
+docker exec -it \
+  -e HOME=/workspace/.coding-home \
+  -e CLAUDE_CONFIG_DIR=/workspace/.coding-home/.claude \
+  opendots-computer-<dot-id> bash
+```
+
+Inside the container, find its platform-specific bundled executable and start sign-in:
+
+```sh
+coding_cli=$(find /workspace/.coding-agents/claude-0.95.0/node_modules \
+  -path '*/@anthropic-ai/claude-agent-sdk-*/claude' -type f -print -quit)
+"$coding_cli" auth login
+```
+
+Complete the sign-in flow yourself. Sign-in state stays in `/workspace/.coding-home`, inside that Dot's workspace volume. Exit the terminal and hand the computer back in FullDots. The existing Take control and Hand back controls require Browser access; enable it temporarily if needed to finish the hand-off. Access to the coding service and its usage limits are separate from the Dot's configured model provider.
+
+### Approvals and stopping
+
+The worker starts in `default` (manual) mode. Every ACP permission request becomes an owner approval displaying the requested action and paths. Approving permits that request once; the app never selects an always-allow option or a permission-bypassing mode. Requests time out after two minutes, or earlier if the turn ends or the stored approval expires, and are denied by default. These requests still ask when the Dot's ordinary approval mode is Off. Approvals cover the actions for which the adapter requests permission; this is not an extra operating-system sandbox or an egress filter.
+
+Pausing the Dot, stopping its turn or computer, disabling Coding agents or computer access, or taking control cancels active coding work and closes the adapter process. Policy checks run at least once a second while it is active. Completed edits are retained; cancellation cannot undo them. Each task is bounded to ten minutes and may end sooner under the normal Dot turn limit. Review the workspace before retrying an interrupted task. Session identifiers and status are stored in SQLite; application restarts mark unfinished sessions interrupted rather than automatically repeating their work.
+
+Adapter upgrades require a reviewed version change and lockfile update in `deployment/computers/acp-bridge/adapter`, a matching version/cache entry in the bridge, and rebuilding the computer image with a new tag. They install into a new versioned cache on first use and retain the sign-in directory. Do not delete the workspace volume to upgrade. Support for other coding workers is not included in this release.
+
 ## Verify and troubleshoot
 
 Create two Dots and enable the capabilities being tested. Write a file in the first computer, then verify that the second cannot list it. Stop/start the first and verify the file persists. Test a browser session across a restart, takeover and handback, disabled permissions, and pause behavior. Confirm that computer tools fail clearly if the service is unavailable.

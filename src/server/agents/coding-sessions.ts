@@ -1,0 +1,82 @@
+import type { DatabaseSync } from 'node:sqlite';
+import { randomUUID } from 'node:crypto';
+
+export type CodingStatus =
+  | 'running'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+  | 'authentication_required'
+  | 'interrupted';
+export interface CodingSession {
+  id: string;
+  dotId: string;
+  threadId: string;
+  provider: string;
+  agentSessionId: string | null;
+  status: CodingStatus;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
+export class CodingSessions {
+  constructor(private db: DatabaseSync) {
+    db.exec(`CREATE TABLE IF NOT EXISTS coding_agent_settings(dotId TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS coding_sessions(id TEXT PRIMARY KEY, dotId TEXT NOT NULL, threadId TEXT NOT NULL,
+        provider TEXT NOT NULL, agentSessionId TEXT, status TEXT NOT NULL, createdAt INTEGER NOT NULL, finishedAt INTEGER);
+      CREATE INDEX IF NOT EXISTS coding_sessions_dot ON coding_sessions(dotId, createdAt);
+      CREATE UNIQUE INDEX IF NOT EXISTS coding_sessions_active ON coding_sessions(dotId) WHERE status='running';`);
+    // A lost process cannot continue an unobserved action after an application restart.
+    db.prepare(
+      "UPDATE coding_sessions SET status='interrupted', finishedAt=? WHERE status='running'",
+    ).run(Date.now());
+  }
+  enabled(dotId: string): boolean {
+    return (
+      this.db
+        .prepare('SELECT enabled FROM coding_agent_settings WHERE dotId=?')
+        .get(dotId)?.enabled === 1
+    );
+  }
+  configure(dotId: string, enabled: boolean) {
+    this.db
+      .prepare(
+        'INSERT INTO coding_agent_settings(dotId,enabled) VALUES (?,?) ON CONFLICT(dotId) DO UPDATE SET enabled=excluded.enabled',
+      )
+      .run(dotId, +enabled);
+    return { enabled };
+  }
+  start(dotId: string, threadId: string, provider: string): CodingSession {
+    const id = randomUUID();
+    this.db
+      .prepare(
+        "INSERT INTO coding_sessions(id,dotId,threadId,provider,status,createdAt) VALUES (?,?,?,?,'running',?)",
+      )
+      .run(id, dotId, threadId, provider, Date.now());
+    return this.get(id)!;
+  }
+  attach(id: string, agentSessionId: string) {
+    this.db
+      .prepare('UPDATE coding_sessions SET agentSessionId=? WHERE id=?')
+      .run(agentSessionId, id);
+  }
+  finish(id: string, status: Exclude<CodingStatus, 'running'>) {
+    this.db
+      .prepare(
+        "UPDATE coding_sessions SET status=?, finishedAt=? WHERE id=? AND status='running'",
+      )
+      .run(status, Date.now(), id);
+  }
+  get(id: string): CodingSession | undefined {
+    return this.db
+      .prepare('SELECT * FROM coding_sessions WHERE id=?')
+      .get(id) as unknown as CodingSession | undefined;
+  }
+  list(dotId: string): CodingSession[] {
+    return this.db
+      .prepare(
+        'SELECT * FROM coding_sessions WHERE dotId=? ORDER BY createdAt DESC,rowid DESC LIMIT 50',
+      )
+      .all(dotId) as unknown as CodingSession[];
+  }
+}

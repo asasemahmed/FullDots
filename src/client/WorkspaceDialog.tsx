@@ -41,6 +41,7 @@ import { ModelProvidersSettings } from './ModelProvidersSettings';
 import { PromptsSettings } from './palette/PromptsSettings';
 import { useThemePreference, type ThemePreference } from './theme';
 import { DotDelegatesField } from './teams/DotDelegatesField';
+import { CodingAgentsField } from './CodingAgentsField';
 import type {
   ApprovalMode,
   ConnectorView,
@@ -316,6 +317,63 @@ export function WorkspaceDialog({
   const [rules, setRules] = useState<DotRules>(emptyRules);
   const [rulesDirty, setRulesDirty] = useState(false);
   const savedDotId = useRef<string | undefined>(undefined);
+  const [codingAgents, setCodingAgents] = useState(false);
+  const [codingAgentsLoading, setCodingAgentsLoading] = useState(
+    dialog.type === 'dot' && Boolean(dialog.dot),
+  );
+  const [codingAgentsLoaded, setCodingAgentsLoaded] = useState(
+    dialog.type === 'dot' ? !dialog.dot : false,
+  );
+  const [codingAgentsError, setCodingAgentsError] = useState<string | null>(
+    null,
+  );
+  const [codingAgentsDirty, setCodingAgentsDirty] = useState(false);
+  const [codingAgentsRetry, setCodingAgentsRetry] = useState(0);
+
+  useEffect(() => {
+    if (dialog.type !== 'dot') return;
+    if (!dialog.dot) {
+      setCodingAgents(false);
+      setCodingAgentsLoading(false);
+      setCodingAgentsLoaded(true);
+      setCodingAgentsError(null);
+      setCodingAgentsDirty(false);
+      return;
+    }
+    let active = true;
+    setCodingAgentsLoading(true);
+    setCodingAgentsLoaded(false);
+    setCodingAgentsError(null);
+    void api<{ enabled: boolean }>(`/dots/${dialog.dot.id}/coding-agents`)
+      .then((res) => {
+        if (!active) return;
+        setCodingAgents(Boolean(res?.enabled));
+        setCodingAgentsLoaded(true);
+        setCodingAgentsLoading(false);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setCodingAgentsError(
+          err instanceof Error
+            ? err.message
+            : 'Could not load coding agent settings.',
+        );
+        setCodingAgentsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [dialog, codingAgentsRetry]);
+
+  const onCodingAgentsChange = (next: boolean) => {
+    setCodingAgents(next);
+    setCodingAgentsDirty(true);
+  };
+
+  const shouldSaveCodingAgents =
+    dialog.type === 'dot' &&
+    codingAgentsDirty &&
+    (codingAgentsLoaded || !dialog.dot);
   useEffect(() => {
     if (dialog.type !== 'dot' || !dialog.dot) return;
     let active = true;
@@ -541,7 +599,11 @@ export function WorkspaceDialog({
             let saved: boolean;
             if (
               dialog.type === 'dot' &&
-              (grantsDirty || teamDirty || rulesDirty)
+              (savedDotId.current ||
+                grantsDirty ||
+                teamDirty ||
+                rulesDirty ||
+                shouldSaveCodingAgents)
             ) {
               try {
                 // A new Dot needs its id before the grants can be saved. The
@@ -567,6 +629,12 @@ export function WorkspaceDialog({
                   saved = await mutate(`/dots/${dotId}/rules`, 'PUT', {
                     rules,
                   });
+                if (saved && shouldSaveCodingAgents) {
+                  saved = await mutate(`/dots/${dotId}/coding-agents`, 'PUT', {
+                    enabled: codingAgents,
+                  });
+                  if (saved) setCodingAgentsDirty(false);
+                }
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Could not save.');
                 setBusy(false);
@@ -816,6 +884,16 @@ export function WorkspaceDialog({
                       description="Include your preferences in new turns. Changing permission stops active work."
                       checked={memory}
                       onChange={setMemory}
+                    />
+                    <CodingAgentsField
+                      enabled={codingAgents}
+                      onChange={onCodingAgentsChange}
+                      loading={codingAgentsLoading}
+                      error={codingAgentsError}
+                      disabled={
+                        codingAgentsLoading || Boolean(codingAgentsError)
+                      }
+                      onRetry={() => setCodingAgentsRetry((r) => r + 1)}
                     />
                   </div>
                 </DotSection>

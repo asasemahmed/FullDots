@@ -1,4 +1,5 @@
 import { computerRoutes } from './computer-routes.js';
+import { codingRoutes } from './agents/coding-routes.js';
 import { dockerSetupRoutes } from './docker-setup-routes.js';
 import type { DockerSetup } from './docker-setup.js';
 import { computerReplayRoutes } from './computer-replay-routes.js';
@@ -138,6 +139,7 @@ export function createApp({
   if (platform) {
     app.use('/api/*', workspaceChanges(platform));
     app.route('/api', liveRoutes(platform));
+    app.route('/api', codingRoutes(platform));
     app.route(
       '/api',
       computerRoutes(platform.computers, {

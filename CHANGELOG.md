@@ -6,6 +6,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Added
 
+- **Coding workers inside Dot computers.** Enable Coding agents per Dot to delegate coding tasks with streamed progress, owner approvals for permission requests, and an in-computer sign-in hand-off. Workers stop when access is revoked or the Dot is paused. The adapter installs on demand in the computer's persistent workspace. See [`docs/COMPUTERS.md`](docs/COMPUTERS.md#coding-agents).
 - **A dark theme.** FullDots follows your operating system's light or dark setting, and you can pin Light or Dark in Settings → General → Appearance. The choice is saved per browser and applies before the first paint, so a dark screen never flashes light. Every screen has both versions, and text meets WCAG AA contrast in each. Dots keep their own colours in both themes. See [`docs/UI.md`](docs/UI.md) (by @naet001, closing [#7](https://github.com/asasemahmed/FullDots/issues/7)).
 
 ### Fixed

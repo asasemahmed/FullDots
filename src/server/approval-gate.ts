@@ -49,8 +49,108 @@ import { detectChallenge, detectTypeHandoff } from './handoff-detect.js';
 import type { TurnBudget } from './turn-budget.js';
 import { askOwnerInput, type QuestionResult } from './inbox-tools.js';
 import type { InboxService } from './inbox-service.js';
+import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
+import type {
+  RequestPermissionRequest,
+  RequestPermissionResponse,
+} from '@agentclientprotocol/sdk';
+import type { WorkspaceStore } from './workspace.js';
 
 export type { GateComputer };
+
+/** ACP requests remain inside their live turn; only this path consumes its own resume marker. */
+export async function codingPermission(
+  deps: {
+    dotId: string;
+    threadId: string;
+    approvals: Pick<ApprovalService, 'request' | 'consume'>;
+    workspace: WorkspaceStore;
+    signal: AbortSignal;
+    redact: (text: string) => string;
+    timeoutMs?: number;
+  },
+  request: RequestPermissionRequest,
+): Promise<RequestPermissionResponse> {
+  const deny = (): RequestPermissionResponse => {
+    const option = request.options.find((item) => item.kind === 'reject_once');
+    return {
+      outcome: option
+        ? { outcome: 'selected', optionId: option.optionId }
+        : { outcome: 'cancelled' },
+    };
+  };
+  const allow = request.options.find((item) => item.kind === 'allow_once');
+  if (deps.signal.aborted) return deny();
+  const title = deps
+    .redact(request.toolCall.title ?? 'Coding agent action')
+    .slice(0, 240);
+  const paths = (request.toolCall.locations ?? [])
+    .slice(0, 10)
+    .map((location) => deps.redact(location.path).slice(0, 240));
+  const nonce = randomUUID();
+  const hash = intentHash({
+    tool: 'coding_agent_permission',
+    args: {
+      nonce,
+      sessionId: request.sessionId,
+      toolCallId: request.toolCall.toolCallId,
+    },
+  });
+  const approval = deps.approvals.request({
+    dotId: deps.dotId,
+    threadId: deps.threadId,
+    toolCallId: `acp-${nonce}`,
+    tool: 'coding_agent_permission',
+    argsHash: hash,
+    summary: `Coding agent requests: ${title}${paths.length ? ` (${paths.join(', ')})` : ''}`,
+    argsRedacted: deps.redact(
+      redactArgs('coding_agent_permission', {
+        action: title,
+        paths,
+        input: request.toolCall.rawInput,
+      }),
+    ),
+  });
+  const deadline = Math.min(
+    approval.expiresAt,
+    Date.now() + (deps.timeoutMs ?? 120_000),
+  );
+  try {
+    while (!deps.signal.aborted && Date.now() < deadline) {
+      const current = deps.workspace.approvals.get(approval.id);
+      if (current?.status === 'approved') {
+        const consumed = deps.approvals.consume(
+          deps.threadId,
+          hash,
+          approval.id,
+        );
+        return consumed && allow
+          ? { outcome: { outcome: 'selected', optionId: allow.optionId } }
+          : deny();
+      }
+      if (!current || current.status !== 'pending') return deny();
+      await delay(100, undefined, { signal: deps.signal }).catch(
+        () => undefined,
+      );
+    }
+    return deny();
+  } finally {
+    const current = deps.workspace.approvals.get(approval.id);
+    if (current?.status === 'pending') {
+      try {
+        deps.workspace.approvals.decide(approval.id, 'deny');
+      } catch {
+        /* Expiry is also a denial. */
+      }
+    } else if (current?.status === 'approved')
+      deps.workspace.approvals.lapse(approval.id);
+    // The Dot lock defers this marker while the worker waits; its action has already been answered.
+    for (const marker of deps.workspace.resumes.all())
+      if (marker.kind === 'approval' && marker.refId === approval.id)
+        deps.workspace.resumes.remove(marker.id);
+  }
+}
 
 // handoff hooks (E2 adjusts this region: the starter contract and the pieces below that use it)
 /** What the gate needs from the handoff service. `HandoffService` implements it. */
