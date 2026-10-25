@@ -10,11 +10,18 @@ let clientKey: string | undefined;
 /**
  * One client per API key. Passing the key skips the SDK's fallback to
  * COMPOSIO_API_KEY and to ~/.composio, and a silent log level keeps provider
- * bodies out of the server log.
+ * bodies out of the server log. Tracking and the npm version check are off, so
+ * the SDK talks to Composio's API and nothing else.
  */
+export const COMPOSIO_CLIENT_OPTIONS = {
+  logLevel: 'silent',
+  allowTracking: false,
+  disableVersionCheck: true,
+} as const;
+
 function composioClient(apiKey: string) {
   if (!client || clientKey !== apiKey) {
-    client = new Composio({ apiKey, logLevel: 'silent' });
+    client = new Composio({ apiKey, ...COMPOSIO_CLIENT_OPTIONS });
     clientKey = apiKey;
   }
   return client;
@@ -45,6 +52,14 @@ export function composioPolicyHash(toolkits: readonly string[]): string {
     .digest('hex');
 }
 
+/** Composio answered 404 or 410: the stored session no longer exists. */
+function isGone(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const record = error as { status?: unknown; statusCode?: unknown };
+  const status = record.status ?? record.statusCode;
+  return status === 404 || status === 410;
+}
+
 export async function composioSession(
   config: PlatformConfig,
   workspace: WorkspaceStore,
@@ -59,8 +74,16 @@ export async function composioSession(
   const composio = composioClient(config.composioApiKey);
   // 0.27 types the abort signal on the request options. A matching policy reuses
   // the session; a changed allow-list creates a new one.
-  if (record.sessionId && record.policyHash === policyHash)
-    return composio.sessions.use(record.sessionId, undefined, { signal });
+  if (record.sessionId && record.policyHash === policyHash) {
+    try {
+      return await composio.sessions.use(record.sessionId, undefined, {
+        signal,
+      });
+    } catch (error) {
+      // A session Composio no longer has would otherwise fail every turn; make a new one.
+      if (signal?.aborted || !isGone(error)) throw error;
+    }
+  }
   const session = await composio.sessions.create(
     ownerId,
     composioSessionConfig(record.toolkits),

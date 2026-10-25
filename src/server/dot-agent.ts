@@ -562,15 +562,18 @@ export class DotAgent extends AbstractAgent {
           type: 'tanstack',
           factory: async (ctx) => {
             check();
-            const connected = await composioToolsForTurn({
-              config: this.config,
-              workspace: this.workspace,
-              settings: this.store.settings(),
-              dotId: dot.id,
-              ownerId: this.workspace.ownerId,
-              check,
-              signal: controller.signal,
-            });
+            // Connected apps act on real accounts, so they are offered only behind the approval gate.
+            const connected = !gated
+              ? []
+              : await composioToolsForTurn({
+                  config: this.config,
+                  workspace: this.workspace,
+                  settings: this.store.settings(),
+                  dotId: dot.id,
+                  ownerId: this.workspace.ownerId,
+                  check,
+                  signal: controller.signal,
+                });
             const converted = convertInputToTanStackAI({
               ...ctx.input,
               // Match BuiltInAgent's default trust boundary for client messages.

@@ -3,11 +3,20 @@ import type { ActionLevel } from './approvals.js';
 /** Prefix so the approval gate can tell a Composio tool from a built-in one. */
 export const COMPOSIO_TOOL_PREFIX = 'composio__';
 
-const READ_TOKEN = /^(GET|LIST|SEARCH|FETCH|READ|FIND)(?:S|ING|ED)?$/i;
+const READ_VERB = /^(GET|LIST|SEARCH|FETCH|READ|FIND)(?:S|ING|ED)?$/i;
+/**
+ * Any of these anywhere in a slug makes it a write, even after a read verb
+ * (`DOCS_SEARCH_AND_REPLACE`, `X_GET_AND_DELETE`). It includes every action word
+ * the rule categories match, so a send, payment, delete or publish never passes
+ * as a read and always meets the owner's Never rules.
+ */
+const WRITE_VERB =
+  /^(CREATE|ADD|INSERT|UPDATE|UPSERT|EDIT|MODIFY|PATCH|PUT|POST|SET|REPLACE|RENAME|MOVE|COPY|DUPLICATE|DELETE|REMOVE|DESTROY|ERASE|PURGE|WIPE|UNLINK|TRASH|ARCHIVE|UNARCHIVE|CLEAR|RESET|RESTORE|MARK|STAR|UNSTAR|LABEL|TAG|ASSIGN|UNASSIGN|SEND|REPLY|FORWARD|NOTIFY|INVITE|PUBLISH|SHARE|TWEET|DEPLOY|UPLOAD|WRITE|SUBMIT|APPROVE|REJECT|ACCEPT|DECLINE|CANCEL|CLOSE|REOPEN|MERGE|ENABLE|DISABLE|START|STOP|RUN|EXECUTE|TRIGGER|SCHEDULE|PIN|UNPIN|MUTE|UNMUTE|FOLLOW|UNFOLLOW|LIKE|REACT|SUBSCRIBE|UNSUBSCRIBE|LOCK|UNLOCK|IMPORT|SYNC|TRANSFER|BUY|PURCHASE|PAY|CHECKOUT|ORDER|DONATE|CHARGE|REFUND|BOOK|JOIN|LEAVE|KICK|BAN|BLOCK|UNBLOCK|GRANT|REVOKE|INSTALL|UNINSTALL|CONNECT|DISCONNECT)(?:S|ES|ED|D|ING)?$/i;
+/** Key names that hold secrets, matched anywhere in the name so `accessToken` and `client_secret` both count. */
 const SECRET_KEY =
-  /(^|[^a-z])(authorization|api[-_]?key|key|token|secret|password|passwd|cookie|credential|refresh|session|private)([^a-z]|$)/i;
+  /authori[sz]ation|api[-_]?key|apikey|token|secret|password|passwd|pwd|cookie|credential|private[-_]?key|privatekey|session|auth|signature/i;
 const SECRET_VALUE =
-  /^(sk-|ghp_|gho_|github_pat_|xox[baprs]-|ya29\.|bearer\s)/i;
+  /^(sk-|ghp_|gho_|ghs_|github_pat_|glpat-|xox[abeoprs]-|xapp-|ya29\.|AIza|AKIA|ASIA|eyJ[A-Za-z0-9_-]{8,}\.|bearer\s|basic\s)/i;
 const APP_NAMES: Record<string, string> = {
   gmail: 'Gmail',
   github: 'GitHub',
@@ -29,13 +38,18 @@ export function composioSlug(name: string): string {
   return isComposioTool(name) ? name.slice(COMPOSIO_TOOL_PREFIX.length) : name;
 }
 
-/** A slug that contains a read verb as its own word, such as `GMAIL_FETCH_EMAILS`. */
+/**
+ * A read is `<TOOLKIT>_<read verb>_...`, such as `GMAIL_FETCH_EMAILS`: the word right after the toolkit is
+ * a read verb and no write verb appears anywhere. A read word elsewhere in the slug does not count
+ * (`GOOGLETASKS_DELETE_TASK_LIST`, `GITHUB_MARK_NOTIFICATIONS_AS_READ`), and an unrecognised shape is not a read.
+ */
 export function isComposioRead(slug: string): boolean {
-  return slug
+  const words = slug
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-    .some((part) => READ_TOKEN.test(part));
+    .filter(Boolean);
+  if (words.length < 2 || !READ_VERB.test(words[1])) return false;
+  return !words.some((word) => WRITE_VERB.test(word));
 }
 
 /** Reads are ordinary; everything else, including an unknown slug, is sensitive. */

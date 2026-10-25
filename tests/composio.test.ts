@@ -125,6 +125,8 @@ describe('Composio sessions', () => {
     expect(sdk.constructed).toContainEqual({
       apiKey: 'test-key',
       logLevel: 'silent',
+      allowTracking: false,
+      disableVersionCheck: true,
     });
     expect(sdk.create).toHaveBeenCalledWith(
       'owner-1',
@@ -151,6 +153,30 @@ describe('Composio sessions', () => {
     await composioSession(config, workspace, dot.id, workspace.ownerId, signal);
     expect(sdk.create).toHaveBeenCalledTimes(2);
     expect(workspace.composio.get(dot.id)?.sessionId).toBe('ses_2');
+  });
+
+  it('replaces a session Composio no longer has', async () => {
+    const { workspace, dot } = dotWith();
+    const { composioSession } = await sessionApi();
+    await composioSession(config, workspace, dot.id, workspace.ownerId);
+    expect(workspace.composio.get(dot.id)?.sessionId).toBe('ses_1');
+
+    sdk.use.mockRejectedValueOnce(
+      Object.assign(new Error('gone'), { status: 404 }),
+    );
+    sdk.create.mockResolvedValue({ sessionId: 'ses_2' });
+    await composioSession(config, workspace, dot.id, workspace.ownerId);
+    expect(sdk.create).toHaveBeenCalledTimes(2);
+    expect(workspace.composio.get(dot.id)?.sessionId).toBe('ses_2');
+
+    // Any other failure is not a missing session and is passed on.
+    sdk.use.mockRejectedValueOnce(
+      Object.assign(new Error('busy'), { status: 503 }),
+    );
+    await expect(
+      composioSession(config, workspace, dot.id, workspace.ownerId),
+    ).rejects.toThrow('busy');
+    expect(sdk.create).toHaveBeenCalledTimes(2);
   });
 
   it('omits the toolkit filter when the allow-list is blank', async () => {

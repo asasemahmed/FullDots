@@ -73,7 +73,7 @@ describe('Composio tools', () => {
   it('turns a Connect link into a handoff and keeps the provider text out', async () => {
     const session = fakeSession(
       vi.fn(async () => ({
-        data: { redirect_url: 'https://connect.example.test/start?user=1' },
+        data: { redirect_url: 'https://backend.composio.dev/s/start?user=1' },
         error: 'raw token abc',
         resultType: 'failed',
       })),
@@ -84,22 +84,44 @@ describe('Composio tools', () => {
       status: 'handoff',
       kind: 'credential',
       handoffId: '',
-      url: 'https://connect.example.test/start?user=1',
+      url: 'https://backend.composio.dev/s/start?user=1',
     });
     expect(JSON.stringify(result)).not.toContain('abc');
     expect(JSON.stringify(result)).not.toContain('raw token');
 
     session.execute.mockResolvedValueOnce({
       data: {},
-      error: 'Please authenticate at https://connect.example.test/only once',
+      error: 'Please authenticate at https://backend.composio.dev/s/only once',
       resultType: 'failed',
     });
     const fromText = await tools[0]?.execute({});
     expect(fromText).toMatchObject({
       status: 'handoff',
-      url: 'https://connect.example.test/only',
+      url: 'https://backend.composio.dev/s/only',
     });
     expect(JSON.stringify(fromText)).not.toContain('authenticate at');
+  });
+
+  it('ignores a link that is not on a Composio host and keeps the result', async () => {
+    const session = fakeSession(
+      vi.fn(async () => ({
+        data: { webhook: { redirect_url: 'https://attacker.example/x' } },
+        error: null,
+        successful: true,
+      })),
+    );
+    const tools = await composioTools(session as never, () => {});
+    const result = await tools[0]?.execute({});
+    expect(result).not.toMatchObject({ status: 'handoff' });
+    expect(JSON.stringify(result)).toContain('attacker.example');
+
+    session.execute.mockResolvedValueOnce({
+      data: {},
+      error: 'Please connect at https://composio.dev.evil.example/start',
+      resultType: 'failed',
+    });
+    const lookalike = await tools[0]?.execute({});
+    expect(lookalike).not.toMatchObject({ status: 'handoff' });
   });
 
   it('cancels with a clean error when the signal is already aborted', async () => {

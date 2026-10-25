@@ -4,6 +4,10 @@ import { ApprovalStore } from '../src/server/approval-store.js';
 import { ApprovalService } from '../src/server/approval-service.js';
 import { approvalGate, gateParse } from '../src/server/approval-gate.js';
 import { classify } from '../src/server/approvals.js';
+import {
+  composioExact,
+  isComposioRead,
+} from '../src/server/composio-approval.js';
 import { ComputerStore } from '../src/server/computer-store.js';
 import { ResumeQueue } from '../src/server/resume-queue.js';
 import { ResumeStore } from '../src/server/resume-store.js';
@@ -86,6 +90,59 @@ const send = {
 };
 
 describe('Composio approvals', () => {
+  it('never treats a write or delete as a read because of a word elsewhere in the slug', () => {
+    for (const slug of [
+      'GOOGLETASKS_DELETE_TASK_LIST',
+      'MAILCHIMP_DELETE_LIST',
+      'TRELLO_ARCHIVE_LIST',
+      'GITHUB_MARK_NOTIFICATIONS_AS_READ',
+      'SLACK_SET_READ_CURSOR_IN_A_CONVERSATION',
+      'DOCS_SEARCH_AND_REPLACE',
+      'X_GET_AND_DELETE',
+      'GMAIL_LIST_AND_SEND',
+      'GITHUB',
+      'READ',
+    ]) {
+      expect(isComposioRead(slug), slug).toBe(false);
+      expect(
+        classify({ tool: `composio__${slug}`, args: {} }, 'sensitive'),
+        slug,
+      ).toMatchObject({ level: 'sensitive', gated: true });
+    }
+    for (const slug of [
+      'GMAIL_FETCH_EMAILS',
+      'GITHUB_LIST_REPOSITORIES',
+      'GOOGLECALENDAR_GET_EVENT',
+      'NOTION_SEARCH_PAGES',
+    ])
+      expect(isComposioRead(slug), slug).toBe(true);
+  });
+
+  it('applies Never rules to deletes that mention a read word', () => {
+    expect(
+      classify(
+        { tool: 'composio__GOOGLETASKS_DELETE_TASK_LIST', args: {} },
+        'off',
+        { delete_things: 'never' },
+      ),
+    ).toMatchObject({ gated: true, denied: true });
+  });
+
+  it('masks secrets in camelCase keys and known value shapes on the card', () => {
+    const text = composioExact('composio__GITHUB_CREATE_ISSUE', {
+      title: 'Keep me',
+      accessToken: 'one',
+      clientSecret: 'two',
+      privateKey: 'three',
+      auth: 'Basic eHl6',
+      jwt: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig',
+      awsKey: 'AKIAABCDEFGHIJKLMNOP',
+    })!;
+    expect(text).toContain('Keep me');
+    for (const secret of ['one', 'two', 'three', 'eHl6', 'eyJhbGci', 'AKIA'])
+      expect(text, secret).not.toContain(secret);
+  });
+
   it('treats reads as ordinary and everything else as sensitive', () => {
     for (const mode of ['sensitive', 'writes', 'off'] as const) {
       expect(
