@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import {
   Clock,
   Hand,
+  ExternalLink,
   KeyRound,
   LoaderCircle,
   MonitorSmartphone,
@@ -308,6 +309,40 @@ function HandoffCard({
 }) {
   const [taking, setTaking] = useState(false);
   const [error, setError] = useState('');
+  if (result.url) {
+    return (
+      <section
+        className="approval-card is-handoff"
+        aria-label="Connect this app"
+      >
+        <header className="approval-head">
+          <ApprovalTile tone="handoff" icon={KeyRound} />
+          <div className="approval-title">
+            <strong>Connect this app</strong>
+          </div>
+          <span className="approval-badge is-pending">Waiting for you</span>
+        </header>
+        <p className="approval-reason">{result.reason}</p>
+        <p className="approval-hint">
+          Open the link, sign in, then tell the Dot it is connected. Nothing ran
+          yet.
+        </p>
+        <div className="approval-footer">
+          <div className="approval-buttons">
+            <a
+              className="approval-btn is-primary"
+              href={result.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink size={14} aria-hidden="true" />
+              Open the Connect link
+            </a>
+          </div>
+        </div>
+      </section>
+    );
+  }
   const takeOver = async () => {
     if (!onTakeOver) return;
     setTaking(true);

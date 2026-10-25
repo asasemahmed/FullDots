@@ -60,6 +60,7 @@ const config: PlatformConfig = {
   limits: readLimits(),
   ...readIntegrationSettings(),
   publicOrigin: appOrigin ?? `http://${host}:${port}`,
+  composioApiKey: process.env.COMPOSIO_API_KEY || undefined,
 };
 // One registry for every turn source, so the scheduler skips busy and waiting work.
 const turns = new TurnRegistry();

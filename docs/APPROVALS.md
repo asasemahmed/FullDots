@@ -6,13 +6,17 @@ Approvals stop a Dot before an action that could be hard to undo. You decide on 
 
 Set **Approvals** in the Dot form. The default is `sensitive`.
 
-| Mode                  | Asks before                                                                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sensitive` (default) | Sensitive actions: destructive shell commands, clicks and selections on sensitive elements, submitting forms that look sensitive, Enter presses in sensitive places, and connector tools marked destructive. |
-| `writes`              | Everything in `sensitive`, plus anything that changes data: every shell command, file writes, creating or editing Space pages, connector tools that can change data, and every Enter key press.              |
-| `off`                 | Nothing, except paying and deleting, connector tools you set to `ask`, and rules you set to Ask me first. Handoffs still apply. `deny` overrides and Never rules still refuse the action.                    |
+| Mode                  | Asks before                                                                                                                                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sensitive` (default) | Sensitive actions: destructive shell commands, clicks and selections on sensitive elements, submitting forms that look sensitive, Enter presses in sensitive places, connector tools marked destructive, and connected-app actions other than reads. |
+| `writes`              | Everything in `sensitive`, plus anything that changes data: every shell command, file writes, creating or editing Space pages, connector tools that can change data, and every Enter key press.                                                      |
+| `off`                 | Nothing, except paying and deleting, connector tools you set to `ask`, and rules you set to Ask me first. Handoffs still apply. `deny` overrides and Never rules still refuse the action.                                                            |
 
-In `sensitive` mode, the Dot does not ask before ordinary clicks, typing without submit, file writes, shell commands outside the destructive list, read-only connector tools, or connector tools that change data but are not marked destructive.
+In `sensitive` mode, the Dot does not ask before ordinary clicks, typing without submit, file writes, shell commands outside the destructive list, read-only connector tools, connector tools that change data but are not marked destructive, or connected-app reads.
+
+### Connected apps
+
+A connected-app tool (see [Connectors](CONNECTORS.md#connected-apps-composio)) is a read when its name contains `GET`, `LIST`, `SEARCH`, `FETCH`, `READ` or `FIND` as its own word. Reads are not held. Every other connected-app action is sensitive, so `sensitive` and `writes` ask and `off` does not. The card names the app and the action and shows the arguments with secrets masked. A Never rule still refuses a matching action, including in `off`.
 
 ## How the checks decide (heuristic)
 

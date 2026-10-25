@@ -7,6 +7,13 @@ import {
   type RuleCategory,
 } from '../shared/rules.js';
 import { SENSITIVE } from './computer-agent.js';
+import {
+  composioBaseLevel,
+  composioExact,
+  composioSlug,
+  isComposioRead,
+  isComposioTool,
+} from './composio-approval.js';
 
 export type ActionLevel = 'none' | 'write' | 'sensitive';
 
@@ -420,6 +427,7 @@ function baseLevel(
     }
     default:
   }
+  if (isComposioTool(tool)) return composioBaseLevel(tool);
   if (tool.startsWith('mcp__')) {
     // Unknown annotations (e.g. the connector is reconnecting) fail closed.
     if (!mcp)
@@ -532,6 +540,14 @@ export function categoriesOf(input: ClassifyInput): RuleCategory[] {
         for (const category of wordCategories(name)) found.add(category);
       break;
     default:
+      if (isComposioTool(tool)) {
+        // A read cannot send, pay, delete or publish. Anything else is matched on its slug.
+        if (!isComposioRead(composioSlug(tool))) {
+          for (const category of wordCategories(nameWords(composioSlug(tool))))
+            found.add(category);
+        }
+        break;
+      }
       if (!tool.startsWith('mcp__')) break;
       if (mcp?.category) return [mcp.category];
       // A read-only tool cannot send, pay, delete or publish. Unknown annotations fall through (fail closed).
@@ -771,8 +787,11 @@ export function redactArgs(
       text = ['start a team run', ...shared, ...briefs].join('\n');
       break;
     }
-    default:
-      text = `${tool} ${JSON.stringify(mask(args))}`;
+    default: {
+      const exact = composioExact(tool, args);
+      text = exact ?? `${tool} ${JSON.stringify(mask(args))}`;
+      break;
+    }
   }
   return clipText(text);
 }

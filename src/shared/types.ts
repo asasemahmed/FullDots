@@ -12,6 +12,8 @@ export interface Settings {
   paused: boolean;
   researchAllowed: boolean;
   memoryAllowed: boolean;
+  /** Workspace switch for Composio. Absent means off, so older saved settings stay off. */
+  composioAllowed?: boolean;
 }
 /** stopped: the owner stopped it (Stop on its lane, or Stop everything). */
 export type DelegationStatus = 'running' | 'done' | 'failed' | 'stopped';
@@ -231,6 +233,10 @@ export interface Dot {
   gear?: DotGear;
   /** Off by default: when on, the Dot may propose a line for its note, which waits in the inbox. */
   notesProposals?: boolean;
+  /** Off by default. Also needs the workspace switch and COMPOSIO_API_KEY. */
+  composioAllowed?: boolean;
+  /** Toolkit slugs such as `gmail`. Empty means every toolkit in the Composio project. */
+  composioToolkits?: string[];
 }
 export interface Conversation {
   id: string;
@@ -271,6 +277,8 @@ export interface SetupStatus {
   browser: boolean;
   search: boolean;
   voice: boolean;
+  /** True when COMPOSIO_API_KEY is set. The switches stay hidden until then. */
+  composio?: boolean;
   missing: string[];
   defaultModel?: string;
 }
@@ -471,6 +479,8 @@ export interface HandoffResult {
   reason: string;
   /** Tells the model the action did not happen, so it does not report it as done. */
   note?: string;
+  /** An https Connect link. Set only for a connected-app sign-in, not a computer handoff. */
+  url?: string;
 }
 export interface PausedResult {
   paused: 'approval pending' | 'handoff pending' | 'question pending';

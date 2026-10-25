@@ -108,7 +108,8 @@ export class Store {
       if (
         (!previous.paused && settings.paused) ||
         (previous.researchAllowed && !settings.researchAllowed) ||
-        (previous.memoryAllowed && !settings.memoryAllowed)
+        (previous.memoryAllowed && !settings.memoryAllowed) ||
+        !!previous.composioAllowed !== !!settings.composioAllowed
       ) {
         const running = this.tasks().filter((t) => t.status === 'running');
         for (const task of running) {

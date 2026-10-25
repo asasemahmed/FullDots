@@ -16,6 +16,8 @@ import {
   DOT_SPECIES,
   type ConversationSummary,
 } from '../shared/types.js';
+import { MAX_COMPOSIO_TOOLKITS } from '../shared/composio.js';
+import { applyComposioFields } from './composio-store.js';
 const dotSchema = z
   .object({
     name: z.string().trim().min(1).max(40),
@@ -49,6 +51,11 @@ const dotSchema = z
     gear: z.enum(DOT_GEAR).nullable().optional(),
     // Lets the Dot propose lines for its note; they wait in the inbox. Off until the owner says so.
     notesProposals: z.boolean().optional(),
+    composioAllowed: z.boolean().optional(),
+    composioToolkits: z
+      .array(z.string().regex(/^[a-z0-9_]{1,64}$/))
+      .max(MAX_COMPOSIO_TOOLKITS)
+      .optional(),
   })
   .strict();
 const conversationPatch = z
@@ -247,25 +254,24 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       !platform.models.get(data.data.modelProviderId)
     )
       return c.json({ error: UNKNOWN_PROVIDER }, 400);
-    return c.json(
-      platform.workspace.createDot(
-        data.data.spaceId,
-        data.data.name,
-        data.data.instructions,
-        data.data.researchAllowed,
-        data.data.memoryAllowed,
-        data.data.spaceIds,
-        data.data.model ?? null,
-        data.data.approvalMode ?? 'sensitive',
-        data.data.modelProviderId ?? null,
-        {
-          color: data.data.color ?? null,
-          species: data.data.species ?? null,
-          gear: data.data.gear ?? null,
-        },
-      ),
-      201,
+    const created = platform.workspace.createDot(
+      data.data.spaceId,
+      data.data.name,
+      data.data.instructions,
+      data.data.researchAllowed,
+      data.data.memoryAllowed,
+      data.data.spaceIds,
+      data.data.model ?? null,
+      data.data.approvalMode ?? 'sensitive',
+      data.data.modelProviderId ?? null,
+      {
+        color: data.data.color ?? null,
+        species: data.data.species ?? null,
+        gear: data.data.gear ?? null,
+      },
     );
+    applyComposioFields(platform.workspace.composio, created.id, data.data);
+    return c.json(platform.workspace.dot(created.id), 201);
   });
   app.put('/dots/:id', async (c) => {
     const data = dotSchema.safeParse(await c.req.json().catch(() => null));
@@ -278,9 +284,22 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       !platform.models.get(data.data.modelProviderId)
     )
       return c.json({ error: UNKNOWN_PROVIDER }, 400);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { learningContainerId, skillDeliveryEnabled, ...patch } = data.data;
-    return c.json(platform.workspace.updateDot(c.req.param('id'), patch));
+    const {
+      learningContainerId,
+      skillDeliveryEnabled,
+      composioAllowed,
+      composioToolkits,
+      ...patch
+    } = data.data;
+    // Accepted from older clients and ignored. Stripped so updateDot stays exact.
+    void learningContainerId;
+    void skillDeliveryEnabled;
+    const updated = platform.workspace.updateDot(c.req.param('id'), patch);
+    applyComposioFields(platform.workspace.composio, updated.id, {
+      composioAllowed,
+      composioToolkits,
+    });
+    return c.json(platform.workspace.dot(updated.id));
   });
   app.post('/conversations', async (c) => {
     const data = z
