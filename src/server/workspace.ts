@@ -19,6 +19,7 @@ import { PinStore } from './pin-store.js';
 import { copyThreadRows } from './thread-branch.js';
 import { InboxStore } from './inbox-store.js';
 import { DotNotesStore } from './dot-notes-store.js';
+import { ComposioStore, composioFields } from './composio-store.js';
 import { Pages } from './pages.js';
 import { SpaceFiles } from './space-files.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -92,6 +93,8 @@ export class WorkspaceStore {
   readonly inbox: InboxStore;
   /** What each Dot remembers about the owner, with every earlier text kept. */
   readonly notes: DotNotesStore;
+  /** Per-Dot Composio switch, allow-list and session. The session id never leaves the server. */
+  readonly composio: ComposioStore;
   constructor(
     path: string,
     readonly ownerId: string,
@@ -121,6 +124,11 @@ export class WorkspaceStore {
       ['thread_bindings', 'branchedFromThreadId', 'TEXT'],
       ['thread_bindings', 'branchedFromMessageId', 'TEXT'],
       ['dots', 'notesProposals', 'INTEGER NOT NULL DEFAULT 0'],
+      // Connected apps. A blank toolkit list is not "off": the switch is its own column.
+      ['dots', 'composioAllowed', 'INTEGER NOT NULL DEFAULT 0'],
+      ['dots', 'composioToolkits', "TEXT NOT NULL DEFAULT '[]'"],
+      ['dots', 'composioSessionId', 'TEXT'],
+      ['dots', 'composioPolicyHash', 'TEXT'],
       // A team chat names its team; every other conversation keeps NULL.
       ['thread_bindings', 'teamId', 'TEXT'],
     ]) {
@@ -174,6 +182,7 @@ export class WorkspaceStore {
     this.pins = new PinStore(this.db);
     this.inbox = new InboxStore(this.db);
     this.notes = new DotNotesStore(this.db);
+    this.composio = new ComposioStore(this.db);
     if (
       !this.db
         .prepare('PRAGMA table_info(calls)')
@@ -220,23 +229,31 @@ export class WorkspaceStore {
       this.db
         .prepare('SELECT * FROM dots ORDER BY createdAt')
         .all()
-        // Columns from the removed Automatic Learning feature stay in the table but are not read.
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        .map(({ learningContainerId, skillDeliveryEnabled, ...row }) => ({
-          ...knownLook(row),
-          spaceIds: this.db
-            .prepare(
-              'SELECT spaceId FROM dot_spaces WHERE dotId=? ORDER BY spaceId',
-            )
-            .all(String(row.id))
-            .map((grant) => String(grant.spaceId)),
-          researchAllowed: !!row.researchAllowed,
-          memoryAllowed: !!row.memoryAllowed,
-          paused: !!row.paused,
-          approvalMode: row.approvalMode ?? 'sensitive',
-          modelProviderId: row.modelProviderId ?? null,
-          notesProposals: !!row.notesProposals,
-        })) as unknown as Dot[]
+        // Learning columns are unread leftovers. The session id and policy hash stay server-side.
+        .map(
+          ({
+            learningContainerId: _learningContainerId,
+            skillDeliveryEnabled: _skillDeliveryEnabled,
+            composioSessionId: _composioSessionId,
+            composioPolicyHash: _composioPolicyHash,
+            ...row
+          }) => ({
+            ...knownLook(row),
+            spaceIds: this.db
+              .prepare(
+                'SELECT spaceId FROM dot_spaces WHERE dotId=? ORDER BY spaceId',
+              )
+              .all(String(row.id))
+              .map((grant) => String(grant.spaceId)),
+            researchAllowed: !!row.researchAllowed,
+            memoryAllowed: !!row.memoryAllowed,
+            paused: !!row.paused,
+            approvalMode: row.approvalMode ?? 'sensitive',
+            modelProviderId: row.modelProviderId ?? null,
+            notesProposals: !!row.notesProposals,
+            ...composioFields(row),
+          }),
+        ) as unknown as Dot[]
     );
   }
   dot(id: string) {

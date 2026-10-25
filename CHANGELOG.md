@@ -7,6 +7,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 ### Added
 
 - **A dark theme.** FullDots follows your operating system's light or dark setting, and you can pin Light or Dark in Settings → General → Appearance. The choice is saved per browser and applies before the first paint, so a dark screen never flashes light. Every screen has both versions, and text meets WCAG AA contrast in each. Dots keep their own colours in both themes. See [`docs/UI.md`](docs/UI.md) (by @naet001, closing [#7](https://github.com/asasemahmed/FullDots/issues/7)).
+- **Connected apps through Composio.** With `COMPOSIO_API_KEY` set, Settings → General and each Dot gain a Connected apps switch, both off until you turn them on. A Dot can then use apps such as Gmail, Google Calendar and GitHub. An optional toolkit list limits which apps; a blank list allows every toolkit in the Composio project. Reads follow the Dot's approval mode, and every other action waits for approval. A missing sign-in shows Composio's Connect link in the chat. Arguments and results pass through Composio. Apps that need you to paste your own API key are not supported yet. See [`docs/CONNECTORS.md`](docs/CONNECTORS.md#connected-apps-composio).
 
 ### Fixed
 

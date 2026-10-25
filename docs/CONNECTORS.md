@@ -170,3 +170,31 @@ A connector does nothing for a Dot until you grant it. Grants are set per Dot in
 ## Audit log
 
 Each connector call adds one row to the action audit log (the `action_audit` table in the SQLite database). The row records the Dot, the conversation, the tool name, the actor and the outcome. It does not record the arguments or the results.
+
+## Connected apps (Composio)
+
+Connected apps let a Dot use accounts you have already signed into, such as Gmail, Google Calendar or GitHub, through [Composio](https://composio.dev). This is separate from the connectors above. A connector is an MCP server you add yourself. A connected app is a toolkit in a Composio project.
+
+Composio is a hosted service. When a Dot uses one of these tools, the arguments and the results pass through Composio. FullDots does not keep a copy of the provider token. The session id stays on the server.
+
+### Turn it on
+
+1. Create a Composio project and copy its API key.
+2. Set `COMPOSIO_API_KEY` in `.env` and restart FullDots. Until that key is set, the switches below stay hidden and no Composio client is created.
+3. In **Settings → General**, turn on **Connected apps**. This is off until you turn it on.
+4. Open the Dot and turn on **Connected apps** there too. Both switches have to be on.
+5. Optionally fill **Toolkit allow-list** with comma-separated slugs, for example `gmail, google_calendar`. A blank list allows every toolkit in the Composio project.
+
+`OWNER_ID` is the id Composio uses for your accounts. Leave it as it is after you connect an app. Changing it makes those connections look like a different person.
+
+The first time a tool needs a sign-in, the chat shows a **Connect this app** card with Composio's link. Open it, sign in, then tell the Dot the app is connected. The action does not run until you do.
+
+### Approvals
+
+Every connected-app call goes through the same approval gate as other tools. A tool whose name contains a read word (`GET`, `LIST`, `SEARCH`, `FETCH`, `READ` or `FIND`) is treated as a read and follows the Dot's approval mode the way a built-in read does: it is not held. Anything else, including a name FullDots does not recognise, is sensitive. In `sensitive` and `writes` the Dot stops and the card shows the app, the action and the arguments, with anything that looks like a secret masked. In `off` it is not asked. See [Approvals](APPROVALS.md).
+
+Pausing the workspace or the Dot, stopping the turn, or changing either switch or the allow-list cancels a call that is already running.
+
+### What is not supported yet
+
+Some apps connect by you pasting an API key or token you already have. FullDots does not offer that yet. Of about 1,540 apps in the catalogue this port was checked against, about 1,243 need that kind of secret. The apps you can use today are the ones Composio connects with its own sign-in link.
