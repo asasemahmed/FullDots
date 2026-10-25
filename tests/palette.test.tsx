@@ -652,18 +652,15 @@ describe('sidebar entry point', () => {
       />,
     );
 
-  it('keeps the title filter and adds a Search everywhere button with the shortcut', () => {
+  it('opens from a Search everywhere button in the footer, with the shortcut', () => {
     const html = state(() => {});
-    expect(html).toContain('placeholder="Search chats"');
-    expect(html).toContain('Search everywhere');
+    expect(html).toContain('aria-label="Search everywhere"');
     expect(html).toContain('aria-keyshortcuts="Control+K Meta+K"');
-    expect(html).toMatch(/<kbd[^>]*>(Ctrl K|⌘K)<\/kbd>/);
+    expect(html).toMatch(/title="Search everywhere \((Ctrl K|⌘K)\)"/);
   });
 
-  it('is unchanged when no palette is wired in', () => {
-    const html = state();
-    expect(html).not.toContain('Search everywhere');
-    expect(html).toContain('aria-label="Search chats"');
+  it('has no search button when no palette is wired in', () => {
+    expect(state()).not.toContain('Search everywhere');
   });
 });
 
