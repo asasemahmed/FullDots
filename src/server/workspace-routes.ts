@@ -17,6 +17,7 @@ import {
   type ConversationSummary,
 } from '../shared/types.js';
 import { MAX_COMPOSIO_TOOLKITS } from '../shared/composio.js';
+import { prepareAgentEndpoint } from './agent-endpoint.js';
 import { applyComposioFields } from './composio-store.js';
 const dotSchema = z
   .object({
@@ -56,6 +57,10 @@ const dotSchema = z
       .array(z.string().regex(/^[a-z0-9_]{1,64}$/))
       .max(MAX_COMPOSIO_TOOLKITS)
       .optional(),
+    agentEndpoint: z.string().trim().max(2000).nullable().optional(),
+    agentAuth: z.string().max(4000).nullable().optional(),
+    // Returned to the browser so the form can say a header is saved. Never a value.
+    agentAuthSet: z.boolean().optional(),
   })
   .strict();
 const conversationPatch = z
@@ -68,6 +73,22 @@ const conversationPatch = z
       .transform((title) => title.replace(/\s+/g, ' ')),
   })
   .strict();
+function applyAgentEndpoint(
+  platform: Platform,
+  id: string,
+  body: { agentEndpoint?: string | null; agentAuth?: string | null },
+) {
+  const current = platform.workspace.dot(id)?.agentEndpoint ?? null;
+  const prepared = prepareAgentEndpoint(
+    current,
+    body,
+    platform.config.agentEndpointAllowedHosts ?? new Set(),
+  );
+  if ('error' in prepared) return prepared.error;
+  if ('unchanged' in prepared) return undefined;
+  platform.workspace.setAgentEndpoint(id, prepared.endpoint, prepared.auth);
+  return undefined;
+}
 function ownedConversation(platform: Platform, id: string) {
   try {
     return platform.workspace.requireThread(id);
@@ -254,6 +275,13 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       !platform.models.get(data.data.modelProviderId)
     )
       return c.json({ error: UNKNOWN_PROVIDER }, 400);
+    const endpointError = prepareAgentEndpoint(
+      null,
+      data.data,
+      platform.config.agentEndpointAllowedHosts ?? new Set(),
+    );
+    if ('error' in endpointError)
+      return c.json({ error: endpointError.error }, 400);
     const created = platform.workspace.createDot(
       data.data.spaceId,
       data.data.name,
@@ -271,6 +299,12 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       },
     );
     applyComposioFields(platform.workspace.composio, created.id, data.data);
+    if (!('unchanged' in endpointError))
+      platform.workspace.setAgentEndpoint(
+        created.id,
+        endpointError.endpoint,
+        endpointError.auth,
+      );
     return c.json(platform.workspace.dot(created.id), 201);
   });
   app.put('/dots/:id', async (c) => {
@@ -289,11 +323,20 @@ export function workspaceRoutes(platform: Platform, voice: VoiceService) {
       skillDeliveryEnabled,
       composioAllowed,
       composioToolkits,
+      agentEndpoint,
+      agentAuth,
+      agentAuthSet,
       ...patch
     } = data.data;
     // Accepted from older clients and ignored. Stripped so updateDot stays exact.
     void learningContainerId;
     void skillDeliveryEnabled;
+    void agentAuthSet;
+    const endpointError = applyAgentEndpoint(platform, current.id, {
+      agentEndpoint,
+      agentAuth,
+    });
+    if (endpointError) return c.json({ error: endpointError }, 400);
     const updated = platform.workspace.updateDot(c.req.param('id'), patch);
     applyComposioFields(platform.workspace.composio, updated.id, {
       composioAllowed,
