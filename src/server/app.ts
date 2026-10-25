@@ -1,4 +1,5 @@
 import { computerRoutes } from './computer-routes.js';
+import { channelRoutes } from './channels/routes.js';
 import { codingRoutes } from './agents/coding-routes.js';
 import { dockerSetupRoutes } from './docker-setup-routes.js';
 import type { DockerSetup } from './docker-setup.js';
@@ -142,6 +143,7 @@ export function createApp({
     app.use('/api/*', workspaceChanges(platform));
     app.route('/api', liveRoutes(platform));
     app.route('/api', codingRoutes(platform));
+    app.route('/api', channelRoutes(platform));
     app.route(
       '/api',
       computerRoutes(platform.computers, {

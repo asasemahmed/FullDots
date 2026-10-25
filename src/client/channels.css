@@ -1,0 +1,363 @@
+/* Settings > Channels: Slack and Telegram configuration and telemetry. */
+
+.ch-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px 2px 28px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.ch-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ch-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ch-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.ch-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-6);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ch-banner p {
+  margin: 0;
+}
+
+.ch-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ch-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.ch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface-0);
+  border: 1px solid var(--surface-6);
+  border-radius: 14px;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.ch-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ch-fieldset:disabled {
+  opacity: 0.85;
+}
+
+.ch-fieldset:disabled .ch-switch-label {
+  cursor: not-allowed;
+}
+
+.ch-fieldset:disabled .dlg-input {
+  cursor: not-allowed;
+}
+
+.ch-card:focus-within {
+  border-color: var(--line-3);
+}
+
+.ch-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--surface-4);
+}
+
+.ch-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ch-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ch-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ch-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.ch-status-pill.status-connected {
+  background: var(--green-50, #e6f4ea);
+  color: var(--green-ink, #137333);
+}
+
+.ch-status-pill.status-connecting {
+  background: var(--amber-50, #fef7e0);
+  color: var(--amber-ink, #b06000);
+}
+
+.ch-status-pill.status-failed {
+  background: var(--red-50, #fce8e6);
+  color: var(--red-ink, #c5221f);
+}
+
+.ch-status-pill.status-disabled {
+  background: var(--surface-3);
+  color: var(--text-faint);
+}
+
+.ch-ignored-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint);
+  background: var(--surface-3);
+}
+
+.ch-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ch-switch-label strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ch-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ch-token-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+
+.ch-token-header .dlg-label {
+  margin: 0;
+}
+
+.ch-token-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.ch-token-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.ch-token-badge.is-set {
+  background: var(--green-50, #e6f4ea);
+  color: var(--green-ink, #137333);
+}
+
+.ch-clear-btn {
+  border: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--red-ink, #c5221f);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.ch-clear-btn:hover:not(:disabled) {
+  background: var(--red-50, #fce8e6);
+}
+
+.ch-clear-notice {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: var(--amber-ink, #b06000);
+  min-width: 0;
+}
+
+.ch-undo-btn {
+  border: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.ch-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-4);
+  flex-wrap: wrap;
+}
+
+.ch-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+
+.ch-success-text {
+  color: var(--green-ink, #137333);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-error-text {
+  color: var(--red-ink, #c5221f);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-failure-box {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-failure-box span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-root .dlg-error {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-root .dlg-error span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ch-loading {
+  padding: 24px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
