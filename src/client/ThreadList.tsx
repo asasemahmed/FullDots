@@ -438,7 +438,7 @@ export function ThreadList({
           No chats yet.
         </li>
       )}
-      {hidden > 0 && (
+      {hidden > 0 ? (
         <li className="sb-history-more">
           <button
             type="button"
@@ -448,6 +448,19 @@ export function ThreadList({
             Show {hidden} more
           </button>
         </li>
+      ) : (
+        all &&
+        roots.length > HISTORY_LIMIT && (
+          <li className="sb-history-more">
+            <button
+              type="button"
+              className="sb-link"
+              onClick={() => setAll(false)}
+            >
+              Show fewer
+            </button>
+          </li>
+        )
       )}
       {emptyIds.length > 0 && (
         <li className="sb-tidy">

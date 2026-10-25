@@ -35,6 +35,8 @@ import { RowMenu } from './RowMenu';
 import type { DotLive } from './useDotLive';
 import '../sidebar.css';
 import { BrandMark } from '../DotCharacter';
+import { ConnectorLogo } from '../connector-logos';
+import { COMPUTER_STEP_LABELS } from '../../shared/step-label';
 import { shortcutLabel } from '../palette/palette-model';
 import { roleLine } from '../room/mentions';
 import { TeamRows, type SidebarTeams } from '../teams/TeamsSection';
@@ -85,6 +87,19 @@ export interface SidebarProps {
 
 type Flyout = 'spaces' | 'teams';
 
+/** Brands shown on the Apps button: apps owners connect most. Marks the app already bundles. */
+const APP_MARKS = [
+  ['gmail', 'Gmail'],
+  ['google-calendar', 'Google Calendar'],
+  ['github', 'GitHub'],
+  ['notion', 'Notion'],
+] as const;
+
+/** Mission control's "navigate · Pricing" in a few plain words: "Opening website". */
+function stepText(step: string): string {
+  return COMPUTER_STEP_LABELS[step.split(' · ')[0]!] ?? 'Using its computer';
+}
+
 /** The line under a Dot's name: what it is doing, or its role while it is idle. */
 export function dotStatus(
   dot: Dot,
@@ -94,10 +109,7 @@ export function dotStatus(
   if (live?.state === 'needs-input')
     return { text: 'Needs you', tone: 'needs' };
   if (live?.state === 'working')
-    return {
-      text: live.step ? 'Using its computer' : 'Working',
-      tone: 'busy',
-    };
+    return { text: live.step ? stepText(live.step) : 'Working', tone: 'busy' };
   return { text: roleLine(dot.instructions, 60), tone: 'idle' };
 }
 
@@ -133,17 +145,18 @@ function FlyoutPanel({
       ?.focus();
     const outside = (event: PointerEvent) => {
       const target = event.target as Element;
-      // Its own row menus are portalled to <body>: a click in one is not a click outside.
+      // Its own row menus are portalled to <body>: a click in one is not a click outside. A footer
+      // button that opens a panel handles its own click (toggle, or switch panels).
       if (
         panel.current?.contains(target) ||
-        target.closest?.(`[aria-controls="${id}"], .sb-menu`)
+        target.closest?.('[data-flyout], .sb-menu')
       )
         return;
       close.current(false);
     };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
-  }, [id]);
+  }, []);
   return (
     <div
       ref={panel}
@@ -230,12 +243,13 @@ function DotRow({
     .join(', ');
   return (
     <li className={`sb-dot-item ${open && !collapsed ? 'open' : ''}`}>
-      <div className="sb-row-wrap sb-dot-row">
+      <div className={`sb-row-wrap sb-dot-row ${active ? 'selected' : ''}`}>
         <button
           type="button"
           className="sb-icon sb-twisty"
           aria-expanded={open}
-          aria-controls={historyId}
+          // Only while the list exists: a reference to a missing id is an error for screen readers.
+          aria-controls={open && !collapsed ? historyId : undefined}
           aria-label={`${open ? 'Hide' : 'Show'} ${dot.name}’s chats`}
           title={open ? 'Hide chats' : 'Show chats'}
           onClick={() => setOpen(!open)}
@@ -390,7 +404,7 @@ export function Sidebar({
     setFlyout(undefined);
     if (restoreFocus && which)
       aside.current
-        ?.querySelector<HTMLElement>(`[aria-controls="sb-flyout-${which}"]`)
+        ?.querySelector<HTMLElement>(`[data-flyout="${which}"]`)
         ?.focus();
   };
   const toggleFlyout = (which: Flyout) => {
@@ -426,6 +440,8 @@ export function Sidebar({
       active?: boolean;
       badge?: number;
       badgeLabel?: string;
+      /** Amber, like everything else that waits for the owner. */
+      badgeNeeds?: boolean;
       flyout?: Flyout;
       keys?: string;
       onClick: () => void;
@@ -439,9 +455,12 @@ export function Sidebar({
       aria-current={options.active ? 'page' : undefined}
       {...(options.flyout
         ? {
+            'data-flyout': options.flyout,
             'aria-haspopup': 'dialog' as const,
             'aria-expanded': flyout === options.flyout,
-            'aria-controls': `sb-flyout-${options.flyout}`,
+            ...(flyout === options.flyout
+              ? { 'aria-controls': `sb-flyout-${options.flyout}` }
+              : {}),
           }
         : {})}
       {...(options.keys ? { 'aria-keyshortcuts': options.keys } : {})}
@@ -449,7 +468,10 @@ export function Sidebar({
     >
       {icon}
       {!!options.badge && (
-        <span className="sb-badge" aria-label={options.badgeLabel}>
+        <span
+          className={`sb-badge${options.badgeNeeds ? ' needs' : ''}`}
+          aria-label={options.badgeLabel}
+        >
           {options.badge > 99 ? '99+' : options.badge}
         </span>
       )}
@@ -506,6 +528,8 @@ export function Sidebar({
           type="button"
           className="sb-new"
           disabled={!configured}
+          // The tooltip says which Dot; the slim rail also needs it as the name.
+          title={`New chat with ${dot.name}`}
           {...tip(`New chat with ${dot.name}`)}
           onClick={() => onNewChat()}
         >
@@ -658,6 +682,7 @@ export function Sidebar({
               active: view === 'inbox',
               badge: approvalCount,
               badgeLabel: `${approvalCount} waiting for you`,
+              badgeNeeds: true,
               onClick: () => onView('inbox'),
             },
           )}
@@ -708,12 +733,20 @@ export function Sidebar({
           </button>
           <button
             type="button"
-            className="sb-foot-wide"
-            title="Connected apps and connectors"
+            className="sb-foot-wide sb-apps"
+            title={`Connect apps: ${APP_MARKS.map(([, name]) => name).join(', ')} and more`}
             {...tip('Connected apps')}
             onClick={() => onDialog({ type: 'settings', tab: 'connectors' })}
           >
-            <Plug size={16} aria-hidden />
+            {/* The slim rail has room for one icon; the logos need the full width. */}
+            <Plug size={16} aria-hidden className="sb-apps-plug" />
+            <span className="sb-app-logos" aria-hidden>
+              {APP_MARKS.map(([id]) => (
+                <span className="sb-app-logo" key={id}>
+                  <ConnectorLogo presetId={id} size={18} />
+                </span>
+              ))}
+            </span>
             <span className="sb-text">Apps</span>
           </button>
         </div>

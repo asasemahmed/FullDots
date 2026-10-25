@@ -218,8 +218,15 @@ it('says what a Dot is doing, or its role while idle', () => {
   expect(
     dotStatus(scout, { state: 'working', waiting: 0, step: null }),
   ).toEqual({ text: 'Working', tone: 'busy' });
+  // The step mission control reports, in plain words.
   expect(
     dotStatus(scout, { state: 'working', waiting: 0, step: 'navigate · Docs' }),
+  ).toEqual({ text: 'Opening website', tone: 'busy' });
+  expect(
+    dotStatus(scout, { state: 'working', waiting: 0, step: 'search · nodejs' }),
+  ).toEqual({ text: 'Searching the web', tone: 'busy' });
+  expect(
+    dotStatus(scout, { state: 'working', waiting: 0, step: 'drag · Map' }),
   ).toEqual({ text: 'Using its computer', tone: 'busy' });
   expect(
     dotStatus(scout, { state: 'needs-input', waiting: 2, step: null }),
@@ -325,11 +332,19 @@ it('lists only the Dots, each with its chats closed, and a footer with places, S
     'aria-label="Memories (2)"',
   ])
     expect(html).toContain(label);
-  // Spaces opens a panel above the footer; it is not rendered until then.
-  expect(html).toContain('aria-controls="sb-flyout-spaces"');
+  // Spaces opens a panel above the footer; it is not rendered until then, and nothing points
+  // at it (or at a closed Dot's chats) with aria-controls meanwhile.
+  expect(html).toContain('data-flyout="spaces"');
   expect(html).toContain('aria-haspopup="dialog"');
   expect(html).not.toContain('id="sb-flyout-spaces"');
+  expect(html).not.toContain('aria-controls="sb-');
   expect(html).not.toContain('sb-badge');
+  // Apps shows a few app logos and says what it is for.
+  expect(html.match(/class="sb-app-logo"/g)).toHaveLength(4);
+  expect(html).toContain(
+    'title="Connect apps: Gmail, Google Calendar, GitHub, Notion and more"',
+  );
+  expect(html).toContain('title="New chat with Dot"');
 });
 
 it('shows a Dot’s chats once its arrow was used, with New chat first', () => {
@@ -341,6 +356,7 @@ it('shows a Dot’s chats once its arrow was used, with New chat first', () => {
   try {
     const html = sidebar();
     expect(html).toContain('aria-label="Hide Dot’s chats"');
+    expect(html).toContain('aria-controls="sb-history-dot-1"');
     expect(html).toContain('id="sb-history-dot-1"');
     expect(html.indexOf('New chat with Dot')).toBeLessThan(
       html.indexOf('Hello there'),

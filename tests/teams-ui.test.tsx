@@ -146,7 +146,7 @@ describe('sidebar Teams', () => {
   it('has a footer button that opens the Teams panel, marked while a team page is open', () => {
     const html = sidebar(sidebarTeams({ activeTeamId: 'team-1' }));
     expect(html).toContain('aria-label="Teams"');
-    expect(html).toContain('aria-controls="sb-flyout-teams"');
+    expect(html).toContain('data-flyout="teams"');
     expect(html).toMatch(
       /sb-foot-button active"[^>]*aria-label="Teams"[^>]*aria-current="page"/,
     );

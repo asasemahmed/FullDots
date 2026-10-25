@@ -11,9 +11,9 @@ A short map of the parts of the chat that are not plain messages. Colours come f
 
 ## In the sidebar
 
-- **Dots, and only Dots.** Under each name: what the Dot is doing right now (**Working**, **Using its computer**, **Needs you**, **Paused**), or its role while it is idle. A count marks a Dot with approvals, hand-offs or questions waiting for you.
+- **Dots, and only Dots.** Under each name: what the Dot is doing right now (**Working**, its computer step such as **Searching the web** or **Opening website**, **Needs you**, **Paused**), or its role while it is idle. An amber count marks a Dot with approvals, hand-offs or questions waiting for you; amber always means "waiting for you", on the Inbox badge too.
 - **Each Dot's chats** sit behind the arrow beside it, closed until you open them; the sidebar remembers which you opened. **New chat with …** comes first, then the chats newest first with the time of their last activity, the latest eight and **Show more** for the rest. A teammate's chat also sits under the chat that handed the work over, and a pulse marks chats with work running.
-- **The footer** has Search everywhere (Ctrl+K), Inbox, Mission control, Spaces, Teams, Scheduled and activity, and Memories as icons, then **Settings** and **Apps** (Settings → Connectors). Spaces and Teams open a panel above the footer with their pages, files and teams; Escape closes it.
+- **The footer** has Search everywhere (Ctrl+K), Inbox, Mission control, Spaces, Teams, Scheduled and activity, and Memories as icons, then **Settings** and **Apps**. Apps shows the logos of a few apps you can connect (Gmail, Google Calendar, GitHub, Notion) and opens Settings → Connectors. Spaces and Teams open a panel above the footer with their pages, files and teams; Escape closes it.
 - **The computer panel** is on the right. It opens on wide windows until you close it with ✕ or the **Computer** button in the top bar, and FullDots remembers your choice. It shows the computer of the Dot you are chatting with. On narrower windows it slides over the chat, and on a phone the sidebar is a drawer behind the menu button.
 
 ## Themes

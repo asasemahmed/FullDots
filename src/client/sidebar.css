@@ -187,10 +187,11 @@
   height: 26px;
   margin: 0;
   padding: 0 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--sb-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 .sb .sb-label-row .sb-icon {
   width: 24px;
@@ -277,32 +278,53 @@
   opacity: 1;
 }
 
-/* One Dot: the arrow for its chats, then its face, name and what it is doing. */
+/* One Dot: the arrow for its chats, then its face, name and what it is doing. The whole row is
+   the hover and selection surface, calm and neutral; the open chat below carries the accent. */
 .sb-dot-row {
   display: flex;
   align-items: center;
+  border-radius: 10px;
+}
+/* Mouse only: a tap on a touch screen would leave the row looking selected. */
+@media (hover: hover) {
+  .sb-dot-row:hover {
+    background: var(--sb-hover);
+  }
+}
+.sb-dot-row.selected {
+  background: var(--surface-3);
 }
 .sb .sb-twisty {
-  width: 20px;
-  height: 32px;
+  width: 22px;
+  height: 40px;
   border-radius: 6px;
+  color: var(--text-faint);
+}
+.sb .sb-dot-row > .sb-twisty:hover:not(:disabled) {
+  background: transparent;
+  color: var(--sb-ink);
 }
 .sb .sb-twisty svg {
   transition: transform var(--dur-fast, 120ms) ease;
 }
-.sb-dot-row > .sb-row.sb-dot {
+.sb .sb-dot-row > .sb-row.sb-dot {
   flex: 1;
   min-width: 0;
   min-height: 44px;
-  padding-left: 4px;
+  padding-left: 2px;
   gap: 9px;
 }
-.sb .sb-dot .sb-avatar {
-  width: 28px;
-  height: 28px;
+.sb .sb-dot-row > .sb-row.sb-dot,
+.sb .sb-dot-row > .sb-row.sb-dot:hover:not(:disabled) {
+  background: transparent;
+  font-weight: inherit;
 }
 .sb .sb-dot-row > .sb-dot.active::before {
-  left: -20px;
+  content: none;
+}
+.sb .sb-dot .sb-avatar {
+  width: 30px;
+  height: 30px;
 }
 .sb-dot-text {
   display: grid;
@@ -311,19 +333,19 @@
   line-height: 1.25;
 }
 .sb-dot-name {
-  font-weight: 560;
+  font-weight: 600;
 }
 .sb-dot-status {
-  color: var(--sb-muted);
-  font-size: 11.5px;
-  font-weight: 450;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 400;
 }
 .sb-dot-status.busy {
   color: var(--teal-ink);
 }
 .sb-dot-status.needs {
   color: var(--amber-ink);
-  font-weight: 560;
+  font-weight: 600;
 }
 .sb-count {
   flex-shrink: 0;
@@ -348,15 +370,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1px;
-  margin: 0 0 6px 20px;
+  margin: 2px 0 6px 30px;
   padding: 0;
   list-style: none;
 }
 .sb .sb-history-new {
   min-height: 30px;
   gap: 8px;
-  color: var(--sb-muted);
-  font-size: 12.5px;
+  color: var(--text-faint);
+  font-size: 13px;
 }
 .sb .sb-history-new:hover:not(:disabled) {
   color: var(--sb-ink);
@@ -370,13 +392,19 @@
   align-items: center;
   min-height: 30px;
   border-radius: var(--sb-radius);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .sb .sb-chat:hover {
   background: var(--sb-hover);
 }
-.sb .sb-chat.active:hover {
-  background: var(--sb-active);
+/* The open chat: the one accent in the list, without the bar other active rows have. */
+.sb .sb-history .sb-chat.active,
+.sb .sb-history .sb-chat.active:hover {
+  background: var(--teal-50);
+  font-weight: 600;
+}
+.sb .sb-history .sb-chat.active::before {
+  content: none;
 }
 .sb .sb-chat-main {
   display: flex;
@@ -386,8 +414,12 @@
   min-width: 0;
   height: 30px;
   padding: 0 4px 0 10px;
-  color: var(--sb-ink);
+  color: var(--text-muted);
   text-align: left;
+}
+.sb .sb-chat:hover .sb-chat-main,
+.sb .sb-chat.active .sb-chat-main {
+  color: var(--ink-strong, var(--sb-ink));
 }
 .sb .sb-chat-main:hover:not(:disabled) {
   background: transparent;
@@ -602,7 +634,7 @@
 }
 .sb-foot-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 6px;
 }
 .sb .sb-foot-wide {
@@ -610,20 +642,51 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  height: 34px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--sb-line);
+  border-radius: 9px;
   background: var(--surface-0);
   color: var(--sb-ink);
-  font-size: 12.5px;
-  font-weight: 560;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .sb .sb-foot-wide:hover:not(:disabled) {
   background: var(--surface-0);
   border-color: var(--line-2);
 }
-.sb .sb-foot-wide svg {
+/* The button's own icon only: the app logos draw in their brand colours. */
+.sb .sb-foot-wide > svg {
   color: var(--sb-muted);
+}
+/* Apps: a few app logos overlapping like a stack of tiles, which spread a little on hover. */
+.sb .sb-apps {
+  gap: 9px;
+}
+.sb-app-logos {
+  display: inline-flex;
+  align-items: center;
+}
+.sb-app-logo {
+  display: inline-grid;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1.5px var(--surface-0);
+  transition: margin 0.15s ease;
+}
+.sb-app-logo + .sb-app-logo {
+  margin-left: -4px;
+}
+.sb-apps:hover .sb-app-logo + .sb-app-logo,
+.sb-apps:focus-visible .sb-app-logo + .sb-app-logo {
+  margin-left: -1px;
+}
+.sb-app-logo .connector-logo {
+  display: inline-grid;
+  place-items: center;
+}
+.sb .sb-apps-plug {
+  display: none;
 }
 .sb-badge {
   position: absolute;
@@ -639,6 +702,12 @@
   font-weight: 600;
   line-height: 16px;
   text-align: center;
+}
+/* What waits for the owner is amber everywhere: the Inbox badge, a Dot's count, "Needs you". */
+.sb-badge.needs {
+  background: var(--amber-100);
+  color: var(--amber-ink);
+  font-weight: 700;
 }
 
 /* ---- Actions menu (portalled to <body>) ------------------------------- */
@@ -713,9 +782,6 @@
   padding-top: 6px;
   border-top: 1px solid var(--sb-line);
 }
-.sb.collapsed .sb-dot-row > .sb-dot.active::before {
-  left: -7px;
-}
 .sb.collapsed .sb-count {
   position: absolute;
   top: 0;
@@ -736,6 +802,12 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+}
+.sb.collapsed .sb-app-logos {
+  display: none;
+}
+.sb.collapsed .sb-apps-plug {
+  display: block;
 }
 .sb.collapsed .sb-foot-button,
 .sb.collapsed .sb-foot-wide {
@@ -803,11 +875,8 @@
     width: 28px;
     height: 44px;
   }
-  .sb .sb-dot-row > .sb-dot.active::before {
-    left: -28px;
-  }
   .sb-history {
-    margin-left: 28px;
+    margin-left: 34px;
   }
   .sb .sb-more {
     width: 36px;
@@ -831,7 +900,8 @@
   .sb.open {
     transition: none;
   }
-  .sb .sb-twisty svg {
+  .sb .sb-twisty svg,
+  .sb-app-logo {
     transition: none;
   }
 }
