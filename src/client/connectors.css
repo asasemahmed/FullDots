@@ -542,6 +542,29 @@
   color: var(--cx-ink);
 }
 
+/* Discover tab: the registry search and its results. */
+.cg-discover-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.cg-discover-more {
+  margin-top: 18px;
+}
+.cg-registry-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--cx-ink);
+}
+.cg-registry-link {
+  margin-left: auto;
+}
+
 /* ---- Detail page ------------------------------------------------------------------- */
 /* Opening a connector replaces the gallery: a top bar with the way back, one
    scrolling column, and (inside it) a footer that sticks to the bottom edge. */

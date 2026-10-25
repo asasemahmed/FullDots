@@ -26,6 +26,7 @@ import type {
 } from '../shared/types.js';
 import { RULE_LABELS, type DotRules } from '../shared/rules.js';
 import type { ApprovalService } from './approval-service.js';
+import { describeComposioAction } from './composio-approval.js';
 import { requestApprovalInput, requestHandoffInput } from './approval-tools.js';
 import {
   dockerSetupInput,
@@ -317,7 +318,7 @@ function describeAction(
         focus ? ` in the ${label(focus)}` : ''
       }`;
     default:
-      return `use ${tool}`;
+      return describeComposioAction(tool) ?? `use ${tool}`;
   }
 }
 

@@ -8,6 +8,8 @@ FullDots is an independent project. It is not affiliated with, sponsored by, or 
 
 Selected changes made upstream after the fork point are ported individually; each ported commit names its upstream pull request. See [FullDots and OpenDots](README.md#fulldots-and-opendots).
 
+The connected-apps session and tool adapter (`src/server/composio.ts`, `src/server/composio-tools.ts`) are ported from CopilotKit OpenDots, which is MIT licensed. FullDots adds the approval gate those files did not have.
+
 ## What FullDots changed
 
 Relative to OpenDots at `c2569bb`:

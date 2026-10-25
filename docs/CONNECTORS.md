@@ -48,6 +48,17 @@ The **How it signs in** column says how the preset connects:
 
 The **Token alternative** column names the environment variable for a token. For a browser sign-in preset, it is the option under **Use a token instead**. For a token preset, it is the variable the connector reads.
 
+## Discover servers
+
+**Discover** is the second tab on **Settings → Connectors**. It searches the public [MCP registry](https://registry.modelcontextprotocol.io) for servers you might connect to, and lists each result with its name, description, version and a link to its repository.
+
+- **Off by default.** Set `CONNECTORS_REGISTRY_SEARCH=true` in `.env` and restart FullDots to turn it on. While it is off, the tab explains how and shows no search box. The route answers `403` with a message that says how to turn it on.
+- **Your search text leaves this machine.** Each search sends the text you type to `registry.modelcontextprotocol.io`. The request carries only that text and the paging values the registry needs. It has no cookies, no account and no connector values. Leave the setting off if you do not want the text to leave the machine.
+- **The registry matches server names, not descriptions.** A search for "weather" finds `io.github.example/weather`, but not a server whose only mention of weather is in its description.
+- **It only lists.** Installing a server from Discover is not available yet. To add one, use **Custom connector** on the Connectors tab. The Remote and Local program badges say how the server runs: a hosted endpoint, or a program FullDots would start on this machine (which also needs `CONNECTORS_ALLOW_STDIO=true`).
+- **Results are cached for 24 hours** on the server, per search and page, so repeat searches do not query the registry again. The cache holds up to 200 searches and is cleared when FullDots restarts.
+- **Limits.** The registry is contacted with a 10-second timeout. An answer over 1 MB, a redirect, or an answer FullDots cannot read is refused, and the tab shows a short message.
+
 | Service           | How it signs in | Endpoint                                         | Token alternative       |
 | ----------------- | --------------- | ------------------------------------------------ | ----------------------- |
 | `github`          | Token in .env   | `https://api.githubcopilot.com/mcp/`             | `GITHUB_TOKEN`          |
@@ -170,3 +181,31 @@ A connector does nothing for a Dot until you grant it. Grants are set per Dot in
 ## Audit log
 
 Each connector call adds one row to the action audit log (the `action_audit` table in the SQLite database). The row records the Dot, the conversation, the tool name, the actor and the outcome. It does not record the arguments or the results.
+
+## Connected apps (Composio)
+
+Connected apps let a Dot use accounts you have already signed into, such as Gmail, Google Calendar or GitHub, through [Composio](https://composio.dev). This is separate from the connectors above. A connector is an MCP server you add yourself. A connected app is a toolkit in a Composio project.
+
+Composio is a hosted service. When a Dot uses one of these tools, the arguments and the results pass through Composio. FullDots does not keep a copy of the provider token. The session id stays on the server.
+
+### Turn it on
+
+1. Create a Composio project and copy its API key.
+2. Set `COMPOSIO_API_KEY` in `.env` and restart FullDots. Until that key is set, the switches below stay hidden and no Composio client is created.
+3. In **Settings → General**, turn on **Connected apps**. This is off until you turn it on.
+4. Open the Dot and turn on **Connected apps** there too. Both switches have to be on.
+5. Optionally fill **Toolkit allow-list** with comma-separated slugs, for example `gmail, google_calendar`. A blank list allows every toolkit in the Composio project.
+
+`OWNER_ID` is the id Composio uses for your accounts. Leave it as it is after you connect an app. Changing it makes those connections look like a different person.
+
+The first time a tool needs a sign-in, the chat shows a **Connect this app** card with Composio's link. Open it, sign in, then tell the Dot the app is connected. The action does not run until you do.
+
+### Approvals
+
+Every connected-app call goes through the same approval gate as other tools. A tool whose name contains a read word (`GET`, `LIST`, `SEARCH`, `FETCH`, `READ` or `FIND`) is treated as a read and follows the Dot's approval mode the way a built-in read does: it is not held. Anything else, including a name FullDots does not recognise, is sensitive. In `sensitive` and `writes` the Dot stops and the card shows the app, the action and the arguments, with anything that looks like a secret masked. In `off` it is not asked. See [Approvals](APPROVALS.md).
+
+Pausing the workspace or the Dot, stopping the turn, or changing either switch or the allow-list cancels a call that is already running.
+
+### What is not supported yet
+
+Some apps connect by you pasting an API key or token you already have. FullDots does not offer that yet. Of about 1,540 apps in the catalogue this port was checked against, about 1,243 need that kind of secret. The apps you can use today are the ones Composio connects with its own sign-in link.

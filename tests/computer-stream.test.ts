@@ -414,7 +414,7 @@ it('mints a ticket over the API only while Browser access is on', async () => {
   expect(f.service.redeemStreamTicket(body.ticket)).toBe(f.id);
   f.workspace.computers.patch(f.id, { browser: false });
   const denied = await ask();
-  expect(denied.status).toBe(400);
+  expect(denied.status).toBe(403);
   expect(await denied.json()).toEqual({
     error: 'Computer permission is disabled.',
   });

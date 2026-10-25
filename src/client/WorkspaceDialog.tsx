@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from './api';
+import { parseToolkitField } from '../shared/composio';
 import { ConnectorsSettings } from './ConnectorsSettings';
 import {
   ApprovalModeField,
@@ -277,6 +278,16 @@ export function WorkspaceDialog({
     dialog.type === 'dot'
       ? (dialog.dot?.memoryAllowed ?? true)
       : state.settings.memoryAllowed,
+  );
+  const [apps, setApps] = useState(
+    dialog.type === 'dot'
+      ? !!dialog.dot?.composioAllowed
+      : !!state.settings.composioAllowed,
+  );
+  const [toolkits, setToolkits] = useState(
+    dialog.type === 'dot'
+      ? (dialog.dot?.composioToolkits ?? []).join(', ')
+      : '',
   );
   const [spaceIds, setSpaceIds] = useState(
     dialog.type === 'dot' ? (dialog.dot?.spaceIds ?? [dialog.spaceId]) : [],
@@ -556,6 +567,26 @@ export function WorkspaceDialog({
             if (dialog.type === 'dot') {
               path = dialog.dot ? `/dots/${dialog.dot.id}` : '/dots';
               method = dialog.dot ? 'PUT' : 'POST';
+              let connected: {
+                composioAllowed: boolean;
+                composioToolkits: string[];
+              } | null = null;
+              if (workspace.setup.composio) {
+                try {
+                  connected = {
+                    composioAllowed: apps,
+                    composioToolkits: parseToolkitField(toolkits),
+                  };
+                } catch (cause) {
+                  setError(
+                    cause instanceof Error
+                      ? cause.message
+                      : 'Check the toolkit list.',
+                  );
+                  setBusy(false);
+                  return;
+                }
+              }
               body = {
                 spaceId: defaultSpace,
                 spaceIds,
@@ -568,12 +599,17 @@ export function WorkspaceDialog({
                 color,
                 species,
                 gear,
+                ...(connected ?? {}),
               };
             }
             if (dialog.type === 'settings') {
               path = '/settings';
               method = 'PATCH';
-              body = { researchAllowed: research, memoryAllowed: memory };
+              body = {
+                researchAllowed: research,
+                memoryAllowed: memory,
+                ...(workspace.setup.composio ? { composioAllowed: apps } : {}),
+              };
             }
             if (dialog.type === 'memory') {
               path = dialog.memory
@@ -896,6 +932,31 @@ export function WorkspaceDialog({
                       onRetry={() => setCodingAgentsRetry((r) => r + 1)}
                     />
                   </div>
+                  {workspace.setup.composio && (
+                    <div className="dlg-switches">
+                      <DotSwitchRow
+                        title="Connected apps"
+                        description="Let this Dot use the apps you connect through Composio. The workspace switch has to be on too."
+                        checked={apps}
+                        onChange={setApps}
+                      />
+                      <label className="dlg-label" htmlFor="composio-toolkits">
+                        Toolkit allow-list
+                      </label>
+                      <input
+                        id="composio-toolkits"
+                        className="dlg-input"
+                        value={toolkits}
+                        placeholder="gmail, google_calendar"
+                        onChange={(event) => setToolkits(event.target.value)}
+                      />
+                      <p className="dlg-hint">
+                        A blank list allows every toolkit in the Composio
+                        project. Separate slugs with commas, for example gmail,
+                        google_calendar.
+                      </p>
+                    </div>
+                  )}
                 </DotSection>
               </>
             )}
@@ -1060,6 +1121,24 @@ export function WorkspaceDialog({
                       onResearch={setResearch}
                       onMemory={setMemory}
                     />
+                    {workspace.setup.composio && (
+                      <label className="permission-row">
+                        <input
+                          type="checkbox"
+                          checked={apps}
+                          onChange={(event) => setApps(event.target.checked)}
+                        />
+                        <span>
+                          <strong>Connected apps</strong>
+                          <small>
+                            Let Dots use Gmail, Google Calendar, GitHub and
+                            other apps you connect through Composio. Each Dot
+                            also has its own switch. Turning this off stops
+                            active work.
+                          </small>
+                        </span>
+                      </label>
+                    )}
                     <div className="config-note">
                       <strong>Service setup</strong>
                       <p>

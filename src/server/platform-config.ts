@@ -16,6 +16,8 @@ export interface PlatformConfig extends WebConfig {
   limits?: Limits;
   /** CONNECTORS_ALLOW_STDIO=true lets connectors start programs on this host. */
   connectorsAllowStdio?: boolean;
+  /** CONNECTORS_REGISTRY_SEARCH=true lets Settings > Connectors search the public MCP registry. */
+  connectorsRegistrySearch?: boolean;
   /** CONNECTOR_RESULT_MAX_CHARS, default 20_000. */
   connectorResultMaxChars?: number;
   /** APPROVAL_TTL in seconds, converted to ms; default 7 days. */
@@ -34,6 +36,8 @@ export interface PlatformConfig extends WebConfig {
   teamRelayMax?: number;
   /** Where the app is opened (APP_ORIGIN, else the server address); makes notification links absolute. */
   publicOrigin?: string;
+  /** COMPOSIO_API_KEY. Absent means connected apps are not offered. */
+  composioApiKey?: string;
 }
 /**
  * `modelReady` and `defaultModel` come from the model provider registry (a usable `.env` or stored
@@ -58,6 +62,7 @@ export function setupStatus(
     browser: !!(config.browserUrl && config.browserSecret),
     search: (config.webSearchProvider ?? 'duckduckgo') !== 'disabled',
     voice: !!(config.voiceKey && config.voiceModel && !missing.length),
+    composio: !!config.composioApiKey,
     missing,
     defaultModel: modelReady === undefined ? config.model : defaultModel,
   };

@@ -19,6 +19,7 @@ import { chat, maxIterations } from '@tanstack/ai';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { tanstackTools, type ServerTool } from './tanstack-tools.js';
+import { composioPrompt, composioToolsForTurn } from './composio-tools.js';
 import { goalSystemPrompt, goalTools, type GoalService } from './goal-tools.js';
 import { teamPrompt, teamTools, type TeamService } from './team-service.js';
 import type { TeamRunService } from './teams/team-runs.js';
@@ -255,6 +256,10 @@ export class DotAgent extends AbstractAgent {
             current.spaceId !== dot.spaceId ||
             JSON.stringify(current.spaceIds) !== JSON.stringify(dot.spaceIds) ||
             (current.approvalMode ?? 'sensitive') !== mode ||
+            !!settings.composioAllowed !== !!initialSettings.composioAllowed ||
+            !!current.composioAllowed !== !!dot.composioAllowed ||
+            JSON.stringify([...(current.composioToolkits ?? [])].sort()) !==
+              JSON.stringify([...(dot.composioToolkits ?? [])].sort()) ||
             (connectors &&
               this.workspace.connectors.grantHash(dot.id) !== initialGrants)
           )
@@ -578,6 +583,18 @@ export class DotAgent extends AbstractAgent {
                 })),
               );
             check();
+            // Connected apps act on real accounts, so they are offered only behind the approval gate.
+            const connected = !gated
+              ? []
+              : await composioToolsForTurn({
+                  config: this.config,
+                  workspace: this.workspace,
+                  settings: this.store.settings(),
+                  dotId: dot.id,
+                  ownerId: this.workspace.ownerId,
+                  check,
+                  signal: controller.signal,
+                });
             const converted = convertInputToTanStackAI({
               ...ctx.input,
               // Match BuiltInAgent's default trust boundary for client messages.
@@ -597,7 +614,10 @@ export class DotAgent extends AbstractAgent {
                     }
                   : message,
               ),
-              systemPrompts: [prompt, ...converted.systemPrompts],
+              systemPrompts: [
+                connected.length ? `${prompt}\n${composioPrompt}` : prompt,
+                ...converted.systemPrompts,
+              ],
               abortController: ctx.abortController,
               threadId: ctx.input.threadId,
               runId: ctx.input.runId,
@@ -607,7 +627,10 @@ export class DotAgent extends AbstractAgent {
               middleware: gate
                 ? [gate, turnBudget(limits.agentMaxSteps, budget)]
                 : [turnBudget(limits.agentMaxSteps, budget)],
-              tools: [...tanstackTools(serverTools), ...converted.tools],
+              tools: [
+                ...tanstackTools([...serverTools, ...connected]),
+                ...converted.tools,
+              ],
             });
           },
         });

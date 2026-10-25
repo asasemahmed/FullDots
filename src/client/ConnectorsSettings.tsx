@@ -34,6 +34,8 @@ export interface ConnectorsData {
   connectors: ConnectorView[];
   presets: ConnectorPreset[];
   allowStdio: boolean;
+  /** Whether the server lets the Discover tab search the public MCP registry. */
+  registrySearch?: boolean;
 }
 
 const RUNNING = ['starting', 'waiting', 'finishing'];
@@ -138,6 +140,7 @@ export function ConnectorsSettings({
             connectors={data.connectors}
             presets={data.presets}
             allowStdio={data.allowStdio}
+            registrySearch={!!data.registrySearch}
             {...(connectingId ? { connectingId } : {})}
             onOpenConnector={(connector) =>
               openSheet({ kind: 'connector', id: connector.id })

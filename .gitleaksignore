@@ -13,3 +13,4 @@
 957e66c792a5ea0ed28be3bb2529bd128a6656e2:tests/mcp-connectors.test.ts:generic-api-key:475
 a4374d78841f3654d357042acfbd112df0551305:deployment/computers/README.md:generic-api-key:7
 ec6b95f296b05a37548b7a09325e4709ae4492a1:deployment/computers/README.md:generic-api-key:7
+b09556be838b6ccc48c52c09b3315e25719334d1:tests/composio-approval.test.ts:aws-access-token:139

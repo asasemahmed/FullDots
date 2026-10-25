@@ -6,7 +6,9 @@ The computer image adds a small ACP bridge on the existing API port through a fa
 
 The local computer Dockerfile preserves that revision's Node, Bun and Playwright pins and reads its application source and lockfile from the pinned Git build context. This works with `COMPOSE_BAKE=false` as well as Bake; it does not depend on a separately built base service. Review those runtime pins together with the source revision when upgrading.
 
-The supervisor keeps its narrow ensure/stop/reset/list implementation and resource ownership checks. Its image omits the unused SPIRE CLI, and applies one fail-closed patch to child environment construction: each computer receives `HMAC-SHA256(COMPUTER_TOKEN, "opendots-computer:" + dotId)` instead of the master token. The application uses the same derivation. No supervisor token, model key, or master computer token is forwarded to a computer.
+The supervisor keeps its narrow ensure/stop/reset/list implementation and resource ownership checks. Its image omits the unused SPIRE CLI, and applies fail-closed patches at build time. The first is to child environment construction: each computer receives `HMAC-SHA256(COMPUTER_TOKEN, "opendots-computer:" + dotId)` instead of the master token. The application uses the same derivation. No supervisor token, model key, or master computer token is forwarded to a computer.
+
+The second sets a CPU limit (`HostConfig.NanoCpus`) on every computer from `COMPUTER_CPUS`, next to the memory and process limits the supervisor already sets. It touches `docker.ts` and `index.ts`, adds `computer-cpus.ts`, which checks the value the way upstream checks `COMPUTER_MEMORY_BYTES`, and refuses to build if any upstream line it replaces has changed.
 
 If the pinned upstream line changes, the patch refuses to build. Upgrades require reviewing the API contracts, ownership/volume behavior, and this patch together. On the next ensure request after a master-token change, the pinned supervisor replaces owned containers with the new credential while retaining their volumes. Do not delete profile or workspace volumes during normal updates.
 
