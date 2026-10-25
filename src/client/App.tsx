@@ -65,6 +65,9 @@ const STARTERS = [
   'Research a public page',
   'Make a plan I can follow',
 ];
+const COMPUTER_OPEN_KEY = 'fulldots.computer.open';
+/** Wide enough for the sidebar, the chat and the computer panel side by side. */
+const WIDE_QUERY = '(min-width: 1280px)';
 import { PaletteHost } from './palette/PaletteHost';
 import { useCommandPalette } from './palette/useCommandPalette';
 import { useTeamsHost } from './teams/TeamsHost';
@@ -189,7 +192,18 @@ export function App() {
     setMobile(false);
     menuButton.current?.focus();
   }, []);
-  const [pane, setPane] = useState(false);
+  // The computer panel on the right: open on wide screens until the owner closes it, and
+  // remembered from then on. On narrower screens it would cover the chat, so it starts closed.
+  const [pane, setPane] = useState(
+    () =>
+      readFlag(COMPUTER_OPEN_KEY, true) &&
+      typeof matchMedia === 'function' &&
+      matchMedia(WIDE_QUERY).matches,
+  );
+  const showComputer = (open: boolean) => {
+    setPane(open);
+    writeFlag(COMPUTER_OPEN_KEY, open);
+  };
   /** A file or page opened from the chat, shown in the side pane. */
   const [chatItem, setChatItem] = useState<PaneItem>();
   const [capture, setCapture] = useState<Result>();
@@ -233,7 +247,7 @@ export function App() {
   }, []);
   // Live events refetch at once; polling stays as a fallback (15 s, or 3 s while the feed is down).
   useLiveRefresh(refresh);
-  const dotStates = useDotLive();
+  const dotLive = useDotLive();
   const { inbox, refresh: refreshInbox } = useInbox();
   const needsYou =
     inbox?.counts.needsYou ?? pendingApprovals.length + waitingHandoffs.length;
@@ -529,7 +543,7 @@ export function App() {
           setMobile(false);
         }}
         onOpenPalette={palette.show}
-        dotStates={dotStates}
+        dotLive={dotLive}
         teams={teams.sidebar}
       />
       <div className="workspace" inert={mobile}>
@@ -538,12 +552,14 @@ export function App() {
             <span>
               {view === 'space'
                 ? workspace.spaces.find((space) => space.id === spaceId)?.name
-                : 'Dots'}
+                : view === 'chat'
+                  ? dot.name
+                  : 'Dots'}
             </span>
             <span>/</span>
             <strong>
               {view === 'chat'
-                ? dot.name
+                ? (thread?.title ?? 'New chat')
                 : view === 'tasks'
                   ? 'Activity'
                   : view === 'space'
@@ -576,12 +592,16 @@ export function App() {
               <span>{state.settings.paused ? 'Resume' : 'Pause'}</span>
             </button>
             <button
-              className="icon-button"
-              aria-label={pane ? 'Hide computer' : 'Show computer'}
+              className={`pause-button computer-toggle ${pane ? 'on' : ''}`}
+              aria-label="Computer"
               aria-expanded={pane}
-              onClick={() => setPane(!pane)}
+              title={
+                pane ? 'Hide the computer panel' : 'Show the computer panel'
+              }
+              onClick={() => showComputer(!pane)}
             >
-              <Monitor size={18} />
+              <Monitor size={15} aria-hidden />
+              <span>Computer</span>
             </button>
           </div>
         </header>
@@ -746,7 +766,7 @@ export function App() {
                 item={chatItem}
                 latest={capture}
                 dotState="idle"
-                onClose={() => setPane(false)}
+                onClose={() => showComputer(false)}
               />
             )}
           </div>
@@ -970,7 +990,7 @@ export function App() {
                   : dot.id
               }
               dotState="idle"
-              onClose={() => setPane(false)}
+              onClose={() => showComputer(false)}
             />
           </div>
         )}
