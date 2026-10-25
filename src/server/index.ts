@@ -8,6 +8,7 @@ import { Store } from './store.js';
 import { createApp } from './app.js';
 import { attachComputerStream, type UpgradeServer } from './computer-stream.js';
 import { WorkspaceStore } from './workspace.js';
+import { agentEndpointAllowedHosts } from './agent-endpoint.js';
 import { loadConnectorKey } from './connector-crypto.js';
 import { Platform } from './platform.js';
 import { DockerSetup, dockerSetupEnabled } from './docker-setup.js';
@@ -61,6 +62,7 @@ const config: PlatformConfig = {
   ...readIntegrationSettings(),
   publicOrigin: appOrigin ?? `http://${host}:${port}`,
   composioApiKey: process.env.COMPOSIO_API_KEY || undefined,
+  agentEndpointAllowedHosts: agentEndpointAllowedHosts(process.env),
 };
 // One registry for every turn source, so the scheduler skips busy and waiting work.
 const turns = new TurnRegistry();

@@ -8,6 +8,7 @@ import type { DockerSetup } from './docker-setup.js';
 import { pageAccess, pageTools } from './page-tools.js';
 import { spaceFileTools, spaceFilesPrompt } from './space-file-tools.js';
 import { AbstractAgent } from '@ag-ui/client';
+import { runRemoteAguiTurn } from './remote-agui.js';
 import { type BaseEvent, type RunAgentInput, EventType } from '@ag-ui/core';
 import {
   BuiltInAgent,
@@ -157,6 +158,7 @@ function modelSafeToolContent(content: string): string {
 }
 export class DotAgent extends AbstractAgent {
   private inner?: BuiltInAgent;
+  private remote?: { abortRun(): void };
   private controller?: AbortController;
   constructor(
     private store: Store,
@@ -179,8 +181,29 @@ export class DotAgent extends AbstractAgent {
   abortRun() {
     this.controller?.abort();
     this.inner?.abortRun();
+    this.remote?.abortRun();
   }
   run(input: RunAgentInput): Observable<BaseEvent> {
+    if (this.workspace.dot(this.dotId)?.agentEndpoint)
+      return runRemoteAguiTurn(
+        {
+          dotId: this.dotId,
+          workspace: this.workspace,
+          store: this.store,
+          config: this.config,
+          turns: this.services.turns,
+          source: turnOrigin(input.messages).source,
+          ...(this.config.agentFetch
+            ? { fetchImpl: this.config.agentFetch }
+            : {}),
+          attach: (controller, agent) => {
+            this.controller = controller;
+            this.remote = agent;
+          },
+          abort: () => this.abortRun(),
+        },
+        input,
+      );
     return new Observable((subscriber) => {
       const controller = new AbortController();
       this.controller = controller;
