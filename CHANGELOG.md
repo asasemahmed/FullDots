@@ -7,6 +7,11 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 ### Added
 
 - **A dark theme.** FullDots follows your operating system's light or dark setting, and you can pin Light or Dark in Settings → General → Appearance. The choice is saved per browser and applies before the first paint, so a dark screen never flashes light. Every screen has both versions, and text meets WCAG AA contrast in each. Dots keep their own colours in both themes. See [`docs/UI.md`](docs/UI.md) (by @naet001, closing [#7](https://github.com/asasemahmed/FullDots/issues/7)).
+- **Secrets are removed from notes and saved memories.** Before a Dot note, a line a Dot proposes for its note, or a saved memory is stored, text that looks like a secret is replaced with `[redacted]`: API keys with a known prefix (`sk-`, GitHub, GitLab, Slack, Google, AWS and others), bearer tokens and authorization headers, passwords inside URLs, private key blocks, JWTs and long random-looking strings. Ordinary text, links, file paths, git hashes and UUIDs are left alone. The chat itself is not changed, and the log records how many values were hidden, never the values. See [`docs/SETUP.md`](docs/SETUP.md#dot-notes).
+
+### Changed
+
+- **Dot computers are limited to 2 CPUs.** The supervisor now sets a CPU limit on each computer next to its memory limit. Change it with `COMPUTER_CPUS` (a decimal such as `0.5` or `4`; `0` means no limit). A computer created earlier keeps its old limit until its container is removed (`docker rm -f opendots-computer-<dot id>`; its files and browser profile stay in volumes) and started again, and the supervisor image must be rebuilt once to pick the setting up. See [Dot computers](docs/COMPUTERS.md).
 
 ### Fixed
 
