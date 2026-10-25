@@ -37,14 +37,18 @@ describe('registry badges and titles', () => {
     ).toEqual(['Remote']);
     expect(
       registryBadges(
-        server({ packages: [{ registryType: 'npm', transport: 'stdio' }] }),
+        server({
+          packages: [{ registryType: 'npm', transport: 'stdio', envNames: [] }],
+        }),
       ),
     ).toEqual(['Local program']);
     expect(
       registryBadges(
         server({
           remotes: [{ type: 'sse', url: 'https://notes.example/sse' }],
-          packages: [{ registryType: 'pypi', transport: 'stdio' }],
+          packages: [
+            { registryType: 'pypi', transport: 'stdio', envNames: [] },
+          ],
         }),
       ),
     ).toEqual(['Remote', 'Local program']);
@@ -141,7 +145,10 @@ describe('RegistryDiscover', () => {
     const markup = renderToStaticMarkup(<RegistryDiscover enabled />);
     expect(markup).toContain('registry.modelcontextprotocol.io');
     expect(markup).toContain('Search by server name');
-    expect(markup).toContain('Installing from here is not available yet');
+    expect(markup).toContain('nothing is saved until you choose Save');
+    // It sits inside the Settings form: a nested <form> would reload the page on search.
+    expect(markup).not.toContain('<form');
+    expect(markup).toContain('role="search"');
     expect(markup).not.toMatch(/>Install</);
   });
 
