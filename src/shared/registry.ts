@@ -10,7 +10,16 @@ export interface RegistryServer {
   /** Hosted endpoints: the transport type and the address (it may hold `{variables}`). */
   remotes: { type: string; url: string }[];
   /** Local packages: the package registry (npm, pypi, oci, ...) and the transport type. */
-  packages: { registryType: string; transport: string }[];
+  packages: {
+    registryType: string;
+    transport: string;
+    /** The package name, without a version. */
+    identifier?: string;
+    /** The version the registry pins. Never "latest". */
+    version?: string;
+    /** Names of the environment variables the package declares. Values are never sent. */
+    envNames: string[];
+  }[];
 }
 
 export interface RegistrySearchResult {

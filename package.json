@@ -40,16 +40,16 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@ag-ui/client": "^0.0.59",
-    "@ag-ui/core": "^0.0.59",
+    "@ag-ui/client": "1.0.3",
+    "@ag-ui/core": "1.0.3",
     "@agentclientprotocol/sdk": "2.0.2",
     "@composio/core": "^0.27.0",
-    "@copilotkit/react-core": "^1.75.0",
-    "@copilotkit/runtime": "^1.75.0",
+    "@copilotkit/react-core": "1.80.0",
+    "@copilotkit/runtime": "1.80.0",
     "@hono/node-server": "^2.1.4",
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@tanstack/ai": "^0.63.0",
-    "@tanstack/ai-openai": "^0.25.1",
+    "@tanstack/ai": "1.0.0",
+    "@tanstack/ai-openai": "1.0.0",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-placeholder": "3.31.4",
     "@tiptap/extension-table": "3.31.4",
@@ -104,7 +104,11 @@
     "url": "https://github.com/asasemahmed/FullDots/issues"
   },
   "overrides": {
-    "undici": "^6.29.0"
+    "undici": "^6.29.0",
+    "@ag-ui/core": "$@ag-ui/core",
+    "@ag-ui/client": "$@ag-ui/client",
+    "@ag-ui/encoder": "1.0.3",
+    "@ag-ui/proto": "1.0.3"
   },
   "contributors": [
     "Atai Barkai (original OpenDots)"

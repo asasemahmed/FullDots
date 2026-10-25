@@ -245,6 +245,8 @@ describe('a Dot without a provider', () => {
     });
     for await (const chunk of chat({
       adapter,
+      threadId: 'provider-header-contract',
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hello.' }],
       modelOptions: { max_completion_tokens: 1 },
     }))

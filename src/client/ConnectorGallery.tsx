@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ConnectorLogo } from './connector-logos';
 import { RegistryDiscover } from './RegistryDiscover';
+import type { ConnectorDraft } from './ConnectorSheet';
 import type {
   ConnectorPreset,
   ConnectorPresetCategory,
@@ -267,6 +268,8 @@ export interface GalleryProps {
   allowStdio: boolean;
   /** CONNECTORS_REGISTRY_SEARCH: lets the Discover tab search the public registry. */
   registrySearch?: boolean;
+  /** Opens the connector form prefilled from a Discover result. Nothing is saved by it. */
+  onAddRegistry?: ((draft: ConnectorDraft) => void) | undefined;
   /** The connector whose browser sign-in is in progress. */
   connectingId?: string;
   onOpenConnector: (connector: ConnectorView) => void;
@@ -448,6 +451,7 @@ export function ConnectorGallery({
   presets,
   allowStdio,
   registrySearch,
+  onAddRegistry,
   connectingId,
   onOpenConnector,
   onConnect,
@@ -532,7 +536,11 @@ export function ConnectorGallery({
       </header>
 
       {tab === 'discover' ? (
-        <RegistryDiscover enabled={!!registrySearch} />
+        <RegistryDiscover
+          enabled={!!registrySearch}
+          allowStdio={allowStdio}
+          onAdd={onAddRegistry}
+        />
       ) : (
         <>
           {connectors.length > 0 && (

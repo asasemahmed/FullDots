@@ -2,9 +2,10 @@
  * Theme choice: System, Light or Dark. The resolved theme is a `data-theme` attribute on <html>;
  * every colour in the app comes from tokens.css, so setting that attribute is the whole switch.
  *
- * The choice is per browser (localStorage) and defaults to following the system setting. An inline
- * script in index.html applies the same resolution before the first paint so a dark screen never
- * flashes light.
+ * The choice is per browser (localStorage) and defaults to following the system setting.
+ * public/theme-init.js, loaded from the <head> of index.html, applies the same resolution before
+ * the first paint so a dark screen never flashes light. It is a file rather than an inline script
+ * because the server's Content-Security-Policy only allows scripts from 'self'.
  */
 import { useCallback, useEffect, useState } from 'react';
 

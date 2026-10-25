@@ -152,9 +152,9 @@ docker compose up --build -d
 
 Open <http://localhost:4310>. The port is bound to loopback, and data lives in the `opendots-data` volume.
 
-### On a server with Dokploy
+### On a server
 
-Deploy from your own GitHub fork with HTTPS, a domain and redeploys on every push: see [Deploy on Dokploy](docs/DEPLOY-DOKPLOY.md).
+Deploy on your own server with HTTPS, a domain and automated backups: see [Deploy on a VPS](docs/DEPLOY-VPS.md) for a plain Linux VPS with Docker, or [Deploy on Dokploy](docs/DEPLOY-DOKPLOY.md) to manage it from GitHub.
 
 ### Optional extras
 
@@ -257,6 +257,7 @@ docs/        Guides, brand assets and screenshots
 | Guide                                       | Covers                                        |
 | ------------------------------------------- | --------------------------------------------- |
 | [Setup](docs/SETUP.md)                      | Running, Docker, storage, search and backups  |
+| [Deploy on a VPS](docs/DEPLOY-VPS.md)       | Hosting on a plain Linux VPS with Docker      |
 | [Deploy on Dokploy](docs/DEPLOY-DOKPLOY.md) | Hosting on your own server from GitHub        |
 | [Models](docs/MODELS.md)                    | Providers, keys and per-Dot models            |
 | [Connectors](docs/CONNECTORS.md)            | MCP connectors, browser sign-in and grants    |

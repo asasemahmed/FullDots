@@ -11,7 +11,8 @@
  * Response: { servers: [{ server: ServerDetail, _meta }], metadata: { nextCursor, count } }
  * ServerDetail: name, description, version and title (optional), repository { url, source },
  *   remotes [{ type: "streamable-http" | "sse", url }],
- *   packages [{ registryType, identifier, version, transport: { type: "stdio" | ... } }].
+ *   packages [{ registryType, identifier, version, transport: { type: "stdio" | ... },
+ *              environmentVariables [{ name, isSecret, ... }] }].
  * Everything else (websiteUrl, icons, _meta, ...) is dropped here.
  */
 import { z } from 'zod';
@@ -45,7 +46,13 @@ const serverSchema = z.object({
     .array(
       z.object({
         registryType: z.string().max(40),
+        identifier: z.string().min(1).max(214).nullish(),
+        version: z.string().min(1).max(255).nullish(),
         transport: z.object({ type: z.string().max(40) }),
+        environmentVariables: z
+          .array(z.object({ name: z.string().min(1).max(200) }))
+          .max(50)
+          .nullish(),
       }),
     )
     .max(50)
@@ -87,6 +94,11 @@ function normalise(entry: ServerEntry): RegistryServer {
     packages: (entry.packages ?? []).map((item) => ({
       registryType: item.registryType,
       transport: item.transport.type,
+      ...(item.identifier ? { identifier: item.identifier } : {}),
+      ...(item.version ? { version: item.version } : {}),
+      envNames: (item.environmentVariables ?? []).map(
+        (variable) => variable.name,
+      ),
     })),
   };
 }
