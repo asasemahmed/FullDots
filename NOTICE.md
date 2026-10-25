@@ -25,6 +25,8 @@ Relative to OpenDots at `c2569bb`:
 
 FullDots depends on open-source packages, including CopilotKit, AG-UI, TanStack AI, the Model Context Protocol SDK, Hono, React, Tiptap, Playwright and Simple Icons. Each is under its own license; see `package.json` and `package-lock.json`.
 
+The Agent Client Protocol TypeScript SDK and the optional `@agentclientprotocol/claude-agent-acp` adapter are licensed under Apache-2.0. The adapter is installed on demand inside a Dot computer from the lockfile in `deployment/computers/acp-bridge/adapter`. Its dependencies retain their own licenses and terms.
+
 Dot computers use container images built from CopilotKit OpenBot (MIT). See [`deployment/computers/`](deployment/computers/README.md), which carries OpenBot's license in [`LICENSE.openbot`](deployment/computers/LICENSE.openbot).
 
 ## Third-party art and trademarks

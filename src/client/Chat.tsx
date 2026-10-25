@@ -14,6 +14,7 @@ import {
 } from '@copilotkit/react-core/v2';
 import { FilePlus, Clock3, Zap, Phone, PhoneOff } from 'lucide-react';
 import { ChatTranscript, isInternalVoiceReceipt } from './ChatTranscript';
+import { CodingProgress, useCodingProgress } from './CodingProgress';
 import {
   ComputerAutoOpen,
   approvalIds,
@@ -98,6 +99,7 @@ export function Chat({
     runtimeAgentId: dot.id,
     threadId: thread.id,
   });
+  const codingProgress = useCodingProgress(agent, thread.id);
   const { copilotkit } = useCopilotKit();
   const room = useGroupChat({
     threadId: thread.id,
@@ -634,6 +636,7 @@ export function Chat({
               />
             )}
           />
+          <CodingProgress progress={codingProgress} />
         </LanesContext.Provider>
         {lanes.announcer}
         {working && (

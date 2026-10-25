@@ -2,6 +2,7 @@ import { readPage, searchWeb } from './web-search.js';
 import { pageReviewTool } from '../shared/page-review.js';
 import { ComputerConflictError, ComputerService } from './computer-service.js';
 import { computerTools } from './computer-tools.js';
+import { codingTools } from './agents/coding-tools.js';
 import { dockerPrompt, dockerTools } from './docker-tools.js';
 import type { DockerSetup } from './docker-setup.js';
 import { pageAccess, pageTools } from './page-tools.js';
@@ -561,6 +562,26 @@ export class DotAgent extends AbstractAgent {
         this.inner = new BuiltInAgent({
           type: 'tanstack',
           factory: async (ctx) => {
+            if (gated)
+              serverTools.push(
+                ...(await codingTools({
+                  store: this.store,
+                  workspace: this.workspace,
+                  computer,
+                  approvals,
+                  handoffs,
+                  dotId: dot.id,
+                  threadId: input.threadId,
+                  signal: controller.signal,
+                  check,
+                  progress: (value) =>
+                    subscriber.next({
+                      type: EventType.CUSTOM,
+                      name: 'coding_agent_progress',
+                      value,
+                    } as BaseEvent),
+                })),
+              );
             check();
             // Connected apps act on real accounts, so they are offered only behind the approval gate.
             const connected = !gated

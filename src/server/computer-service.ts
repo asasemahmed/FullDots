@@ -779,6 +779,33 @@ export class ComputerService {
       return false;
     }
   }
+  /** A server-only coding connection; the master credential never enters the computer. */
+  async codingTarget(id: string, signal?: AbortSignal) {
+    this.allowed(id, undefined, 'agent');
+    const origin = await this.running(id, signal);
+    const control = controlSchema.parse(
+      await this.json(
+        `${origin}/control`,
+        this.token(id),
+        undefined,
+        signal,
+        id,
+      ),
+    );
+    if (control.holder === 'human' || control.requested)
+      throw new Error('The owner has control of this Dot’s computer.');
+    this.allowed(id, undefined, 'agent');
+    signal?.throwIfAborted();
+    const token = this.token(id);
+    return {
+      url: `ws://${new URL(origin).host}/acp`,
+      headers: {
+        'x-openbot-computer-token': token,
+        'x-openbot-bot-id': id,
+      },
+      redact: (text: string) => this.redact(text, token),
+    };
+  }
   /** Where to connect for this Dot's live screen. Audited like any other owner action. */
   async openStream(
     id: string,

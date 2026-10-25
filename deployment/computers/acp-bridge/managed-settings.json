@@ -1,0 +1,19 @@
+{
+  "allowManagedHooksOnly": true,
+  "allowManagedPermissionRulesOnly": true,
+  "disableAutoMode": true,
+  "apiKeyHelper": "",
+  "hooks": {},
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [],
+    "ask": ["Bash", "Edit", "Write", "NotebookEdit", "Agent", "Task", "Skill"],
+    "deny": [
+      "Read(//profiles/.coding/**)",
+      "Edit(//profiles/.coding/**)",
+      "Read(//etc/claude-code/**)",
+      "Edit(//etc/claude-code/**)"
+    ]
+  }
+}

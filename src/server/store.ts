@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { CodingSessions } from './agents/coding-sessions.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -40,6 +41,7 @@ const defaults: Settings = {
 };
 export class Store {
   private db: DatabaseSync;
+  readonly codingSessions: CodingSessions;
   constructor(path: string) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
@@ -57,6 +59,7 @@ export class Store {
       .prepare('INSERT OR IGNORE INTO settings VALUES (1, ?)')
       .run(JSON.stringify(defaults));
     this.migrateTasks();
+    this.codingSessions = new CodingSessions(this.db);
   }
   private migrateTasks() {
     const present = new Set(

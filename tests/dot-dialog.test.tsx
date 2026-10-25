@@ -110,12 +110,13 @@ describe('Dot dialog', () => {
     ).toHaveLength(1);
   });
 
-  it('renders the two permissions as real switches', () => {
+  it('renders access permissions as real switches', () => {
     const html = render({ type: 'dot', dot, spaceId: 's1' });
-    // The Notes section has its own switch (proposals), ahead of the two permissions in Access.
-    expect(html.match(/role="switch"/g)).toHaveLength(3);
+    // The Notes switch precedes the three permissions in Access.
+    expect(html.match(/role="switch"/g)).toHaveLength(4);
     expect(html).toContain('Public-page research');
     expect(html).toContain('Use saved memories');
+    expect(html).toContain('Coding agents');
     const research = html.match(/<input[^>]*role="switch"[^>]*>/g)!.slice(1);
     expect(research[0]).toContain('checked=""');
     // memoryAllowed is false for this Dot.
