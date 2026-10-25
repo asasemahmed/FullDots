@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyTheme,
@@ -8,10 +9,16 @@ import {
   resolveTheme,
   storeThemePreference,
   THEME_STORAGE_KEY,
+  type ResolvedTheme,
 } from '../src/client/theme';
 
 const css = readFileSync(
   join(__dirname, '..', 'src', 'client', 'tokens.css'),
+  'utf8',
+);
+const html = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
+const themeInit = readFileSync(
+  join(__dirname, '..', 'public', 'theme-init.js'),
   'utf8',
 );
 
@@ -160,6 +167,99 @@ describe('theme preference storage', () => {
     const store = stubStorage();
     storeThemePreference('light');
     expect(store.get(THEME_STORAGE_KEY)).toBe('light');
+  });
+});
+
+describe('theme before the first paint', () => {
+  /** Runs public/theme-init.js against a stub page and reports what it painted. */
+  function runThemeInit(
+    getItem: (key: string) => string | null,
+    dark: boolean,
+  ) {
+    const root = { dataset: {}, style: {} } as unknown as HTMLElement;
+    let color = '#f8f7f4';
+    const meta = {
+      setAttribute: (name: string, value: string) => {
+        if (name === 'content') color = value;
+      },
+    };
+    runInNewContext(themeInit, {
+      localStorage: { getItem },
+      window: {
+        matchMedia: (query: string) => ({
+          matches: query === '(prefers-color-scheme: dark)' && dark,
+        }),
+      },
+      document: {
+        documentElement: root,
+        querySelector: (selector: string) =>
+          selector === 'meta[name="theme-color"]' ? meta : null,
+      },
+    });
+    return {
+      theme: root.dataset.theme,
+      colorScheme: root.style.colorScheme,
+      color,
+    };
+  }
+
+  /** What src/client/theme.ts paints for the same theme. */
+  function painted(theme: ResolvedTheme) {
+    const root = { dataset: {}, style: {} } as unknown as HTMLElement;
+    const meta = { content: '' };
+    applyTheme(theme, root, {
+      querySelector: () => meta,
+      dispatchEvent: () => true,
+    } as unknown as Document);
+    return {
+      theme: root.dataset.theme,
+      colorScheme: root.style.colorScheme,
+      color: meta.content,
+    };
+  }
+
+  it('loads every script from a file, since the CSP blocks inline scripts', () => {
+    const scripts = [
+      ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi),
+    ];
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const [tag, attributes, body] of scripts) {
+      expect(attributes, tag).toMatch(/\bsrc=["'][^"']+["']/i);
+      expect(body.trim(), tag).toBe('');
+    }
+  });
+
+  it('runs the theme script in <head>, synchronously and after the theme-color meta', () => {
+    const head = html.slice(0, html.indexOf('</head>'));
+    const tag = head.match(/<script\b[^>]*\bsrc="\/theme-init\.js"[^>]*>/)?.[0];
+    expect(tag, 'theme-init.js in <head>').toBeDefined();
+    expect(tag).not.toMatch(/\b(type|async|defer)\b/);
+    expect(head.indexOf('name="theme-color"')).toBeGreaterThan(-1);
+    expect(head.indexOf('name="theme-color"')).toBeLessThan(
+      head.indexOf('/theme-init.js'),
+    );
+  });
+
+  it('resolves and paints the theme exactly as theme.ts does', () => {
+    for (const saved of [null, 'system', 'light', 'dark', 'sepia'])
+      for (const dark of [false, true]) {
+        const preference = isThemePreference(saved) ? saved : 'system';
+        expect(
+          runThemeInit(
+            (key) => (key === THEME_STORAGE_KEY ? saved : null),
+            dark,
+          ),
+          `saved ${saved}, system dark ${dark}`,
+        ).toEqual(painted(resolveTheme(preference, dark)));
+      }
+  });
+
+  it('leaves the page alone when storage is blocked', () => {
+    const blocked = () => {
+      throw new Error('blocked');
+    };
+    expect(() => runThemeInit(blocked, true)).not.toThrow();
+    expect(runThemeInit(blocked, true).theme).toBeUndefined();
   });
 });
 
