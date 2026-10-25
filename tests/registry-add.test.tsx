@@ -126,6 +126,53 @@ describe('registryAddPlan: remote servers', () => {
     expect(plan.kind === 'unsupported' && plan.reason).toContain('placeholder');
   });
 
+  it('refuses plain http, even though the connector route would accept it', () => {
+    const plan = registryAddPlan(
+      server({ remotes: remote('http://notes.example/mcp') }),
+      false,
+    );
+    expect(plan.kind === 'unsupported' && plan.reason).toContain('https');
+  });
+
+  it.each([
+    'https://localhost/mcp',
+    'https://api.localhost/mcp',
+    'https://127.0.0.1/mcp',
+    'https://127.1/mcp',
+    'https://10.0.0.5/mcp',
+    'https://192.168.1.20/mcp',
+    'https://172.16.0.1/mcp',
+    'https://172.31.255.1/mcp',
+    'https://169.254.169.254/latest/meta-data',
+    'https://100.64.0.1/mcp',
+    'https://0.0.0.0/mcp',
+    'https://[::1]/mcp',
+    'https://[fd00::1]/mcp',
+    'https://[fe80::1]/mcp',
+    'https://[::ffff:127.0.0.1]/mcp',
+    'https://notes.internal/mcp',
+    'https://printer.local/mcp',
+    'https://intranet/mcp',
+  ])('refuses %s as pointing at this machine or a private network', (url) => {
+    const plan = registryAddPlan(server({ remotes: remote(url) }), false);
+    expect(plan.kind).toBe('unsupported');
+    expect(plan.kind === 'unsupported' && plan.reason).toContain(
+      'private network',
+    );
+  });
+
+  it.each([
+    'https://notes.example/mcp',
+    'https://notes.example:8443/mcp',
+    'https://172.32.0.1/mcp',
+    'https://[2606:4700::1111]/mcp',
+  ])('accepts %s, a public https address', (url) => {
+    const draft = expectDraft(
+      registryAddPlan(server({ remotes: remote(url) }), false),
+    );
+    expect(draft.url).toBe(url);
+  });
+
   it('prefers the hosted endpoint over a local package', () => {
     const plan = registryAddPlan(
       server({

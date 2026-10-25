@@ -52,6 +52,57 @@ export function draftCommandLine(
   ].join(' ');
 }
 
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+/** True for loopback, private, link-local, shared (CGNAT) and unspecified addresses, and names that stay inside a network. */
+export function isPrivateHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (/\.(local|internal)$/.test(host)) return true;
+  if (host.includes(':')) {
+    // IPv6: unspecified, loopback, unique-local (fc00::/7), link-local (fe80::/10),
+    // and every IPv4-mapped form (::ffff:...), which can hide a private IPv4 address.
+    return (
+      host === '::' ||
+      host === '::1' ||
+      host.startsWith('::') ||
+      /^f[cd]/.test(host) ||
+      /^fe[89ab]/.test(host)
+    );
+  }
+  const v4 = IPV4.exec(host);
+  if (!v4) return !host.includes('.'); // a single-label name only resolves on a local network
+  const a = Number(v4[1]);
+  const b = Number(v4[2]);
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+/**
+ * Why a hosted address cannot be added from Discover, or undefined when it can.
+ * Checks the address as written; it does not look up where a name points.
+ */
+export function hostedAddressProblem(url: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return 'it is not a valid address';
+  }
+  if (parsed.protocol !== 'https:')
+    return 'only https addresses can be added from here';
+  if (isPrivateHost(parsed.hostname))
+    return 'it points at this machine or a private network';
+  return undefined;
+}
+
 function remotePlan(name: string, url: string): RegistryAdd {
   if (url.includes('{'))
     return unsupported(
@@ -67,6 +118,10 @@ function remotePlan(name: string, url: string): RegistryAdd {
     return unsupported(
       `This address is refused: ${problem.replace(/^url: /, '')}.`,
     );
+  // Registry entries are third-party data, and saving connects to the address.
+  const hostProblem = hostedAddressProblem(url);
+  if (hostProblem)
+    return unsupported(`This address is refused: ${hostProblem}.`);
   return {
     kind: 'draft',
     draft: {
