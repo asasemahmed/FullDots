@@ -166,6 +166,27 @@ describe('shared dialog shell', () => {
     const about = render({ type: 'settings', tab: 'about' });
     expect(about).not.toContain('class="dlg-footer"');
   });
+
+  it('shows the agent endpoint under Advanced and keeps a saved header out of the page', () => {
+    const header = ['saved', 'header', 'value'].join('-');
+    const html = render({
+      type: 'dot',
+      spaceId: 's1',
+      dot: {
+        ...dot,
+        agentEndpoint: 'https://agent.example/ag-ui',
+        agentAuthSet: true,
+        agentAuth: header,
+      } as Dot,
+    });
+    expect(html).toContain('>Advanced</h3>');
+    expect(html).toContain('value="https://agent.example/ag-ui"');
+    expect(html).toContain('type="password"');
+    expect(html).toContain('A remote agent uses its own tools.');
+    expect(html).toContain('approval gate does not see them');
+    expect(html).not.toContain(header);
+    expect(html).toContain('Remove saved header');
+  });
 });
 
 describe('Dot dialog colour', () => {

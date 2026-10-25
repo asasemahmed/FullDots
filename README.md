@@ -260,6 +260,7 @@ docs/        Guides, brand assets and screenshots
 | [Deploy on a VPS](docs/DEPLOY-VPS.md)       | Hosting on a plain Linux VPS with Docker      |
 | [Deploy on Dokploy](docs/DEPLOY-DOKPLOY.md) | Hosting on your own server from GitHub        |
 | [Models](docs/MODELS.md)                    | Providers, keys and per-Dot models            |
+| [Agents](docs/AGENTS.md)                    | A Dot whose brain is an agent you run         |
 | [Connectors](docs/CONNECTORS.md)            | MCP connectors, browser sign-in and grants    |
 | [Approvals](docs/APPROVALS.md)              | Modes, what pauses, hand-offs and resumes     |
 | [Automations](docs/AUTOMATIONS.md)          | Goals, triggers, parallel work, token budgets |
