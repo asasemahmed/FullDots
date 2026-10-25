@@ -1,5 +1,21 @@
-let token = sessionStorage.getItem('opendots-token') ?? '';
+let token = '';
+let loaded = false;
+
+/** Read once, on the first call. Importing this module must not need a browser. */
+function currentToken(): string {
+  if (!loaded) {
+    loaded = true;
+    try {
+      token = sessionStorage.getItem('opendots-token') ?? '';
+    } catch {
+      token = '';
+    }
+  }
+  return token;
+}
+
 export function setToken(value: string) {
+  loaded = true;
   token = value;
   if (value) sessionStorage.setItem('opendots-token', value);
   else sessionStorage.removeItem('opendots-token');
@@ -22,7 +38,7 @@ export async function api<T>(
     method,
     signal,
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(currentToken() ? { Authorization: `Bearer ${currentToken()}` } : {}),
       ...(['GET', 'HEAD'].includes(method)
         ? {}
         : { 'Content-Type': 'application/json' }),
@@ -42,5 +58,5 @@ export async function api<T>(
   return data as T;
 }
 export function authHeaders(): Record<string, string> {
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return currentToken() ? { Authorization: `Bearer ${currentToken()}` } : {};
 }

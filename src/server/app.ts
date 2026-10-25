@@ -4,6 +4,7 @@ import { dockerSetupRoutes } from './docker-setup-routes.js';
 import type { DockerSetup } from './docker-setup.js';
 import { computerReplayRoutes } from './computer-replay-routes.js';
 import { connectorRoutes } from './connector-routes.js';
+import { composioRoutes } from './composio-routes.js';
 import { connectorAuthRoutes } from './connector-auth-routes.js';
 import { modelProviderRoutes } from './model-provider-routes.js';
 import { connectorPresets } from '../shared/connector-presets.js';
@@ -310,6 +311,7 @@ export function createApp({
     );
   const voice = platform ? new VoiceService(platform) : undefined;
   if (platform && voice) app.route('/api', workspaceRoutes(platform, voice));
+  if (platform) app.route('/api', composioRoutes(platform));
   app.get('/api/state', (c) =>
     c.json({
       settings: store.settings(),

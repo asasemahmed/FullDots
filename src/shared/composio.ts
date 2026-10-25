@@ -1,5 +1,47 @@
 /** Toolkit slugs the owner types, such as `gmail` or `google_calendar`. */
 const TOOLKIT_SLUG = /^[a-z0-9_]{1,64}$/;
+const FIELD_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** One box on a key form. Names and labels only; never a value. */
+export interface ComposioConnectField {
+  name: string;
+  label: string;
+  help: string;
+  secret: boolean;
+  required: boolean;
+}
+
+export function isToolkitSlug(value: unknown): value is string {
+  return typeof value === 'string' && TOOLKIT_SLUG.test(value);
+}
+
+/** The fields a handoff may draw. Anything else, including a pasted value, is dropped. */
+export function parseConnectFields(
+  value: unknown,
+): ComposioConnectField[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8)
+    return undefined;
+  const fields: ComposioConnectField[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item))
+      return undefined;
+    const record = item as Record<string, unknown>;
+    if (typeof record.name !== 'string' || !FIELD_NAME.test(record.name))
+      return undefined;
+    if (record.name === 'status') return undefined;
+    fields.push({
+      name: record.name,
+      label:
+        typeof record.label === 'string' && record.label.trim()
+          ? record.label.slice(0, 120)
+          : record.name,
+      help: typeof record.help === 'string' ? record.help.slice(0, 400) : '',
+      secret: record.secret === true,
+      required: record.required === true,
+    });
+  }
+  return fields;
+}
 export const MAX_COMPOSIO_TOOLKITS = 40;
 
 /**

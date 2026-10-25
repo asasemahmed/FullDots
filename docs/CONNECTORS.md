@@ -202,7 +202,9 @@ Composio is a hosted service. When a Dot uses one of these tools, the arguments 
 
 `OWNER_ID` is the id Composio uses for your accounts. Leave it as it is after you connect an app. Changing it makes those connections look like a different person.
 
-The first time a tool needs a sign-in, the chat shows a **Connect this app** card with Composio's link. Open it, sign in, then tell the Dot the app is connected. The action does not run until you do.
+The first time a tool needs a sign-in, the chat shows a **Connect this app** card. If the app uses Composio's own consent screen, the card has a link: open it, sign in, then tell the Dot the app is connected. If the app asks for a key or token you already have, the card is a short form instead. The action does not run until you finish that step.
+
+When Connected apps is on, **Settings → General** lists the apps connected for you and can disconnect one. Disconnecting removes it from Composio. A key you typed still works at the app until you rotate it there.
 
 ### Approvals
 
@@ -210,6 +212,20 @@ Every connected-app call goes through the same approval gate as other tools. A t
 
 Pausing the workspace or the Dot, stopping the turn, or changing either switch or the allow-list cancels a call that is already running.
 
+### A key you already have
+
+Most apps in Composio's catalogue do not use the consent screen. They ask for a secret you already hold: an API key, a token, or a short set of fields such as a subdomain plus a key. The card shows the fields Composio lists for that app, with each field's label, a short explanation, and whether it is a secret. A secret is a password box.
+
+The browser sends those values to the FullDots server, which sends them straight to Composio to create the connected account. FullDots does not store them, does not write them into the chat, and does not give them to the model. The card then says the app is connected, or it says Composio refused and names only the error type and the HTTP status. Tell the Dot the app is connected and it can retry, the same way it does after a Connect link.
+
+Composio keeps the key. FullDots keeps the toolkit name and whether the connection succeeded.
+
+Composio accepts a key without asking the app whether the key works. A key the app would reject can still show as connected. A follow-up check that tries one read-only action and removes the connection if the app refuses is not done yet.
+
+### What passes through Composio
+
+The values you type, the tool arguments, and the tool results are sent to Composio. FullDots does not keep a copy of the key or of the provider token. The session id stays on the server.
+
 ### What is not supported yet
 
-Some apps connect by you pasting an API key or token you already have. FullDots does not offer that yet. Of about 1,540 apps in the catalogue this port was checked against, about 1,243 need that kind of secret. The apps you can use today are the ones Composio connects with its own sign-in link.
+Apps that need an OAuth application registered by the operator, about 56 of the 1,540 apps this catalogue was checked against, are not offered. FullDots does not show a form or a Connect link for those.

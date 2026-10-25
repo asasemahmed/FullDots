@@ -17,7 +17,11 @@ import {
   type TurnSource,
 } from '../shared/types';
 import { isLaneTool } from '../shared/lanes';
-import { httpsConnectUrl } from '../shared/composio';
+import {
+  httpsConnectUrl,
+  isToolkitSlug,
+  parseConnectFields,
+} from '../shared/composio';
 import type { FileKind } from '../shared/space-files';
 
 export function isComputerTool(name: string): boolean {
@@ -177,12 +181,16 @@ export function parseApprovalResult(
   if (record.status === 'handoff') {
     const kinds = ['credential', 'two_factor', 'captcha', 'other'] as const;
     const url = httpsConnectUrl(record.url);
+    const fields = parseConnectFields(record.fields);
+    const toolkit = isToolkitSlug(record.toolkit) ? record.toolkit : undefined;
+    const keyForm = fields && toolkit ? { fields, toolkit } : undefined;
     return {
       status: 'handoff',
       handoffId: str('handoffId'),
       kind: kinds.find((kind) => kind === record.kind) ?? 'other',
       reason: str('reason'),
-      ...(url ? { url } : {}),
+      ...(keyForm ? keyForm : {}),
+      ...(url && !keyForm ? { url } : {}),
     };
   }
   return undefined;

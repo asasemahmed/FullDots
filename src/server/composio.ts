@@ -19,7 +19,7 @@ export const COMPOSIO_CLIENT_OPTIONS = {
   disableVersionCheck: true,
 } as const;
 
-function composioClient(apiKey: string) {
+export function composioClient(apiKey: string) {
   if (!client || clientKey !== apiKey) {
     client = new Composio({ apiKey, ...COMPOSIO_CLIENT_OPTIONS });
     clientKey = apiKey;
