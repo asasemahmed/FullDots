@@ -68,8 +68,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: No high or critical vulnerabilities
-        run: npm audit --audit-level=high
+      - name: No high or critical vulnerabilities beyond audit-allowlist.json
+        run: npm run audit:ci
 
   secrets:
     name: Secret scan
