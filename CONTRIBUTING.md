@@ -39,7 +39,7 @@ Every pull request runs these checks:
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | [CI](.github/workflows/ci.yml): format, lint, types, tests   | The commands above on Linux, then starts the built app and validates the Compose files   |
 | CI: tests and dev startup                                    | `npm test` and `npm run dev` on Linux, Windows and macOS                                 |
-| CI: dependency audit                                         | Fails on high or critical `npm audit` findings                                           |
+| CI: dependency audit                                         | Fails on high or critical `npm audit` findings not listed in `audit-allowlist.json`      |
 | CI: secret scan                                              | Gitleaks over the full history; reviewed false positives are listed in `.gitleaksignore` |
 | CI: Docker images build                                      | Builds the app and page reader images                                                    |
 | CI: workflow lint                                            | actionlint on the workflow files                                                         |
