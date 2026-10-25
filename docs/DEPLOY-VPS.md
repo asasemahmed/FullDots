@@ -373,7 +373,7 @@ Check container logs:
 docker compose logs app
 ```
 
-If logs show `Set a 24+ character OWNER_TOKEN in .env` or `Set BROWSER_SECRET`, ensure all required variables in `.env` are set and contain at least 24 characters.
+If logs show `Set a 24+ character OWNER_TOKEN in .env`, set `OWNER_TOKEN` in `.env` to at least 24 random characters. Also check that `BROWSER_SECRET` is set when you use the page reader (`--profile browser`); `compose.yml` does not stop on a missing one, but the app and the page reader must share the same value.
 
 ### 2. 502 Bad Gateway from Caddy
 
@@ -431,8 +431,8 @@ DuckDuckGo routinely blocks search requests from commercial VPS IP ranges. Check
 docker compose logs searxng
 ```
 
-Verify that `.env` includes `COMPOSE_PROFILES=search` and `WEB_SEARCH_PROVIDER=searxng`, and test SearXNG locally:
+Verify that `.env` includes `COMPOSE_PROFILES=search` and `WEB_SEARCH_PROVIDER=searxng`. SearXNG is not published on a host port, so test it from inside the app container, which reaches it as `searxng`:
 
 ```sh
-curl -s "http://127.0.0.1:8080/search?q=test&format=json" | head -c 200
+docker compose exec app node -e "fetch('http://searxng:8080/search?q=test&format=json').then((r) => r.text()).then((t) => console.log(t.slice(0, 200)))"
 ```
