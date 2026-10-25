@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { redactForStorage } from './redaction.js';
 import type {
   Action,
   Detail,
@@ -412,7 +413,12 @@ export class Store {
       .prepare('SELECT * FROM memories ORDER BY createdAt DESC')
       .all() as unknown as Memory[];
   }
-  saveMemory(text: string, id: string = randomUUID()): Memory {
+  saveMemory(rawText: string, id: string = randomUUID()): Memory {
+    const text = redactForStorage(rawText, (count) =>
+      console.warn(
+        `Redacted ${count} secret-like value${count === 1 ? '' : 's'} before saving a memory.`,
+      ),
+    );
     this.db
       .prepare(
         'INSERT INTO memories VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET text=excluded.text',

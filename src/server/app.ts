@@ -177,6 +177,7 @@ export function createApp({
         workspace: platform.workspace,
         connectorAuth: platform.workspace.connectorAuth,
         allowStdio: !!platform.config.connectorsAllowStdio,
+        registrySearch: !!platform.config.connectorsRegistrySearch,
       }),
     );
     app.route(

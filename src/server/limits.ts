@@ -165,6 +165,8 @@ export function readLimits(env: Env = process.env): Limits {
 
 export interface IntegrationSettings {
   connectorsAllowStdio: boolean;
+  /** Off by default: when on, search text is sent to the public MCP registry. */
+  connectorsRegistrySearch: boolean;
   connectorResultMaxChars: number;
   approvalTtlMs: number;
   notifyWebhookUrl?: string;
@@ -187,11 +189,15 @@ export function readIntegrationSettings(
   const stdio = env.CONNECTORS_ALLOW_STDIO?.trim().toLowerCase();
   if (stdio && !['true', 'false', '1', '0'].includes(stdio))
     throw new Error('CONNECTORS_ALLOW_STDIO must be true or false.');
+  const registry = env.CONNECTORS_REGISTRY_SEARCH?.trim().toLowerCase();
+  if (registry && !['true', 'false', '1', '0'].includes(registry))
+    throw new Error('CONNECTORS_REGISTRY_SEARCH must be true or false.');
   const webhook = env.NOTIFY_WEBHOOK_URL?.trim();
   if (webhook && !/^https?:\/\//i.test(webhook))
     throw new Error('NOTIFY_WEBHOOK_URL must be an http(s) URL.');
   return {
     connectorsAllowStdio: stdio === 'true' || stdio === '1',
+    connectorsRegistrySearch: registry === 'true' || registry === '1',
     connectorResultMaxChars: number(
       env,
       'CONNECTOR_RESULT_MAX_CHARS',

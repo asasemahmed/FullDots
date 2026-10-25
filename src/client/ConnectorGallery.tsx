@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ConnectorLogo } from './connector-logos';
+import { RegistryDiscover } from './RegistryDiscover';
 import type {
   ConnectorPreset,
   ConnectorPresetCategory,
@@ -264,6 +265,8 @@ export interface GalleryProps {
   connectors: ConnectorView[];
   presets: ConnectorPreset[];
   allowStdio: boolean;
+  /** CONNECTORS_REGISTRY_SEARCH: lets the Discover tab search the public registry. */
+  registrySearch?: boolean;
   /** The connector whose browser sign-in is in progress. */
   connectingId?: string;
   onOpenConnector: (connector: ConnectorView) => void;
@@ -434,10 +437,17 @@ function PresetCard({
   );
 }
 
+export type GalleryTab = 'connectors' | 'discover';
+const TABS: { id: GalleryTab; label: string }[] = [
+  { id: 'connectors', label: 'Connectors' },
+  { id: 'discover', label: 'Discover' },
+];
+
 export function ConnectorGallery({
   connectors,
   presets,
   allowStdio,
+  registrySearch,
   connectingId,
   onOpenConnector,
   onConnect,
@@ -448,6 +458,7 @@ export function ConnectorGallery({
 }: GalleryProps) {
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<GalleryFilter>(initialFilter);
+  const [tab, setTab] = useState<GalleryTab>('connectors');
   const searchId = useId();
   const mine = filterConnectors(connectors, query, filter);
   const groups = groupPresets(filterPresets(presets, query));
@@ -471,146 +482,175 @@ export function ConnectorGallery({
           </p>
         </div>
         <div className="cg-tools">
-          <div className="cg-search">
-            <Search size={15} aria-hidden="true" />
-            <input
-              id={searchId}
-              type="search"
-              value={query}
-              placeholder="Search connectors"
-              aria-label="Search connectors"
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          <div className="cg-filter" role="group" aria-label="Show">
-            {FILTERS.map((item) => (
+          <div className="cg-filter" role="group" aria-label="Section">
+            {TABS.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 className="cg-filter-btn"
-                aria-pressed={filter === item.id}
-                onClick={() => setFilter(item.id)}
+                aria-pressed={tab === item.id}
+                onClick={() => setTab(item.id)}
               >
                 {item.label}
-                {item.id === 'attention' && attention > 0 && (
-                  <span className="cg-badge">{attention}</span>
-                )}
               </button>
             ))}
           </div>
+          {tab === 'connectors' && (
+            <>
+              <div className="cg-search">
+                <Search size={15} aria-hidden="true" />
+                <input
+                  id={searchId}
+                  type="search"
+                  value={query}
+                  placeholder="Search connectors"
+                  aria-label="Search connectors"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
+              <div className="cg-filter" role="group" aria-label="Show">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="cg-filter-btn"
+                    aria-pressed={filter === item.id}
+                    onClick={() => setFilter(item.id)}
+                  >
+                    {item.label}
+                    {item.id === 'attention' && attention > 0 && (
+                      <span className="cg-badge">{attention}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </header>
 
-      {connectors.length > 0 && (
-        <section className="cg-section" aria-labelledby={`${searchId}-mine`}>
-          <h4 className="cg-heading" id={`${searchId}-mine`}>
-            Your connectors{' '}
-            <span className="cg-heading-count">{mine.length}</span>
-          </h4>
-          {mine.length > 0 ? (
-            <ul className="cg-grid">
-              {mine.map((connector) => (
-                <ConnectorCard
-                  key={connector.id}
-                  connector={connector}
-                  connecting={connectingId === connector.id}
-                  onOpen={() => onOpenConnector(connector)}
-                  onConnect={() => onConnect(connector)}
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className="cg-empty">
-              {filter === 'attention' && !norm(query)
-                ? 'Nothing needs attention.'
-                : 'No connector matches.'}
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className="cg-section" aria-labelledby={`${searchId}-add`}>
-        <h4 className="cg-heading" id={`${searchId}-add`}>
-          Add a connector
-        </h4>
-        {connectors.length === 0 && !norm(query) && (
-          <p className="cg-lead">
-            No connectors yet. Pick one below to let a Dot use another service.
-          </p>
-        )}
-        {groups.map((group) => (
-          <div className="cg-group" key={group.category}>
-            <h5 className="cg-group-title">{categoryLabel(group.category)}</h5>
-            <ul className="cg-grid">
-              {group.presets.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  preset={preset}
-                  added={addedPresets.has(preset.id)}
-                  blocked={isPresetBlocked(preset, allowStdio)}
-                  onOpen={() => {
-                    const existing = connectors.find(
-                      (connector) => connector.presetId === preset.id,
-                    );
-                    if (existing) onOpenConnector(existing);
-                    else onOpenPreset(preset);
-                  }}
-                />
-              ))}
-            </ul>
-          </div>
-        ))}
-        {(showCustom || groups.length === 0) && (
-          <div className="cg-group">
-            {groups.length > 0 && (
-              <h5 className="cg-group-title">Your own server</h5>
-            )}
-            <ul className="cg-grid">
-              {showCustom && (
-                <li className="cg-card cg-card-preset" data-preset="custom">
-                  <div className="cg-card-head">
-                    <ConnectorLogo name="" transport="http" size={56} />
-                    <div className="cg-card-id">
-                      <button
-                        type="button"
-                        className="cg-card-open"
-                        onClick={onCustom}
-                        aria-describedby={`${searchId}-custom`}
-                      >
-                        Custom connector
-                      </button>
-                      <span className="cg-sub">Any MCP server</span>
-                    </div>
-                  </div>
-                  <p className="cg-desc" id={`${searchId}-custom`}>
-                    Connect a remote server by URL, or run a local program.
-                  </p>
-                  <div className="cg-card-foot">
-                    <span className="cg-chip">
-                      <Plug size={12} aria-hidden="true" />
-                      Your choice
-                    </span>
-                    <span className="cg-go" aria-hidden="true">
-                      <Plus size={13} /> Add
-                    </span>
-                  </div>
-                </li>
+      {tab === 'discover' ? (
+        <RegistryDiscover enabled={!!registrySearch} />
+      ) : (
+        <>
+          {connectors.length > 0 && (
+            <section
+              className="cg-section"
+              aria-labelledby={`${searchId}-mine`}
+            >
+              <h4 className="cg-heading" id={`${searchId}-mine`}>
+                Your connectors{' '}
+                <span className="cg-heading-count">{mine.length}</span>
+              </h4>
+              {mine.length > 0 ? (
+                <ul className="cg-grid">
+                  {mine.map((connector) => (
+                    <ConnectorCard
+                      key={connector.id}
+                      connector={connector}
+                      connecting={connectingId === connector.id}
+                      onOpen={() => onOpenConnector(connector)}
+                      onConnect={() => onConnect(connector)}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="cg-empty">
+                  {filter === 'attention' && !norm(query)
+                    ? 'Nothing needs attention.'
+                    : 'No connector matches.'}
+                </p>
               )}
-            </ul>
-            {groups.length === 0 && !showCustom && (
-              <p className="cg-empty">No connector matches.</p>
+            </section>
+          )}
+
+          <section className="cg-section" aria-labelledby={`${searchId}-add`}>
+            <h4 className="cg-heading" id={`${searchId}-add`}>
+              Add a connector
+            </h4>
+            {connectors.length === 0 && !norm(query) && (
+              <p className="cg-lead">
+                No connectors yet. Pick one below to let a Dot use another
+                service.
+              </p>
             )}
-          </div>
-        )}
-        {/* Local programs are greyed out below; say why once, after the cards. */}
-        {anyBlocked && (
-          <p className="cg-note" role="note">
-            {STDIO_OFF_NOTE}
-          </p>
-        )}
-      </section>
+            {groups.map((group) => (
+              <div className="cg-group" key={group.category}>
+                <h5 className="cg-group-title">
+                  {categoryLabel(group.category)}
+                </h5>
+                <ul className="cg-grid">
+                  {group.presets.map((preset) => (
+                    <PresetCard
+                      key={preset.id}
+                      preset={preset}
+                      added={addedPresets.has(preset.id)}
+                      blocked={isPresetBlocked(preset, allowStdio)}
+                      onOpen={() => {
+                        const existing = connectors.find(
+                          (connector) => connector.presetId === preset.id,
+                        );
+                        if (existing) onOpenConnector(existing);
+                        else onOpenPreset(preset);
+                      }}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {(showCustom || groups.length === 0) && (
+              <div className="cg-group">
+                {groups.length > 0 && (
+                  <h5 className="cg-group-title">Your own server</h5>
+                )}
+                <ul className="cg-grid">
+                  {showCustom && (
+                    <li className="cg-card cg-card-preset" data-preset="custom">
+                      <div className="cg-card-head">
+                        <ConnectorLogo name="" transport="http" size={56} />
+                        <div className="cg-card-id">
+                          <button
+                            type="button"
+                            className="cg-card-open"
+                            onClick={onCustom}
+                            aria-describedby={`${searchId}-custom`}
+                          >
+                            Custom connector
+                          </button>
+                          <span className="cg-sub">Any MCP server</span>
+                        </div>
+                      </div>
+                      <p className="cg-desc" id={`${searchId}-custom`}>
+                        Connect a remote server by URL, or run a local program.
+                      </p>
+                      <div className="cg-card-foot">
+                        <span className="cg-chip">
+                          <Plug size={12} aria-hidden="true" />
+                          Your choice
+                        </span>
+                        <span className="cg-go" aria-hidden="true">
+                          <Plus size={13} /> Add
+                        </span>
+                      </div>
+                    </li>
+                  )}
+                </ul>
+                {groups.length === 0 && !showCustom && (
+                  <p className="cg-empty">No connector matches.</p>
+                )}
+              </div>
+            )}
+            {/* Local programs are greyed out below; say why once, after the cards. */}
+            {anyBlocked && (
+              <p className="cg-note" role="note">
+                {STDIO_OFF_NOTE}
+              </p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

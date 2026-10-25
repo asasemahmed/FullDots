@@ -4,6 +4,7 @@
 import type { InboxItem } from '../shared/inbox.js';
 import { PROPOSAL_MAX } from '../shared/notes.js';
 import { NoteTooLongError, type DotNotesStore } from './dot-notes-store.js';
+import { redactForStorage } from './redaction.js';
 import type { InboxStore } from './inbox-store.js';
 
 /** How many proposals of one Dot may wait at once; more would only bury the inbox. */
@@ -46,7 +47,14 @@ export class DotNotesService {
     const dot = this.deps.dot(input.dotId);
     if (!dot?.notesProposals)
       throw new NotesError('This Dot may not propose notes.', 409);
-    const line = input.note.replace(/\s+/g, ' ').trim();
+    // A proposal waits in the inbox, which is storage too, so secrets are hidden here as well.
+    const line = redactForStorage(
+      input.note.replace(/\s+/g, ' ').trim(),
+      (count) =>
+        console.warn(
+          `Redacted ${count} secret-like value${count === 1 ? '' : 's'} from a note proposed by Dot ${input.dotId}.`,
+        ),
+    );
     if (!line || Array.from(line).length > PROPOSAL_MAX)
       throw new NotesError(
         `Propose one short line of 1 to ${PROPOSAL_MAX} characters.`,
