@@ -1,5 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { composioTools } from '../src/server/composio-tools.js';
+import {
+  composioTools,
+  type ToolkitLookup,
+} from '../src/server/composio-tools.js';
 
 function fakeSession(execute?: ReturnType<typeof vi.fn>) {
   const run =
@@ -139,5 +143,99 @@ describe('Composio tools', () => {
     );
     await expect(tools[0]?.execute({})).rejects.toThrow(/cancelled/);
     await expect(tools[0]?.execute({})).rejects.not.toThrow(/secret/);
+  });
+
+  it('asks for a key form instead of a Connect link when the app needs fields', async () => {
+    const secret = `fd-test-${randomUUID()}`;
+    const fields = vi.fn<ToolkitLookup>(async () => ({
+      toolkit: 'perplexityai',
+      kind: {
+        kind: 'fields',
+        scheme: 'API_KEY',
+        fields: [
+          {
+            name: 'api_key',
+            label: 'API key',
+            help: 'From the vendor.',
+            secret: true,
+            required: true,
+          },
+        ],
+      },
+    }));
+    const session = fakeSession(
+      vi.fn(async () => ({
+        data: { redirect_url: 'https://backend.composio.dev/s/start' },
+        error: `No connected account. leaked ${secret}`,
+      })),
+    );
+    const tools = await composioTools(
+      session as never,
+      () => {},
+      undefined,
+      fields,
+    );
+    const result = await tools[0]?.execute({});
+    expect(result).toMatchObject({
+      status: 'handoff',
+      toolkit: 'perplexityai',
+      fields: [{ name: 'api_key', secret: true, label: 'API key' }],
+    });
+    expect(result).not.toHaveProperty('url');
+    const encoded = JSON.stringify(result);
+    expect(encoded).not.toContain(secret);
+    expect(encoded).not.toContain('backend.composio.dev');
+    expect(encoded).not.toContain('leaked');
+  });
+
+  it('keeps the Connect link for an app that uses the consent screen', async () => {
+    const consent = vi.fn<ToolkitLookup>(async () => ({
+      toolkit: 'gmail',
+      kind: { kind: 'link' },
+    }));
+    const session = fakeSession(
+      vi.fn(async () => ({
+        data: { redirect_url: 'https://backend.composio.dev/s/gmail' },
+        error: null,
+      })),
+    );
+    const tools = await composioTools(
+      session as never,
+      () => {},
+      undefined,
+      consent,
+    );
+    const result = await tools[0]?.execute({});
+    expect(result).toMatchObject({
+      status: 'handoff',
+      url: 'https://backend.composio.dev/s/gmail',
+    });
+    expect(result).not.toHaveProperty('fields');
+  });
+
+  it('does not offer a form or a link for an operator-registered OAuth app', async () => {
+    const operator = vi.fn<ToolkitLookup>(async () => ({
+      toolkit: 'custom',
+      kind: { kind: 'unsupported' },
+    }));
+    const session = fakeSession(
+      vi.fn(async () => ({
+        data: { redirect_url: 'https://backend.composio.dev/s/custom' },
+        error: 'No connected account',
+      })),
+    );
+    const tools = await composioTools(
+      session as never,
+      () => {},
+      undefined,
+      operator,
+    );
+    const result = await tools[0]?.execute({});
+    expect(result).toEqual({
+      data: {},
+      error:
+        'This app cannot be connected from here. It needs an OAuth app registered by the operator.',
+    });
+    expect(JSON.stringify(result)).not.toContain('composio.dev');
   });
 });

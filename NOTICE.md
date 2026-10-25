@@ -8,7 +8,7 @@ FullDots is an independent project. It is not affiliated with, sponsored by, or 
 
 Selected changes made upstream after the fork point are ported individually; each ported commit names its upstream pull request. See [FullDots and OpenDots](README.md#fulldots-and-opendots).
 
-The connected-apps session and tool adapter (`src/server/composio.ts`, `src/server/composio-tools.ts`) are ported from CopilotKit OpenDots, which is MIT licensed. FullDots adds the approval gate those files did not have.
+The connected-apps session and tool adapter (`src/server/composio.ts`, `src/server/composio-tools.ts`) are ported from CopilotKit OpenDots, which is MIT licensed. FullDots adds the approval gate those files did not have. The key form (`src/server/composio-fields.ts`) follows OpenBot, which is also MIT licensed: which fields are drawn, and the connection body sent to Composio.
 
 ## What FullDots changed
 

@@ -618,3 +618,24 @@ main.approvals-view {
     flex-wrap: wrap;
   }
 }
+
+.approval-card .approval-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.approval-card .approval-fields input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ap-line);
+  border-radius: 10px;
+  background: var(--surface-0);
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+.approval-card .approval-fields small {
+  color: var(--ap-muted);
+  font-size: 12px;
+}

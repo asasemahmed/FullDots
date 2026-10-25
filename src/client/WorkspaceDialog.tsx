@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { api } from './api';
 import { parseToolkitField } from '../shared/composio';
+import { ComposioAccounts } from './ComposioAccounts';
 import { ConnectorsSettings } from './ConnectorsSettings';
 import {
   ApprovalModeField,
@@ -1139,6 +1140,8 @@ export function WorkspaceDialog({
                         </span>
                       </label>
                     )}
+                    {workspace.setup.composio &&
+                      state.settings.composioAllowed && <ComposioAccounts />}
                     <div className="config-note">
                       <strong>Service setup</strong>
                       <p>

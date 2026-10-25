@@ -1,3 +1,4 @@
+import type { ComposioConnectField } from './composio.js';
 import type { RuleCategory } from './rules.js';
 export type Status =
   | 'queued'
@@ -481,6 +482,10 @@ export interface HandoffResult {
   note?: string;
   /** An https Connect link. Set only for a connected-app sign-in, not a computer handoff. */
   url?: string;
+  /** Toolkit slug for a key form. Set together with `fields`, and never with a value. */
+  toolkit?: string;
+  /** The boxes Composio asks for. Names and labels only. */
+  fields?: ComposioConnectField[];
 }
 export interface PausedResult {
   paused: 'approval pending' | 'handoff pending' | 'question pending';

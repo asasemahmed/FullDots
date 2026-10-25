@@ -19,6 +19,7 @@ import type {
   PendingApprovalResult,
 } from '../shared/types';
 import type { ApprovalToolResult } from './chat-turns';
+import { api } from './api';
 import { ConnectorLogo } from './connector-logos';
 import './approvals.css';
 
@@ -298,6 +299,14 @@ export function handoffIcon(kind: HandoffKind): LucideIcon {
     : MonitorSmartphone;
 }
 
+function withoutSecrets(text: string, values: Record<string, string>): string {
+  let out = text;
+  for (const value of Object.values(values)) {
+    if (value.length >= 4) out = out.split(value).join('[hidden]');
+  }
+  return out.slice(0, 300);
+}
+
 function HandoffCard({
   result,
   onViewComputer,
@@ -309,6 +318,108 @@ function HandoffCard({
 }) {
   const [taking, setTaking] = useState(false);
   const [error, setError] = useState('');
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [connectState, setConnectState] = useState<
+    'idle' | 'sending' | 'connected'
+  >('idle');
+  const [connectError, setConnectError] = useState('');
+  const submitFields = async () => {
+    if (!result.toolkit || !result.fields) return;
+    const values: Record<string, string> = {};
+    for (const field of result.fields) {
+      const value = fieldValues[field.name] ?? '';
+      if (value) values[field.name] = value;
+    }
+    setConnectState('sending');
+    setConnectError('');
+    try {
+      await api('/composio/connect', 'POST', {
+        toolkit: result.toolkit,
+        values,
+      });
+      setFieldValues({});
+      setConnectState('connected');
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : 'Could not connect this app.';
+      setConnectError(withoutSecrets(message, values));
+      setConnectState('idle');
+    }
+  };
+  if (result.fields?.length && result.toolkit) {
+    return (
+      <section
+        className="approval-card is-handoff"
+        aria-label="Connect this app with a key"
+      >
+        <header className="approval-head">
+          <ApprovalTile tone="handoff" icon={KeyRound} />
+          <div className="approval-title">
+            <strong>Connect this app</strong>
+          </div>
+          <span className="approval-badge is-pending">Waiting for you</span>
+        </header>
+        <p className="approval-reason">{result.reason}</p>
+        {connectState === 'connected' ? (
+          <p className="approval-hint">
+            Connected. Tell the Dot to try again. Nothing ran yet.
+          </p>
+        ) : (
+          <form
+            className="approval-fields"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitFields();
+            }}
+          >
+            {result.fields.map((field) => (
+              <label key={field.name} className="approval-note-field">
+                <span className="approval-note-label">
+                  {field.label}
+                  {field.required ? '' : ' (optional)'}
+                </span>
+                <input
+                  type={field.secret ? 'password' : 'text'}
+                  autoComplete={field.secret ? 'new-password' : 'off'}
+                  spellCheck={false}
+                  required={field.required}
+                  value={fieldValues[field.name] ?? ''}
+                  onChange={(event) =>
+                    setFieldValues((current) => ({
+                      ...current,
+                      [field.name]: event.target.value,
+                    }))
+                  }
+                />
+                {field.help ? <small>{field.help}</small> : null}
+              </label>
+            ))}
+            {connectError ? (
+              <p className="approval-hint">{connectError}</p>
+            ) : (
+              <p className="approval-hint">
+                This is sent to Composio and is not saved here. Then tell the
+                Dot the app is connected.
+              </p>
+            )}
+            <div className="approval-footer">
+              <div className="approval-buttons">
+                <button
+                  type="submit"
+                  className="approval-btn is-primary"
+                  disabled={connectState === 'sending'}
+                >
+                  Connect
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </section>
+    );
+  }
   if (result.url) {
     return (
       <section
