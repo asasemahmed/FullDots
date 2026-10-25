@@ -71,6 +71,46 @@ it('runs the real WebSocket framing against an SDK fake and sends credentials on
   await vi.waitFor(() => expect(wss.clients.size).toBe(0));
 });
 
+it('names the coding agent in a header and accepts a bridge that confirms it', async () => {
+  const { wss, target } = await server();
+  const received = vi.fn();
+  wss.on('connection', (ws, request) => {
+    received(request.headers['x-fulldots-coding-provider']);
+    ws.send(JSON.stringify({ bridgeReady: true, provider: 'codex' }));
+  });
+  const bridge = await connectCodingBridge(
+    target,
+    new AbortController().signal,
+    'codex',
+  );
+  bridge.close();
+  expect(received).toHaveBeenCalledWith('codex');
+});
+
+it('sends Claude Code by default and accepts an older bridge that does not name the agent', async () => {
+  const { wss, target } = await server();
+  const received = vi.fn();
+  wss.on('connection', (ws, request) => {
+    received(request.headers['x-fulldots-coding-provider']);
+    ws.send(JSON.stringify({ bridgeReady: true }));
+  });
+  const bridge = await connectCodingBridge(
+    target,
+    new AbortController().signal,
+  );
+  bridge.close();
+  expect(received).toHaveBeenCalledWith('claude');
+});
+
+it('refuses an older bridge that cannot start Codex instead of running another agent', async () => {
+  const { wss, target } = await server();
+  wss.on('connection', (ws) => ws.send(JSON.stringify({ bridgeReady: true })));
+  await expect(
+    connectCodingBridge(target, new AbortController().signal, 'codex'),
+  ).rejects.toThrow('Codex is not available in this computer image');
+  await vi.waitFor(() => expect(wss.clients.size).toBe(0));
+});
+
 it('refuses malformed bridge readiness and closes the socket', async () => {
   const { wss, target } = await server();
   wss.on('connection', (ws) => ws.send('{broken'));

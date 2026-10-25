@@ -77,17 +77,25 @@ The template uses standard Docker container isolation; containers share the host
 
 ## Coding agents
 
-Turn on **Coding agents** in a Dot's settings, save, and start its computer. The switch is off by default for every Dot. An enabled Dot with a running computer can use `delegate_to_coding_agent` to give Claude Code a coding task in that computer's `/workspace`. Progress appears in a separate Coding worker card, buffered to at most one update per second plus the final result. It does not add assistant-message bubbles. The worker never runs on the FullDots host. This switch grants coding access separately from the Browser, Files and Terminal switches; the computer itself must remain enabled.
+Turn on **Coding agents** in a Dot's settings, save, and start its computer. The switch is off by default for every Dot. An enabled Dot with a running computer can use `delegate_to_coding_agent` to give a coding task to Claude Code or Codex in that computer's `/workspace`. Progress appears in a separate Coding worker card, buffered to at most one update per second plus the final result. It does not add assistant-message bubbles. The worker never runs on the FullDots host. This switch grants coding access separately from the Browser, Files and Terminal switches; the computer itself must remain enabled.
 
-Rebuild the computer image and supervisor using the setup commands above before enabling this feature. The new computer image tag ends in `-acp2`. On the next start, the supervisor replaces an older computer image while retaining its workspace and browser-profile volumes. This ends active work, so coordinate the upgrade first. The bridge shares the existing authenticated computer API port and private network; there is no new service or port to publish.
+Rebuild the computer image and supervisor using the setup commands above before enabling this feature. The new computer image tag ends in `-acp3`. On the next start, the supervisor replaces an older computer image while retaining its workspace and browser-profile volumes. This ends active work, so coordinate the upgrade first. The bridge shares the existing authenticated computer API port and private network; there is no new service or port to publish.
 
 The first task downloads a pinned adapter inside the computer, using npm's registry, into `/profiles/.coding/adapters/claude-0.95.0`. Allow up to three minutes for installation. Installation uses the reviewed lockfile, `--ignore-scripts` and `NPM_CONFIG_USERCONFIG=/dev/null`, with a working directory outside the project. The base computer image contains only the small bridge, managed policy and adapter manifests, with no coding-worker binaries. The tested Linux installation used about **353 MiB per computer**, plus caches and sign-in state in the profiles volume. Project files stay in the workspace volume. Both volumes survive stop/start. Unused computers do not download the adapter.
 
 The cache and sign-in home are outside the Files API root, so ordinary file tools cannot replace the adapter, plant its user settings or read its sign-in file. The bridge checks real paths, including symlinks, before starting the adapter and refuses any cache or home resolving inside the workspace. For computers used with the earlier review image, startup moves the old `/workspace/.coding-home` into a private `legacy-home-*` quarantine under `/profiles/.coding` before starting the Files API. Sign in again into the new home; the old home and workspace adapter cache are never used to launch a worker.
 
+### Choose Claude Code or Codex
+
+With Coding agents on, the Dot settings show a **Coding agent** list. Pick **Claude Code** or **Codex** and save. New and existing Dots use Claude Code until you change it. A change applies to the next task, not to one that is running. Each agent has its own sign-in, cache and usage limits, so you can switch back without signing in again.
+
+Codex is installed on demand the same way, at the pinned version 2.2.2, into `/profiles/.coding/adapters/codex-2.2.2`. It adds about **430 MB** to that computer's profiles volume the first time it runs, next to the cache of any other agent you have used. Allow up to three minutes for the first task. Its settings and sign-in live in `/profiles/.coding/home/.codex`, outside the Files root. Codex needs the rebuilt computer image too; an older image tells you so instead of starting Claude Code.
+
+Codex starts in its **Read-only** preset, which asks before editing files or leaving its sandbox. Each request becomes an owner approval, like Claude Code's. The app never selects Codex's Workspace access, Auto review or Full access presets, refuses approval choices that switch preset or implement a plan, and stops a worker that reports any other preset. If Codex does not list Read-only, the task stops before anything is sent. Read-only still lets Codex read files anywhere in the computer without asking, including its own sign-in file. It cannot change them without your approval.
+
 ### Sign in inside the computer
 
-Without an existing sign-in, the chat asks you to **Sign in to Claude Code in this Dot's computer** through the usual owner hand-off. Sign in yourself; never paste a password, API key or verification code into the chat or FullDots environment settings. The app does not collect or forward coding-agent credentials.
+Without an existing sign-in, the chat asks you to **Sign in to Claude Code in this Dot's computer** (or **Sign in to Codex**) through the usual owner hand-off. Sign in yourself; never paste a password, API key or verification code into the chat or FullDots environment settings. The app does not collect or forward coding-agent credentials.
 
 After the first task has installed the adapter, open an owner terminal inside that computer. Replace the container name with your namespace and Dot ID:
 
@@ -108,15 +116,25 @@ coding_cli=$(find /profiles/.coding/adapters/claude-0.95.0/node_modules \
 
 Complete the sign-in flow yourself. Sign-in state stays in `/profiles/.coding/home`, inside that Dot's profiles volume and outside its Files API root. Exit the terminal and hand the computer back in FullDots. The existing Take control and Hand back controls require Browser access; enable it temporarily if needed to finish the hand-off. Access to the coding service and its usage limits are separate from the Dot's configured model provider.
 
+For Codex, open the same owner terminal with `-e HOME=/profiles/.coding/home -e CODEX_HOME=/profiles/.coding/home/.codex`, then sign in with either method it offers:
+
+```sh
+codex_acp=/profiles/.coding/adapters/codex-2.2.2/node_modules/@agentclientprotocol/codex-acp/dist/index.js
+node "$codex_acp" cli login                    # ChatGPT account
+node "$codex_acp" cli login --with-api-key     # API key, read from standard input
+```
+
+Type the API key into the terminal yourself. FullDots never stores or forwards it. Without a sign-in, Codex refuses to start a session, and the chat shows the hand-off.
+
 ### Approvals and stopping
 
-The worker starts in `default` (manual) mode. Every ACP permission request becomes an owner approval displaying the requested action and paths. Approving permits that request once; always-allow and mode-changing choices are refused, including plan exits into auto mode. A worker reporting a mode other than `default` is cancelled and closed. Requests time out after two minutes, or earlier if the turn ends or the stored approval expires, and are denied by default. These requests still ask when the Dot's ordinary approval mode is Off.
+The worker starts in `default` (manual) mode for Claude Code and in `read-only` for Codex. Every ACP permission request becomes an owner approval displaying the requested action and paths. Approving permits that request once; always-allow, rest-of-turn and mode-changing choices are refused, including plan exits into auto mode. A worker reporting a mode other than `default` is cancelled and closed. Requests time out after two minutes, or earlier if the turn ends or the stored approval expires, and are denied by default. These requests still ask when the Dot's ordinary approval mode is Off.
 
 The image supplies a root-owned, read-only `/etc/claude-code/managed-settings.json`. It disables bypass and auto modes, permits only managed permission rules and managed/adapter SDK hooks, and requires confirmation for shell commands and edits. Project/user settings are excluded from both the adapter's settings manager and its SDK session. The bridge verifies the installed policy before launch, and a pinned-loader patch refuses installation if the adapter's settings-loading code changes. The [adapter verification note](../deployment/computers/acp-bridge/README.md) explains what was checked for version 0.95.0. These controls do not add an operating-system sandbox or an egress filter; an owner-approved shell command still has the computer's normal privileges.
 
 Pausing the Dot, stopping its turn or computer, disabling Coding agents or computer access, or taking control cancels active coding work and closes the adapter process. Policy checks run at least once a second while it is active. Completed edits are retained; cancellation cannot undo them. Each task is bounded to ten minutes and reports a timeout separately from cancellation; it may end sooner under the normal Dot turn limit. A second simultaneous task returns “A coding task is already running for this Dot.” Installation failures report the bridge's safe reason. Review the workspace before retrying an interrupted task. Session identifiers and status are stored in SQLite; application restarts mark unfinished sessions interrupted rather than automatically repeating their work.
 
-Adapter upgrades require a reviewed version change and lockfile update in `deployment/computers/acp-bridge/adapter`, review of the settings-loader patch, a matching version/cache entry in the bridge, and rebuilding the computer image with a new tag. They install into a new versioned cache on first use and retain the protected sign-in directory. Do not delete either named volume to upgrade. Support for other coding workers is not included in this release.
+Adapter upgrades require a reviewed version change and lockfile update in `deployment/computers/acp-bridge/adapter`, review of the settings-loader patch, a matching version/cache entry in the bridge, and rebuilding the computer image with a new tag. They install into a new versioned cache on first use and retain the protected sign-in directory. Do not delete either named volume to upgrade. Codex has its own folder, `adapter-codex`, and its own lockfile and cache. Support for other coding workers is not included in this release.
 
 ## Verify and troubleshoot
 

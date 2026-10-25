@@ -42,6 +42,12 @@ function fixture(options: Parameters<typeof fakeCodingAgent>[0] = {}) {
   const fake = fakeCodingAgent(options);
   const abort = new AbortController();
   const close = vi.fn();
+  const connect = vi.fn(
+    async (_target: unknown, _signal: AbortSignal, _provider?: string) => ({
+      stream: undefined as unknown as Stream,
+      close,
+    }),
+  );
   const handoff = vi.fn(async (input) =>
     computer.workspace.handoffs.create(input),
   );
@@ -59,10 +65,10 @@ function fixture(options: Parameters<typeof fakeCodingAgent>[0] = {}) {
       abort.signal.throwIfAborted();
     },
     progress: vi.fn(),
-    connect: async () => ({ stream: undefined as unknown as Stream, close }),
+    connect,
     run: (options) => runAcp({ ...options, target: fake.app }),
   };
-  return { ...computer, store, deps, fake, close, handoff, abort };
+  return { ...computer, store, deps, fake, close, handoff, abort, connect };
 }
 
 it('omits the tool when disabled, stopped, paused, or computer access is revoked', async () => {
@@ -305,4 +311,132 @@ it('denies a pending approval when a mode violation closes its session', async (
   );
   expect(f.workspace.approvals.list()[0].status).toBe('denied');
   expect(f.workspace.resumes.all()).toEqual([]);
+});
+
+const codexModes = [
+  'read-only',
+  'workspace-write',
+  'agent',
+  'agent-full-access',
+];
+
+it('uses Claude Code unless the owner chose another agent', async () => {
+  const f = fixture();
+  f.store.codingSessions.configure(f.id, true);
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'completed',
+  });
+  expect(f.connect.mock.calls[0][2]).toBe('claude');
+  expect(f.store.codingSessions.list(f.id)[0].provider).toBe('claude');
+  expect(f.fake.state.mode).toBe('default');
+});
+
+it('starts Codex in the ask-first preset when the owner chose it', async () => {
+  const f = fixture({ initialMode: 'agent', modes: codexModes });
+  f.store.codingSessions.configure(f.id, true, 'codex');
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'completed',
+  });
+  expect(f.connect.mock.calls[0][2]).toBe('codex');
+  expect(f.store.codingSessions.list(f.id)[0].provider).toBe('codex');
+  expect(f.fake.state.mode).toBe('read-only');
+  expect(f.fake.state.sessionMeta).toBeUndefined();
+});
+
+it.each(['approve', 'deny'] as const)(
+  'sends a Codex permission request through the owner approval and forwards %s',
+  async (decision) => {
+    const f = fixture({
+      permission: true,
+      initialMode: 'read-only',
+      modes: codexModes,
+      permissionOptions: [
+        { optionId: 'allow_once', name: 'Yes, proceed', kind: 'allow_once' },
+        {
+          optionId: 'allow_for_session',
+          name: 'Do not ask again',
+          kind: 'allow_always',
+        },
+        { optionId: 'cancel', name: 'No', kind: 'reject_once' },
+      ],
+    });
+    f.store.codingSessions.configure(f.id, true, 'codex');
+    const [tool] = await codingTools(f.deps);
+    const running = tool.execute!({ task: 'Task' });
+    await vi.waitFor(() =>
+      expect(f.workspace.approvals.list({ status: 'pending' })).toHaveLength(1),
+    );
+    f.deps.approvals.decide(f.workspace.approvals.list()[0].id, decision);
+    await expect(running).resolves.toMatchObject({ status: 'completed' });
+    expect(f.fake.state.outcome).toEqual({
+      outcome: {
+        outcome: 'selected',
+        optionId: decision === 'approve' ? 'allow_once' : 'cancel',
+      },
+    });
+  },
+);
+
+it.each(['read-only', 'agent-full-access', 'implement_plan'])(
+  'denies a Codex allow_once option %s that changes the preset even after approval',
+  async (optionId) => {
+    const f = fixture({
+      permission: true,
+      initialMode: 'read-only',
+      modes: codexModes,
+      permissionOptions: [
+        { optionId, name: 'Approve', kind: 'allow_once' },
+        { optionId: 'decline', name: 'Deny', kind: 'reject_once' },
+      ],
+    });
+    f.store.codingSessions.configure(f.id, true, 'codex');
+    const [tool] = await codingTools(f.deps);
+    const running = tool.execute!({ task: 'Task' });
+    await vi.waitFor(() =>
+      expect(f.workspace.approvals.list()).toHaveLength(1),
+    );
+    f.deps.approvals.decide(f.workspace.approvals.list()[0].id, 'approve');
+    await running;
+    expect(f.fake.state.outcome).toEqual({
+      outcome: { outcome: 'selected', optionId: 'decline' },
+    });
+  },
+);
+
+it('turns Codex auth-required on session/new into a Codex sign-in hand-off', async () => {
+  const f = fixture({ authAt: 'new' });
+  f.store.codingSessions.configure(f.id, true, 'codex');
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'handoff',
+  });
+  const reason = f.handoff.mock.calls[0][0].reason;
+  expect(reason).toContain('Sign in to Codex');
+  expect(reason).toContain('API key');
+  expect(reason).toContain('ChatGPT');
+  expect(reason).not.toContain('Claude');
+  expect(f.handoff).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'credential' }),
+  );
+  expect(f.store.codingSessions.list(f.id)[0]).toMatchObject({
+    provider: 'codex',
+    status: 'authentication_required',
+  });
+  expect(f.close).toHaveBeenCalled();
+});
+
+it('stops Codex before any prompt when the ask-first preset is not offered', async () => {
+  const f = fixture({
+    initialMode: 'agent',
+    modes: ['workspace-write', 'agent', 'agent-full-access'],
+  });
+  f.store.codingSessions.configure(f.id, true, 'codex');
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'failed',
+  });
+  expect(f.fake.state.prompted).toBe(false);
+  expect(f.fake.state.mode).toBe('');
 });
