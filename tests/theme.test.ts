@@ -220,11 +220,11 @@ describe('theme before the first paint', () => {
 
   it('loads every script from a file, since the CSP blocks inline scripts', () => {
     const scripts = [
-      ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g),
+      ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi),
     ];
     expect(scripts.length).toBeGreaterThan(0);
     for (const [tag, attributes, body] of scripts) {
-      expect(attributes, tag).toMatch(/\bsrc="[^"]+"/);
+      expect(attributes, tag).toMatch(/\bsrc=["'][^"']+["']/i);
       expect(body.trim(), tag).toBe('');
     }
   });
