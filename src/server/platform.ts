@@ -1,5 +1,6 @@
 import type { DockerSetup } from './docker-setup.js';
 import { ComputerService } from './computer-service.js';
+import { ChannelService } from './channels/service.js';
 import { PageService } from './page-service.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -37,6 +38,7 @@ import type { DotAgentServices } from './dot-agent.js';
 import type { TurnMetadata } from '../shared/types.js';
 const DEFAULT_APPROVAL_TTL_MS = 7 * 24 * 3600_000;
 export class Platform {
+  readonly channels: ChannelService;
   readonly pages: PageService;
   readonly computers: ComputerService;
   readonly runner: SqliteAgentRunner;
@@ -289,6 +291,7 @@ export class Platform {
       basePath: '/api/copilotkit',
       cors: { origin: [] },
     });
+    this.channels = new ChannelService(this, chatDatabase);
   }
   setup() {
     return setupStatus(
@@ -380,6 +383,7 @@ export class Platform {
   }
   async start() {
     await this.connectors.start();
+    await this.channels.start();
     this.approvals.startSweep();
     this.resumes.start();
     this.teamRuns.recover();
@@ -401,6 +405,7 @@ export class Platform {
     return undefined;
   }
   async stop() {
+    await this.channels.stop();
     // Open event streams first: they would otherwise hold the HTTP server's close.
     this.events.close();
     this.triggers.stop();

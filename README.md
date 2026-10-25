@@ -161,6 +161,7 @@ Deploy on your own server with HTTPS, a domain and automated backups: see [Deplo
 - **Dot computers** need Docker. The Computer panel can walk you through it. See [Computers](docs/COMPUTERS.md).
 - **Page reader, voice calls and backups** are covered in [Setup](docs/SETUP.md).
 - **Connectors** are added in **Settings → Connectors**. See [Connectors](docs/CONNECTORS.md).
+- **Slack and Telegram** let your listed owner accounts talk to a Dot and use approval buttons. Set them up in **Settings → Channels**. See [Channels](docs/CHANNELS.md).
 - **Spaces** keep pages and files. See [Spaces](docs/SPACES.md).
 
 ## How it works
