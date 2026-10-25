@@ -18,7 +18,7 @@ A short map of the parts of the chat that are not plain messages. Colours come f
 
 FullDots follows the operating system by default and can be pinned to Light or Dark in **Settings → General → Appearance**. The choice is saved per browser (`fulldots-theme` in `localStorage`) and is applied before the first paint, so a dark screen never flashes light.
 
-All colour lives in `src/client/tokens.css` as custom properties. `:root` holds the light palette and `[data-theme='dark']` on `<html>` overrides the same names; components only ever read the names. `src/client/theme.ts` resolves and applies the theme, and `tests/theme.test.ts` keeps the two palettes in step and checks text contrast against WCAG AA.
+All colour lives in `src/client/tokens.css` as custom properties. `:root` holds the light palette and `[data-theme='dark']` on `<html>` overrides the same names; components only ever read the names. `src/client/theme.ts` resolves and applies the theme, and `tests/theme.test.ts` keeps the two palettes in step and checks text contrast against WCAG AA. Before the app loads, `public/theme-init.js` applies the saved theme from the `<head>` of `index.html`. It is a separate file because the server's Content-Security-Policy blocks inline scripts, and the same test checks that it resolves the theme exactly as `theme.ts` does.
 
 ## Motion and access
 
