@@ -1,23 +1,9 @@
 export type ChatGroupId = 'today' | 'yesterday' | 'week' | 'month' | 'older';
 
-export interface ChatGroup<T> {
-  id: ChatGroupId;
-  label: string;
-  items: T[];
-}
-
 interface Datable {
   createdAt: number;
   updatedAt?: number | null;
 }
-
-const LABELS: Record<ChatGroupId, string> = {
-  today: 'Today',
-  yesterday: 'Yesterday',
-  week: 'Previous 7 days',
-  month: 'Previous 30 days',
-  older: 'Older',
-};
 
 /** Last activity if the server knows it, otherwise when the chat was created. */
 export function chatRecency(chat: Datable): number {
@@ -39,21 +25,30 @@ export function chatGroupFor(time: number, now = Date.now()): ChatGroupId {
   return 'older';
 }
 
-/** Newest first, split into date groups; groups with no chats are left out. */
-export function groupChats<T extends Datable>(
-  chats: T[],
-  now = Date.now(),
-): ChatGroup<T>[] {
-  const groups = new Map<ChatGroupId, T[]>();
-  for (const chat of [...chats].sort(
-    (a, b) => chatRecency(b) - chatRecency(a),
-  )) {
-    const id = chatGroupFor(chatRecency(chat), now);
-    groups.set(id, [...(groups.get(id) ?? []), chat]);
-  }
-  return (Object.keys(LABELS) as ChatGroupId[])
-    .filter((id) => groups.has(id))
-    .map((id) => ({ id, label: LABELS[id], items: groups.get(id)! }));
+/** Newest first, by last activity. */
+export function newestFirst<T extends Datable>(chats: readonly T[]): T[] {
+  return [...chats].sort((a, b) => chatRecency(b) - chatRecency(a));
+}
+
+/** The short time a chat row shows: the time today, then Yesterday, a weekday, a date. */
+export function chatWhen(time: number, now = Date.now()): string {
+  const date = new Date(time);
+  const group = chatGroupFor(time, now);
+  if (group === 'today')
+    return date.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  if (group === 'yesterday') return 'Yesterday';
+  // A weekday only while it cannot be mistaken for today's.
+  const weekAgo = new Date(now);
+  weekAgo.setHours(0, 0, 0, 0);
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  if (time >= weekAgo.getTime())
+    return date.toLocaleDateString(undefined, { weekday: 'short' });
+  return date.getFullYear() === new Date(now).getFullYear()
+    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
 /** Case-insensitive title search; every word typed must appear in the title. */

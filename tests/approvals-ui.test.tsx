@@ -174,7 +174,8 @@ it('counts what needs the owner on the sidebar Inbox only when something is wait
     );
   expect(sidebar()).toContain('aria-label="Inbox"');
   expect(sidebar()).not.toContain('sb-badge');
-  expect(sidebar(3)).toMatch(/class="sb-badge"[^>]*>3</);
+  // Amber, like every other count of what waits for the owner.
+  expect(sidebar(3)).toMatch(/class="sb-badge needs"[^>]*>3</);
   expect(sidebar(3)).toContain('aria-label="Inbox (3)"');
 });
 
