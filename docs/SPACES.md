@@ -8,7 +8,7 @@ Pages nest without a depth limit. Any page can have subpages, so a page works as
 
 ## Files
 
-Open a Space and choose **Upload files**, or drop files on the library. Files appear in the library and in the sidebar tree, under the page they belong to.
+Open a Space and choose **Upload files**, or drop files on the library. Files appear in the library and in the Spaces panel (the folder button in the sidebar footer), under the page they belong to.
 
 | File                                    | Shown as                                                                                                 |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |

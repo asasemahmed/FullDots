@@ -12,21 +12,31 @@ import {
   Download,
   GitBranch,
   Pencil,
+  Plus,
   Trash2,
 } from 'lucide-react';
 import type { ConversationSummary, Dot } from '../shared/types';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../shared/conversation-title';
 import { Mascot, dotLook } from './Mascot';
 import { RowMenu } from './sidebar/RowMenu';
-import { filterChats, groupChats, listableChats } from './sidebar/chat-groups';
-import { nestChats, workRunning, type ChatTree } from './sidebar/chat-tree';
+import {
+  chatRecency,
+  chatWhen,
+  listableChats,
+  newestFirst,
+} from './sidebar/chat-groups';
+import { descendants, nestChats, workRunning } from './sidebar/chat-tree';
 import './sidebar/chat-tree.css';
 
 type Mode = 'idle' | 'rename' | 'confirm';
 
+/** Chats a Dot's list shows before "Show more". */
+export const HISTORY_LIMIT = 8;
+
 function ChatRow({
   chat,
   dot,
+  when,
   branchOf,
   active,
   onSelect,
@@ -38,8 +48,10 @@ function ChatRow({
   pulse = false,
 }: {
   chat: ConversationSummary;
-  /** Set only when the workspace has several Dots, so the row can say which. */
+  /** Set only for a teammate's chat nested here, so the row can say whose it is. */
   dot?: Dot;
+  /** Last activity, short: "9:41", "Yesterday", "Oct 21". */
+  when: string;
   /** For a branch: the title of the chat it came from (undefined once that chat is gone). */
   branchOf?: string;
   active: boolean;
@@ -238,6 +250,7 @@ function ChatRow({
         )}
         {pulse && <span className="sb-chat-pulse" aria-hidden="true" />}
       </button>
+      <span className="sb-chat-when">{when}</span>
       <RowMenu
         label={`Actions for ${chat.title}`}
         className="sb-chat-more"
@@ -268,20 +281,31 @@ function ChatRow({
   );
 }
 
+/** One Dot's chats, newest first, under its row in the sidebar. */
 export function ThreadList({
+  id,
+  dotId,
   chats,
   dots,
   selectedId,
-  query,
+  newChatLabel = 'New chat',
+  onNewChat,
   onSelect,
   onRename,
   onDelete,
   onExport,
 }: {
+  /** The list's element id, for the toggle that shows it. */
+  id?: string;
+  /** Whose chats these are. */
+  dotId: string;
+  /** Every chat: teammates' chats made by a hand-off nest under the chat that handed the work over. */
   chats: ConversationSummary[];
   dots: Dot[];
   selectedId?: string;
-  query: string;
+  newChatLabel?: string;
+  /** The first row starts a new chat; left out when there is none. */
+  onNewChat?: () => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => Promise<boolean>;
   onDelete: (ids: string[]) => Promise<boolean>;
@@ -290,18 +314,37 @@ export function ThreadList({
 }) {
   const [clearing, setClearing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const list = useRef<HTMLDivElement>(null);
-  const shown = filterChats(listableChats(chats, selectedId), query);
+  const [all, setAll] = useState(false);
+  const list = useRef<HTMLUListElement>(null);
+  const shown = newestFirst(listableChats(chats, selectedId));
+  const tree = nestChats(shown);
+  const own = new Set(
+    shown.filter((chat) => chat.dotId === dotId).map((chat) => chat.id),
+  );
+  // This Dot's chats, except those nested under another of its own chats.
+  const roots = shown.filter((chat) => {
+    const parent = chat.handedBy?.threadId;
+    return (
+      chat.dotId === dotId && !(parent && parent !== chat.id && own.has(parent))
+    );
+  });
+  // The open chat is never hidden behind "Show more".
+  const selectedAt = selectedId
+    ? roots.findIndex(
+        (chat) =>
+          chat.id === selectedId ||
+          descendants(chat.id, tree).some((child) => child.id === selectedId),
+      )
+    : -1;
+  const visible = all
+    ? roots
+    : roots.slice(0, Math.max(HISTORY_LIMIT, selectedAt + 1));
+  const hidden = roots.length - visible.length;
   const emptyIds = chats
-    .filter((chat) => chat.empty && chat.id !== selectedId)
+    .filter(
+      (chat) => chat.empty && chat.dotId === dotId && chat.id !== selectedId,
+    )
     .map((chat) => chat.id);
-  const searching = query.trim().length > 0;
-  const many = dots.length > 1;
-  // Teammates' chats sit under the chat that handed the work over (a flat list while searching).
-  const tree: ChatTree<ConversationSummary> = searching
-    ? { roots: shown, children: new Map() }
-    : nestChats(shown);
-  const groups = groupChats(tree.roots);
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const fold = (id: string) =>
     setFolded((current) => {
@@ -309,16 +352,28 @@ export function ThreadList({
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const row = (chat: ConversationSummary, depth: number): ReactNode => {
-    const children = tree.children.get(chat.id) ?? [];
+  const now = Date.now();
+  const row = (
+    chat: ConversationSummary,
+    depth: number,
+    seen: ReadonlySet<string>,
+  ): ReactNode => {
+    const children = (tree.children.get(chat.id) ?? []).filter(
+      (child) => !seen.has(child.id),
+    );
     const open = !folded.has(chat.id);
-    const member = dots.find((item) => item.id === chat.dotId);
+    const next = new Set([...seen, chat.id]);
     return (
       <Fragment key={chat.id}>
         <ChatRow
           chat={chat}
-          // A teammate's chat always shows its Dot; the others only when there are several.
-          dot={many || depth ? member : undefined}
+          // A teammate's chat nested here shows its Dot.
+          dot={
+            chat.dotId === dotId
+              ? undefined
+              : dots.find((item) => item.id === chat.dotId)
+          }
+          when={chatWhen(chatRecency(chat), now)}
           branchOf={
             chat.branchedFrom &&
             chats.find((item) => item.id === chat.branchedFrom?.threadId)?.title
@@ -337,96 +392,107 @@ export function ThreadList({
           }}
           pulse={workRunning(chat, tree)}
         />
-        {open && children.map((child) => row(child, Math.min(depth + 1, 3)))}
+        {open &&
+          children.map((child) => row(child, Math.min(depth + 1, 3), next))}
       </Fragment>
     );
   };
   // After a delete the focused row disappears; hand focus to the list's first row.
   const refocus = () =>
     setTimeout(
-      () => list.current?.querySelector<HTMLElement>('.sb-chat-main')?.focus(),
+      () =>
+        list.current
+          ?.querySelector<HTMLElement>('.sb-history-new, .sb-chat-main')
+          ?.focus(),
       50,
     );
-  const arrows = (event: KeyboardEvent<HTMLDivElement>) => {
+  const arrows = (event: KeyboardEvent<HTMLUListElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const rows = [
-      ...(list.current?.querySelectorAll<HTMLElement>('.sb-chat-main') ?? []),
+      ...(list.current?.querySelectorAll<HTMLElement>(
+        '.sb-history-new, .sb-chat-main',
+      ) ?? []),
     ];
     const index = rows.indexOf(document.activeElement as HTMLElement);
     if (index < 0) return;
     event.preventDefault();
     rows[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
   };
-  let body: ReactNode;
-  if (!shown.length)
-    body = (
-      <p className="sb-note" role="status">
-        {searching
-          ? 'No chats match your search.'
-          : 'No chats yet. Start one with New chat.'}
-      </p>
-    );
-  else
-    body = groups.map((group) => (
-      <div className="sb-group" key={group.id}>
-        <h3 className="sb-group-label">{group.label}</h3>
-        <ul className="sb-chat-list">
-          {group.items.map((chat) => row(chat, 0))}
-        </ul>
-      </div>
-    ));
   return (
-    <section className="sb-chats" aria-labelledby="sb-chats-label">
-      <h2 className="sb-label" id="sb-chats-label">
-        Chats
-      </h2>
-      <div className="sb-chat-scroll" ref={list} onKeyDown={arrows}>
-        {body}
-        {!searching && emptyIds.length > 0 && (
-          <div className="sb-tidy">
-            {clearing ? (
-              <>
-                <span className="sb-confirm-text">
-                  Remove {emptyIds.length} empty{' '}
-                  {emptyIds.length === 1 ? 'chat' : 'chats'}?
-                </span>
-                <button
-                  type="button"
-                  className="sb-pill danger"
-                  disabled={busy}
-                  autoFocus
-                  onClick={async () => {
-                    setBusy(true);
-                    await onDelete(emptyIds);
-                    setBusy(false);
-                    setClearing(false);
-                    refocus();
-                  }}
-                >
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  className="sb-pill"
-                  disabled={busy}
-                  onClick={() => setClearing(false)}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
+    <ul className="sb-history" id={id} ref={list} onKeyDown={arrows}>
+      {onNewChat && (
+        <li>
+          <button
+            type="button"
+            className="sb-row sb-history-new"
+            onClick={onNewChat}
+          >
+            <Plus size={14} aria-hidden />
+            <span className="sb-text">{newChatLabel}</span>
+          </button>
+        </li>
+      )}
+      {visible.map((chat) => row(chat, 0, new Set()))}
+      {!roots.length && (
+        <li className="sb-note" role="status">
+          No chats yet.
+        </li>
+      )}
+      {hidden > 0 && (
+        <li className="sb-history-more">
+          <button
+            type="button"
+            className="sb-link"
+            onClick={() => setAll(true)}
+          >
+            Show {hidden} more
+          </button>
+        </li>
+      )}
+      {emptyIds.length > 0 && (
+        <li className="sb-tidy">
+          {clearing ? (
+            <>
+              <span className="sb-confirm-text">
+                Remove {emptyIds.length} empty{' '}
+                {emptyIds.length === 1 ? 'chat' : 'chats'}?
+              </span>
               <button
                 type="button"
-                className="sb-link"
-                onClick={() => setClearing(true)}
+                className="sb-pill danger"
+                disabled={busy}
+                autoFocus
+                onClick={async () => {
+                  setBusy(true);
+                  await onDelete(emptyIds);
+                  setBusy(false);
+                  setClearing(false);
+                  refocus();
+                }}
               >
-                Clear {emptyIds.length} empty{' '}
-                {emptyIds.length === 1 ? 'chat' : 'chats'}
+                Remove
               </button>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+              <button
+                type="button"
+                className="sb-pill"
+                disabled={busy}
+                onClick={() => setClearing(false)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="sb-link"
+              onClick={() => setClearing(true)}
+            >
+              Clear {emptyIds.length} empty{' '}
+              {emptyIds.length === 1 ? 'chat' : 'chats'}
+            </button>
+          )}
+        </li>
+      )}
+    </ul>
   );
 }

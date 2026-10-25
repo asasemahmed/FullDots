@@ -9,7 +9,7 @@ import {
   BookOpen,
   ChevronRight,
   Clock3,
-  Command,
+  FolderOpen,
   Inbox,
   LayoutGrid,
   PanelLeftClose,
@@ -17,10 +17,12 @@ import {
   Pause,
   Pencil,
   Play,
+  Plug,
   Plus,
   Search,
   Settings2,
   SquarePen,
+  Users,
   X,
 } from 'lucide-react';
 import type { Dot, WorkspaceState } from '../../shared/types';
@@ -28,13 +30,13 @@ import { Mascot, dotLook } from '../Mascot';
 import { SpaceNav } from '../SpaceNav';
 import { ThreadList } from '../ThreadList';
 import type { Dialog } from '../WorkspaceDialog';
-import { filterChats, groupChats, listableChats } from './chat-groups';
 import { MOBILE_QUERY, useMediaQuery, useStoredFlag } from './hooks';
 import { RowMenu } from './RowMenu';
-import type { DotLiveState } from './useDotLive';
+import type { DotLive } from './useDotLive';
 import '../sidebar.css';
 import { BrandMark } from '../DotCharacter';
 import { shortcutLabel } from '../palette/palette-model';
+import { roleLine } from '../room/mentions';
 import { TeamRows, type SidebarTeams } from '../teams/TeamsSection';
 
 export type NavView =
@@ -73,49 +75,92 @@ export interface SidebarProps {
   onOpenFile: (spaceId: string, fileId: string) => void;
   onView: (view: 'tasks' | 'memories' | 'inbox' | 'mission') => void;
   onDialog: (dialog: Dialog) => void;
-  /** Opens the Ctrl+K palette, optionally with the text typed in the title filter. */
+  /** Opens the Ctrl+K palette. */
   onOpenPalette?: (query?: string) => void;
-  /** What each Dot is doing right now (useDotLive): working, or waiting for the owner. */
-  dotStates?: ReadonlyMap<string, DotLiveState>;
-  /** Named teams: the Teams section between Dots and Spaces. */
+  /** What each Dot is doing right now (useDotLive) and what of it waits for the owner. */
+  dotLive?: ReadonlyMap<string, DotLive>;
+  /** Named teams, behind the Teams button in the footer. */
   teams?: SidebarTeams;
 }
 
-function Section({
+type Flyout = 'spaces' | 'teams';
+
+/** The line under a Dot's name: what it is doing, or its role while it is idle. */
+export function dotStatus(
+  dot: Dot,
+  live?: DotLive,
+): { text: string; tone: 'paused' | 'needs' | 'busy' | 'idle' } {
+  if (dot.paused) return { text: 'Paused', tone: 'paused' };
+  if (live?.state === 'needs-input')
+    return { text: 'Needs you', tone: 'needs' };
+  if (live?.state === 'working')
+    return {
+      text: live.step ? 'Using its computer' : 'Working',
+      tone: 'busy',
+    };
+  return { text: roleLine(dot.instructions, 60), tone: 'idle' };
+}
+
+/**
+ * A panel that opens above the footer for Spaces or Teams. Escape, the close button or a click
+ * outside closes it; the first two hand focus back to the footer button that opened it.
+ */
+function FlyoutPanel({
+  id,
   title,
-  storageKey,
-  collapsed,
   actionLabel,
   onAction,
+  onClose,
   children,
 }: {
+  id: string;
   title: string;
-  storageKey: string;
-  /** The slim sidebar shows every section's items and none of the chrome. */
-  collapsed: boolean;
   actionLabel: string;
   onAction: () => void;
+  onClose: (restoreFocus: boolean) => void;
   children: ReactNode;
 }) {
-  const [closed, setClosed] = useStoredFlag(storageKey, false);
-  const id = `sb-${storageKey.split('.').pop()}`;
+  const panel = useRef<HTMLDivElement>(null);
+  // The sidebar re-renders on every live update: keep the latest callback without re-running
+  // the effect below, which would move focus each time.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    panel.current
+      ?.querySelector<HTMLElement>('.sb-flyout-body button')
+      ?.focus();
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Element;
+      // Its own row menus are portalled to <body>: a click in one is not a click outside.
+      if (
+        panel.current?.contains(target) ||
+        target.closest?.(`[aria-controls="${id}"], .sb-menu`)
+      )
+        return;
+      close.current(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [id]);
   return (
-    <section className="sb-section" aria-label={title}>
-      <div className="sb-section-head">
-        <button
-          type="button"
-          className="sb-section-toggle"
-          aria-expanded={!closed}
-          aria-controls={id}
-          onClick={() => setClosed(!closed)}
-        >
-          <ChevronRight
-            size={12}
-            aria-hidden
-            className={closed ? '' : 'turned'}
-          />
-          {title}
-        </button>
+    <div
+      ref={panel}
+      id={id}
+      className="sb-flyout"
+      role="dialog"
+      aria-label={title}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        // Claimed here so the phone drawer's own Escape handler stays out of it.
+        event.preventDefault();
+        event.stopPropagation();
+        onClose(true);
+      }}
+    >
+      <div className="sb-flyout-head">
+        <h2 className="sb-flyout-title">{title}</h2>
         <button
           type="button"
           className="sb-icon"
@@ -123,15 +168,167 @@ function Section({
           title={actionLabel}
           onClick={onAction}
         >
-          <Plus size={14} aria-hidden />
+          <Plus size={15} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="sb-icon"
+          aria-label={`Close ${title}`}
+          onClick={() => onClose(true)}
+        >
+          <X size={15} aria-hidden />
         </button>
       </div>
-      {(collapsed || !closed) && (
-        <div className="sb-section-body" id={id}>
-          {children}
-        </div>
+      <div className="sb-flyout-body">{children}</div>
+    </div>
+  );
+}
+
+function DotRow({
+  dot,
+  active,
+  live,
+  collapsed,
+  configured,
+  workspace,
+  selectedThread,
+  onChoose,
+  onNewChat,
+  onEdit,
+  onTogglePause,
+  onSelectThread,
+  onRenameThread,
+  onDeleteThreads,
+  onExportThread,
+}: {
+  dot: Dot;
+  active: boolean;
+  live?: DotLive;
+  collapsed: boolean;
+  configured: boolean;
+  workspace: WorkspaceState;
+  selectedThread?: string;
+  onChoose: () => void;
+  onNewChat: () => void;
+  onEdit: () => void;
+  onTogglePause?: () => void;
+  onSelectThread: (id: string) => void;
+  onRenameThread: (id: string, title: string) => Promise<boolean>;
+  onDeleteThreads: (ids: string[]) => Promise<boolean>;
+  onExportThread: (id: string) => Promise<void>;
+}) {
+  // Every Dot's chats start hidden; the arrow shows them and the choice is remembered.
+  const [open, setOpen] = useStoredFlag(
+    `fulldots.sidebar.dot.${dot.id}`,
+    false,
+  );
+  const status = dotStatus(dot, live);
+  const waiting = live?.waiting ?? 0;
+  const historyId = `sb-history-${dot.id}`;
+  const label = [dot.name, status.text, waiting && `${waiting} waiting for you`]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    <li className={`sb-dot-item ${open && !collapsed ? 'open' : ''}`}>
+      <div className="sb-row-wrap sb-dot-row">
+        <button
+          type="button"
+          className="sb-icon sb-twisty"
+          aria-expanded={open}
+          aria-controls={historyId}
+          aria-label={`${open ? 'Hide' : 'Show'} ${dot.name}’s chats`}
+          title={open ? 'Hide chats' : 'Show chats'}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight
+            size={13}
+            aria-hidden
+            className={open ? 'turned' : ''}
+          />
+        </button>
+        <button
+          type="button"
+          className={`sb-row sb-dot ${active ? 'active' : ''}`}
+          aria-current={active ? 'page' : undefined}
+          {...(collapsed ? { 'aria-label': label, title: label } : {})}
+          onClick={onChoose}
+        >
+          <span className="sb-avatar">
+            <Mascot
+              identity={dot.id}
+              {...dotLook(dot)}
+              name={dot.name}
+              small
+              decorative
+              {...(dot.paused
+                ? { state: 'paused' }
+                : live?.state
+                  ? { state: live.state }
+                  : {})}
+            />
+          </span>
+          <span className="sb-dot-text sb-text">
+            <span className="sb-text sb-dot-name">{dot.name}</span>
+            {status.text && (
+              <span className={`sb-text sb-dot-status ${status.tone}`}>
+                {status.text}
+              </span>
+            )}
+          </span>
+          {waiting > 0 && (
+            <span className="sb-count" aria-hidden>
+              {waiting > 99 ? '99+' : waiting}
+            </span>
+          )}
+          {waiting > 0 && !collapsed && (
+            <span className="sb-sr">{`, ${waiting} waiting for you`}</span>
+          )}
+        </button>
+        <RowMenu
+          label={`${dot.name} options`}
+          className="sb-row-more"
+          items={[
+            {
+              id: 'chat',
+              label: 'New chat',
+              icon: <SquarePen size={14} aria-hidden />,
+              onSelect: onNewChat,
+            },
+            {
+              id: 'edit',
+              label: 'Edit Dot',
+              icon: <Pencil size={14} aria-hidden />,
+              onSelect: onEdit,
+            },
+            {
+              id: 'pause',
+              label: dot.paused ? 'Resume Dot' : 'Pause Dot',
+              icon: dot.paused ? (
+                <Play size={14} aria-hidden />
+              ) : (
+                <Pause size={14} aria-hidden />
+              ),
+              onSelect: () => onTogglePause?.(),
+            },
+          ]}
+        />
+      </div>
+      {open && !collapsed && (
+        <ThreadList
+          id={historyId}
+          dotId={dot.id}
+          chats={workspace.conversations}
+          dots={workspace.dots}
+          selectedId={selectedThread}
+          newChatLabel={`New chat with ${dot.name}`}
+          {...(configured ? { onNewChat } : {})}
+          onSelect={onSelectThread}
+          onRename={onRenameThread}
+          onDelete={onDeleteThreads}
+          onExport={onExportThread}
+        />
       )}
-    </section>
+    </li>
   );
 }
 
@@ -164,27 +361,18 @@ export function Sidebar({
   onView,
   onDialog,
   onOpenPalette,
-  dotStates,
+  dotLive,
   teams,
 }: SidebarProps) {
   const phone = useMediaQuery(MOBILE_QUERY);
   const collapsed = collapsedPreference && !phone;
-  const [query, setQuery] = useState('');
   const aside = useRef<HTMLElement>(null);
-  const search = useRef<HTMLInputElement>(null);
-  const focusSearch = useRef(false);
+  const [flyout, setFlyout] = useState<Flyout>();
   const several = workspace.dots.length > 1;
-  const live = dotStates ?? new Map<string, DotLiveState>();
+  const live = dotLive ?? new Map<string, DotLive>();
   // Label helper: when text is hidden (slim mode) the button needs a name and a tooltip.
   const tip = (label: string) =>
     collapsed ? { 'aria-label': label, title: label } : {};
-
-  useEffect(() => {
-    if (!collapsed && focusSearch.current) {
-      focusSearch.current = false;
-      search.current?.focus();
-    }
-  }, [collapsed]);
 
   // Phone drawer: take focus when it opens, close on Escape.
   useEffect(() => {
@@ -197,30 +385,76 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', key);
   }, [mobileOpen, onDismissMobile]);
 
-  const searchKeys = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape' && query) {
-      event.preventDefault();
-      event.stopPropagation();
-      setQuery('');
-    } else if (event.key === 'Enter') {
-      // The first match in the order the list shows them.
-      const first = groupChats(
-        filterChats(
-          listableChats(workspace.conversations, selectedThread),
-          query,
-        ),
-      )[0]?.items[0];
-      if (first && query.trim()) onSelectThread(first.id);
-      // Nothing in the chat titles: hand the text to the palette, which searches everything.
-      else if (query.trim()) onOpenPalette?.(query.trim());
-    } else if (event.key === 'ArrowDown') {
-      const row = aside.current?.querySelector<HTMLElement>('.sb-chat-main');
-      if (row) {
-        event.preventDefault();
-        row.focus();
-      }
-    }
+  const closeFlyout = (restoreFocus: boolean) => {
+    const which = flyout;
+    setFlyout(undefined);
+    if (restoreFocus && which)
+      aside.current
+        ?.querySelector<HTMLElement>(`[aria-controls="sb-flyout-${which}"]`)
+        ?.focus();
   };
+  const toggleFlyout = (which: Flyout) => {
+    if (flyout === which) return closeFlyout(false);
+    // The slim rail has no room for the panel: widen the sidebar first.
+    if (collapsed) onToggleCollapsed();
+    setFlyout(which);
+  };
+  // Going back to the slim rail closes the panel: it has no room there.
+  useEffect(() => {
+    if (collapsed) setFlyout(undefined);
+  }, [collapsed]);
+
+  // Up and Down move between the Dot rows.
+  const dotKeys = (event: KeyboardEvent<HTMLUListElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const target = event.target as HTMLElement;
+    if (!target.classList.contains('sb-dot')) return;
+    const rows = [
+      ...(aside.current?.querySelectorAll<HTMLElement>('.sb-dots .sb-dot') ??
+        []),
+    ];
+    const index = rows.indexOf(target);
+    event.preventDefault();
+    rows[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
+  };
+
+  const footButton = (
+    label: string,
+    icon: ReactNode,
+    options: {
+      title?: string;
+      active?: boolean;
+      badge?: number;
+      badgeLabel?: string;
+      flyout?: Flyout;
+      keys?: string;
+      onClick: () => void;
+    },
+  ) => (
+    <button
+      type="button"
+      className={`sb-icon sb-foot-button ${options.active ? 'active' : ''}`}
+      aria-label={label}
+      title={options.title ?? label}
+      aria-current={options.active ? 'page' : undefined}
+      {...(options.flyout
+        ? {
+            'aria-haspopup': 'dialog' as const,
+            'aria-expanded': flyout === options.flyout,
+            'aria-controls': `sb-flyout-${options.flyout}`,
+          }
+        : {})}
+      {...(options.keys ? { 'aria-keyshortcuts': options.keys } : {})}
+      onClick={options.onClick}
+    >
+      {icon}
+      {!!options.badge && (
+        <span className="sb-badge" aria-label={options.badgeLabel}>
+          {options.badge > 99 ? '99+' : options.badge}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <aside
@@ -290,272 +524,199 @@ export function Sidebar({
           )}
           <span className="sb-text">New chat</span>
         </button>
-        <label className="sb-search">
-          <Search size={14} aria-hidden />
-          <input
-            ref={search}
-            type="search"
-            placeholder="Search chats"
-            aria-label="Search chats"
-            autoComplete="off"
-            spellCheck={false}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={searchKeys}
-          />
-          {query && (
-            <button
-              type="button"
-              className="sb-icon sb-search-clear"
-              aria-label="Clear search"
-              onClick={() => {
-                setQuery('');
-                search.current?.focus();
-              }}
-            >
-              <X size={13} aria-hidden />
-            </button>
-          )}
-        </label>
-        {onOpenPalette && (
-          <button
-            type="button"
-            className="sb-row sb-search-all"
-            aria-keyshortcuts="Control+K Meta+K"
-            onClick={() => onOpenPalette(query.trim() || undefined)}
-          >
-            <Command size={15} aria-hidden />
-            <span className="sb-text">
-              {query.trim()
-                ? `Search everywhere for “${query.trim()}”`
-                : 'Search everywhere'}
-            </span>
-            <kbd className="sb-kbd" aria-hidden>
-              {shortcutLabel()}
-            </kbd>
-          </button>
-        )}
-        <button
-          type="button"
-          className="sb-row sb-search-icon"
-          aria-label={onOpenPalette ? 'Search everywhere' : 'Search chats'}
-          title={onOpenPalette ? 'Search everywhere' : 'Search chats'}
-          onClick={() => {
-            if (onOpenPalette) {
-              onOpenPalette();
-              return;
-            }
-            focusSearch.current = true;
-            onToggleCollapsed();
-          }}
-        >
-          <Search size={17} aria-hidden />
-        </button>
       </div>
 
       <div className="sb-body">
-        <Section
-          title="Dots"
-          storageKey="fulldots.sidebar.dots"
-          collapsed={collapsed}
-          actionLabel="Create Dot"
-          onAction={() =>
-            onDialog({ type: 'dot', spaceId: workspace.spaces[0].id })
-          }
-        >
-          <nav aria-label="Dots" className="sb-list">
-            {workspace.dots.map((item) => {
-              const active = dot.id === item.id && view === 'chat';
-              const now = item.paused ? undefined : live.get(item.id);
-              return (
-                <div className="sb-row-wrap" key={item.id}>
-                  <button
-                    type="button"
-                    className={`sb-row sb-dot ${active ? 'active' : ''}`}
-                    aria-current={active ? 'page' : undefined}
-                    {...tip(item.name)}
-                    onClick={() => onChooseDot(item)}
-                  >
-                    <span className="sb-avatar">
-                      <Mascot
-                        identity={item.id}
-                        {...dotLook(item)}
-                        name={item.name}
-                        small
-                        decorative
-                        {...(item.paused
-                          ? { state: 'paused' }
-                          : now
-                            ? { state: now }
-                            : {})}
-                      />
-                    </span>
-                    <span className="sb-text">{item.name}</span>
-                    {now && (
-                      <span className={`sb-text sb-dot-live ${now}`}>
-                        {now === 'working' ? 'Working' : 'Needs you'}
-                      </span>
-                    )}
-                    {item.paused && (
-                      <span className="sb-badge-paused">Paused</span>
-                    )}
-                  </button>
-                  <RowMenu
-                    label={`${item.name} options`}
-                    className="sb-row-more"
-                    items={[
-                      {
-                        id: 'chat',
-                        label: 'New chat',
-                        icon: <SquarePen size={14} aria-hidden />,
-                        onSelect: () => onNewChat(item),
-                      },
-                      {
-                        id: 'edit',
-                        label: 'Edit Dot',
-                        icon: <Pencil size={14} aria-hidden />,
-                        onSelect: () =>
-                          onDialog({
-                            type: 'dot',
-                            dot: item,
-                            spaceId: item.spaceId,
-                          }),
-                      },
-                      {
-                        id: 'pause',
-                        label: item.paused ? 'Resume Dot' : 'Pause Dot',
-                        icon: item.paused ? (
-                          <Play size={14} aria-hidden />
-                        ) : (
-                          <Pause size={14} aria-hidden />
-                        ),
-                        onSelect: () => onTogglePause?.(item),
-                      },
-                    ]}
-                  />
-                </div>
-              );
-            })}
-          </nav>
-        </Section>
-
-        {teams && (
-          <Section
-            title="Teams"
-            storageKey="fulldots.sidebar.teams"
-            collapsed={collapsed}
-            actionLabel="Create team"
-            onAction={teams.onCreate}
+        <div className="sb-label-row">
+          <h2 className="sb-label" id="sb-dots-label">
+            Dots
+          </h2>
+          <button
+            type="button"
+            className="sb-icon"
+            aria-label="Create Dot"
+            title="Create Dot"
+            onClick={() =>
+              onDialog({ type: 'dot', spaceId: workspace.spaces[0].id })
+            }
           >
-            <TeamRows {...teams} dots={workspace.dots} collapsed={collapsed} />
-          </Section>
-        )}
-
-        <Section
-          title="Spaces"
-          storageKey="fulldots.sidebar.spaces"
-          collapsed={collapsed}
-          actionLabel="Create Space"
-          onAction={() => onDialog({ type: 'space' })}
-        >
-          <nav aria-label="Spaces" className="sb-list sb-spaces">
-            {workspace.spaces.map((space) => (
-              <SpaceNav
-                key={space.id}
-                space={space}
+            <Plus size={14} aria-hidden />
+          </button>
+        </div>
+        <nav aria-labelledby="sb-dots-label">
+          <ul className="sb-dots" onKeyDown={dotKeys}>
+            {workspace.dots.map((item) => (
+              <DotRow
+                key={item.id}
+                dot={item}
+                active={dot.id === item.id && view === 'chat'}
+                live={item.paused ? undefined : live.get(item.id)}
                 collapsed={collapsed}
-                active={view === 'space' && spaceId === space.id}
-                pageId={pageId}
-                fileId={fileId}
-                onOpen={(id) => onOpenPage(space.id, id)}
-                onOpenFile={(id) => onOpenFile(space.id, id)}
+                configured={configured}
+                workspace={workspace}
+                selectedThread={view === 'chat' ? selectedThread : undefined}
+                onChoose={() => onChooseDot(item)}
+                onNewChat={() => onNewChat(item)}
+                onEdit={() =>
+                  onDialog({ type: 'dot', dot: item, spaceId: item.spaceId })
+                }
+                onTogglePause={() => onTogglePause?.(item)}
+                onSelectThread={onSelectThread}
+                onRenameThread={onRenameThread}
+                onDeleteThreads={onDeleteThreads}
+                onExportThread={onExportThread}
               />
             ))}
-          </nav>
-        </Section>
-
-        {configured ? (
-          <ThreadList
-            chats={workspace.conversations}
-            dots={workspace.dots}
-            selectedId={view === 'chat' ? selectedThread : undefined}
-            query={query}
-            onSelect={onSelectThread}
-            onRename={onRenameThread}
-            onDelete={onDeleteThreads}
-            onExport={onExportThread}
-          />
-        ) : (
-          <p className="sb-note sb-chats">
+          </ul>
+        </nav>
+        {!configured && (
+          <p className="sb-note sb-setup-note">
             Set up text chat to begin a persistent conversation.
           </p>
         )}
       </div>
 
       <div className="sb-foot">
-        <button
-          type="button"
-          className={`sb-icon sb-foot-button ${view === 'tasks' ? 'active' : ''}`}
-          aria-label="Scheduled and activity"
-          title="Scheduled & activity"
-          aria-current={view === 'tasks' ? 'page' : undefined}
-          onClick={() => onView('tasks')}
-        >
-          <Clock3 size={17} aria-hidden />
-          {taskCount > 0 && (
-            <span className="sb-badge" aria-label={`${taskCount} tasks`}>
-              {taskCount > 99 ? '99+' : taskCount}
-            </span>
+        {flyout === 'spaces' && (
+          <FlyoutPanel
+            id="sb-flyout-spaces"
+            title="Spaces"
+            actionLabel="Create Space"
+            onAction={() => {
+              setFlyout(undefined);
+              onDialog({ type: 'space' });
+            }}
+            onClose={closeFlyout}
+          >
+            <nav aria-label="Spaces" className="sb-list sb-spaces">
+              {workspace.spaces.map((space) => (
+                <SpaceNav
+                  key={space.id}
+                  space={space}
+                  active={view === 'space' && spaceId === space.id}
+                  pageId={pageId}
+                  fileId={fileId}
+                  onOpen={(id) => {
+                    setFlyout(undefined);
+                    onOpenPage(space.id, id);
+                  }}
+                  onOpenFile={(id) => {
+                    setFlyout(undefined);
+                    onOpenFile(space.id, id);
+                  }}
+                />
+              ))}
+            </nav>
+          </FlyoutPanel>
+        )}
+        {flyout === 'teams' && teams && (
+          <FlyoutPanel
+            id="sb-flyout-teams"
+            title="Teams"
+            actionLabel="Create team"
+            onAction={() => {
+              setFlyout(undefined);
+              teams.onCreate();
+            }}
+            onClose={closeFlyout}
+          >
+            <TeamRows
+              {...teams}
+              dots={workspace.dots}
+              collapsed={false}
+              onOpen={(team) => {
+                setFlyout(undefined);
+                teams.onOpen(team);
+              }}
+              onStartChat={(team) => {
+                setFlyout(undefined);
+                teams.onStartChat(team);
+              }}
+              onEdit={(team) => {
+                setFlyout(undefined);
+                teams.onEdit(team);
+              }}
+              onCreate={() => {
+                setFlyout(undefined);
+                teams.onCreate();
+              }}
+            />
+          </FlyoutPanel>
+        )}
+        <nav className="sb-foot-icons" aria-label="Workspace">
+          {onOpenPalette &&
+            footButton('Search everywhere', <Search size={17} aria-hidden />, {
+              title: `Search everywhere (${shortcutLabel()})`,
+              keys: 'Control+K Meta+K',
+              onClick: () => onOpenPalette(),
+            })}
+          {footButton(
+            approvalCount > 0 ? `Inbox (${approvalCount})` : 'Inbox',
+            <Inbox size={17} aria-hidden />,
+            {
+              title: 'Inbox',
+              active: view === 'inbox',
+              badge: approvalCount,
+              badgeLabel: `${approvalCount} waiting for you`,
+              onClick: () => onView('inbox'),
+            },
           )}
-        </button>
-        <button
-          type="button"
-          className={`sb-icon sb-foot-button ${view === 'memories' ? 'active' : ''}`}
-          aria-label={`Memories (${memoryCount})`}
-          title={`Memories (${memoryCount})`}
-          aria-current={view === 'memories' ? 'page' : undefined}
-          onClick={() => onView('memories')}
-        >
-          <BookOpen size={17} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={`sb-icon sb-foot-button ${view === 'mission' ? 'active' : ''}`}
-          aria-label="Mission control"
-          title="Mission control"
-          aria-current={view === 'mission' ? 'page' : undefined}
-          onClick={() => onView('mission')}
-        >
-          <LayoutGrid size={17} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={`sb-icon sb-foot-button ${view === 'inbox' ? 'active' : ''}`}
-          aria-label={approvalCount > 0 ? `Inbox (${approvalCount})` : 'Inbox'}
-          title="Inbox"
-          aria-current={view === 'inbox' ? 'page' : undefined}
-          onClick={() => onView('inbox')}
-        >
-          <Inbox size={17} aria-hidden />
-          {approvalCount > 0 && (
-            <span
-              className="sb-badge"
-              aria-label={`${approvalCount} waiting for you`}
-            >
-              {approvalCount > 99 ? '99+' : approvalCount}
-            </span>
+          {footButton('Mission control', <LayoutGrid size={17} aria-hidden />, {
+            active: view === 'mission',
+            onClick: () => onView('mission'),
+          })}
+          {footButton('Spaces', <FolderOpen size={17} aria-hidden />, {
+            active: view === 'space',
+            flyout: 'spaces',
+            onClick: () => toggleFlyout('spaces'),
+          })}
+          {teams &&
+            footButton('Teams', <Users size={17} aria-hidden />, {
+              active: view === 'team',
+              flyout: 'teams',
+              onClick: () => toggleFlyout('teams'),
+            })}
+          {footButton(
+            'Scheduled and activity',
+            <Clock3 size={17} aria-hidden />,
+            {
+              title: 'Scheduled & activity',
+              active: view === 'tasks',
+              badge: taskCount,
+              badgeLabel: `${taskCount} tasks`,
+              onClick: () => onView('tasks'),
+            },
           )}
-        </button>
-        <span className="sb-foot-gap" />
-        <button
-          type="button"
-          className="sb-icon sb-foot-button"
-          aria-label="Settings and setup"
-          title="Settings & setup"
-          onClick={() => onDialog({ type: 'settings' })}
-        >
-          <Settings2 size={17} aria-hidden />
-        </button>
+          {footButton(
+            `Memories (${memoryCount})`,
+            <BookOpen size={17} aria-hidden />,
+            {
+              active: view === 'memories',
+              onClick: () => onView('memories'),
+            },
+          )}
+        </nav>
+        <div className="sb-foot-buttons">
+          <button
+            type="button"
+            className="sb-foot-wide"
+            {...tip('Settings and setup')}
+            onClick={() => onDialog({ type: 'settings' })}
+          >
+            <Settings2 size={16} aria-hidden />
+            <span className="sb-text">Settings</span>
+          </button>
+          <button
+            type="button"
+            className="sb-foot-wide"
+            title="Connected apps and connectors"
+            {...tip('Connected apps')}
+            onClick={() => onDialog({ type: 'settings', tab: 'connectors' })}
+          >
+            <Plug size={16} aria-hidden />
+            <span className="sb-text">Apps</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

@@ -263,8 +263,8 @@ describe('sidebar', () => {
             branchedFrom: { threadId: 'source', messageId: 'm1' },
           }),
         ]}
+        dotId="dot-1"
         dots={[]}
-        query=""
         onSelect={() => {}}
         onRename={async () => true}
         onDelete={async () => true}

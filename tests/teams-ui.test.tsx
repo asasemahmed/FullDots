@@ -40,7 +40,7 @@ import {
 } from '../src/client/teams/DotDelegatesField';
 import { TeamBuilder } from '../src/client/teams/TeamBuilder';
 import { TeamPage } from '../src/client/teams/TeamPage';
-import type { SidebarTeams } from '../src/client/teams/TeamsSection';
+import { TeamRows, type SidebarTeams } from '../src/client/teams/TeamsSection';
 import { TeamChatBanner } from '../src/client/teams/useTeamChat';
 import type { Team, TeamDetail } from '../src/shared/teams';
 import type { Dot, WorkspaceState } from '../src/shared/types';
@@ -137,17 +137,25 @@ const sidebar = (teams?: SidebarTeams, collapsed = false) =>
     />,
   );
 
-describe('sidebar Teams section', () => {
-  it('sits between Dots and Spaces with a create button and one row per team', () => {
+describe('sidebar Teams', () => {
+  const rows = (teams: SidebarTeams, collapsed = false) =>
+    renderToStaticMarkup(
+      <TeamRows {...teams} dots={dots} collapsed={collapsed} />,
+    );
+
+  it('has a footer button that opens the Teams panel, marked while a team page is open', () => {
     const html = sidebar(sidebarTeams({ activeTeamId: 'team-1' }));
-    const dotsAt = html.indexOf('aria-label="Dots"');
-    const teamsAt = html.indexOf('aria-label="Teams"');
-    const spacesAt = html.indexOf('aria-label="Spaces"');
-    expect(dotsAt).toBeGreaterThan(-1);
-    expect(teamsAt).toBeGreaterThan(dotsAt);
-    expect(spacesAt).toBeGreaterThan(teamsAt);
-    expect(html).toContain('aria-label="Create team"');
-    expect(html).toContain('aria-controls="sb-teams"');
+    expect(html).toContain('aria-label="Teams"');
+    expect(html).toContain('aria-controls="sb-flyout-teams"');
+    expect(html).toMatch(
+      /sb-foot-button active"[^>]*aria-label="Teams"[^>]*aria-current="page"/,
+    );
+    // The panel and its rows appear only once the button is used.
+    expect(html).not.toContain('Launch crew');
+  });
+
+  it('lists one row per team, the lead first and larger', () => {
+    const html = rows(sidebarTeams({ activeTeamId: 'team-1' }));
     expect(html).toContain('🚀');
     expect(html).toContain('Launch crew');
     expect(html).toContain('aria-label="Launch crew options"');
@@ -161,19 +169,17 @@ describe('sidebar Teams section', () => {
   });
 
   it('pulses and says "working" while any member works', () => {
-    const html = sidebar(sidebarTeams({ working: new Set(['writer']) }));
+    const html = rows(sidebarTeams({ working: new Set(['writer']) }));
     expect(html).toContain('sb-team-pulse');
     expect(html).toContain('>working<');
     expect(html).toContain('sb-team working');
   });
 
-  it('offers a first team when there is none, and hides chrome when slim', () => {
-    expect(sidebar(sidebarTeams({ teams: [] }))).toContain(
-      'Make your first team',
-    );
-    const slim = sidebar(sidebarTeams(), true);
+  it('offers a first team when there is none, and names rows when slim', () => {
+    expect(rows(sidebarTeams({ teams: [] }))).toContain('Make your first team');
+    const slim = rows(sidebarTeams(), true);
     expect(slim).toContain('aria-label="Launch crew"');
-    expect(slim).not.toContain('Make your first team');
+    expect(rows(sidebarTeams({ teams: [] }), true)).toBe('');
   });
 
   it('is absent when the host passes no teams', () => {

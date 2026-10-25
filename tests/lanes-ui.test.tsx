@@ -637,17 +637,19 @@ describe('the sidebar', () => {
   });
 
   it('renders nested rows with the child Dot and a pulse on running work', () => {
-    const html = renderToStaticMarkup(
-      <ThreadList
-        chats={chats}
-        dots={dots}
-        query=""
-        onSelect={() => {}}
-        onRename={async () => true}
-        onDelete={async () => true}
-        onExport={async () => {}}
-      />,
-    );
+    const list = (dotId: string) =>
+      renderToStaticMarkup(
+        <ThreadList
+          dotId={dotId}
+          chats={chats}
+          dots={dots}
+          onSelect={() => {}}
+          onRename={async () => true}
+          onDelete={async () => true}
+          onExport={async () => {}}
+        />,
+      );
+    const html = list('lead');
     expect(html).toContain('sb-chat-nested');
     expect(html).toContain('Hide 1 teammate chat of Chat parent');
     expect(html).toContain('sb-chat-pulse');
@@ -655,19 +657,10 @@ describe('the sidebar', () => {
     expect(html).toContain(
       'aria-label="Lead → Marketer: post, Marketer, work running"',
     );
-    // Searching lists everything flat.
-    const flat = renderToStaticMarkup(
-      <ThreadList
-        chats={chats}
-        dots={dots}
-        query="chat"
-        onSelect={() => {}}
-        onRename={async () => true}
-        onDelete={async () => true}
-        onExport={async () => {}}
-      />,
-    );
-    expect(flat).not.toContain('sb-chat-nested');
+    // In the teammate's own list the chat stands at the top, without its Dot named again.
+    const own = list('marketer');
+    expect(own).toContain('aria-label="Lead → Marketer: post, work running"');
+    expect(own).not.toContain('Chat parent');
   });
 
   it('reads each Dot’s live state from mission control', () => {

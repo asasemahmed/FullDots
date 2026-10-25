@@ -2614,6 +2614,15 @@ h3 {
 .template-app .pause-button {
   font-size: 12px;
 }
+/* The Computer button in the top bar: pressed while the panel on the right is open. */
+.template-app .computer-toggle {
+  padding: 5px 9px;
+  border-radius: 7px;
+}
+.template-app .computer-toggle.on {
+  background: var(--teal-50);
+  color: var(--teal-ink);
+}
 .template-app .chat-workspace {
   height: calc(100dvh - 64px);
   min-height: 0;
