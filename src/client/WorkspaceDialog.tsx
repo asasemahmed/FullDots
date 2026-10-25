@@ -14,6 +14,7 @@ import {
   NotebookPen,
   ListChecks,
   Plug,
+  Radio,
   Users,
   Monitor,
   Moon,
@@ -28,6 +29,7 @@ import { api } from './api';
 import { parseToolkitField } from '../shared/composio';
 import { ComposioAccounts } from './ComposioAccounts';
 import { ConnectorsSettings } from './ConnectorsSettings';
+import { ChannelsSettings } from './ChannelsSettings';
 import {
   ApprovalModeField,
   DotConnectorGrants,
@@ -68,11 +70,12 @@ export type Dialog =
   | { type: 'memory'; memory?: Memory }
   | { type: 'schedule'; threadId: string };
 export type SettingsTab =
-  'general' | 'models' | 'connectors' | 'prompts' | 'about';
+  'general' | 'models' | 'connectors' | 'channels' | 'prompts' | 'about';
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'models', label: 'Models', icon: Cpu },
   { id: 'connectors', label: 'Connectors', icon: Plug },
+  { id: 'channels', label: 'Channels', icon: Radio },
   { id: 'prompts', label: 'Prompts', icon: Bookmark },
   { id: 'about', label: 'About', icon: Info },
 ];
@@ -457,11 +460,13 @@ export function WorkspaceDialog({
   // The models and connectors tabs mount on first visit and then stay, so a sign-in in
   // progress (or a half-typed key) survives a tab switch.
   const [connectorsSeen, setConnectorsSeen] = useState(tab === 'connectors');
+  const [channelsSeen, setChannelsSeen] = useState(tab === 'channels');
   const [modelsSeen, setModelsSeen] = useState(tab === 'models');
   const [promptsSeen, setPromptsSeen] = useState(tab === 'prompts');
   const selectTab = (next: SettingsTab) => {
     setTab(next);
     if (next === 'connectors') setConnectorsSeen(true);
+    if (next === 'channels') setChannelsSeen(true);
     if (next === 'models') setModelsSeen(true);
     if (next === 'prompts') setPromptsSeen(true);
     storeTab(next);
@@ -1291,6 +1296,20 @@ export function WorkspaceDialog({
                     hidden={tab !== 'connectors'}
                   >
                     {connectorsSeen && <ConnectorsSettings />}
+                  </div>
+                  <div
+                    className="ss-panel"
+                    role="tabpanel"
+                    id="settings-panel-channels"
+                    aria-labelledby="settings-tab-channels"
+                    hidden={tab !== 'channels'}
+                  >
+                    {channelsSeen && (
+                      <ChannelsSettings
+                        dots={workspace.dots}
+                        active={tab === 'channels'}
+                      />
+                    )}
                   </div>
                   <div
                     className="ss-panel"
