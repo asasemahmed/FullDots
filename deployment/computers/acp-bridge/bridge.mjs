@@ -1,11 +1,28 @@
 import { spawn } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
-import { access, cp, mkdir, rename, rm } from 'node:fs/promises';
+import { access, cp, mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  assertManagedSettings,
+  assertPrivateEntry,
+  assertPrivateStorage,
+  codingEnvironment,
+  codingPaths,
+} from './storage.mjs';
+import { hardenAdapter } from './harden-adapter.mjs';
 
 const MAX_BYTES = 1024 * 1024;
 const MAX_BACKLOG = 2 * MAX_BYTES;
+const safeReasons = new Set([
+  'Coding adapter installation failed.',
+  'Coding adapter installation timed out.',
+  'Coding storage must stay outside the computer Files root.',
+  'Coding storage resolves inside the computer Files root.',
+  'Coding adapter resolves inside the computer Files root.',
+  'Coding managed settings are missing or unsafe.',
+  'Pinned adapter settings loader changed; review before installing.',
+]);
 const PROVIDERS = {
   claude: {
     version: '0.95.0',
@@ -15,7 +32,7 @@ const PROVIDERS = {
 
 export function authenticated(headers, token, dotId) {
   const offered = Buffer.from(headers.get('x-openbot-computer-token') ?? '');
-  const expected = Buffer.from(token ?? '');
+  const expected = Buffer.from(token?.trim() ?? '');
   return (
     expected.length >= 24 &&
     offered.length === expected.length &&
@@ -36,16 +53,10 @@ function kill(child) {
 
 export function withAcpBridge(upstream) {
   const workspace = process.env.WORKSPACE_DIR || '/workspace';
-  const home = join(workspace, '.coding-home');
+  const paths = codingPaths(workspace, process.env.PROFILES_DIR || '/profiles');
+  const { cache } = paths;
   const provider = PROVIDERS.claude;
-  const cache = join(workspace, '.coding-agents', `claude-${provider.version}`);
-  const env = {
-    PATH: process.env.PATH,
-    HOME: home,
-    CLAUDE_CONFIG_DIR: join(home, '.claude'),
-    LANG: 'C.UTF-8',
-    TERM: 'xterm-256color',
-  };
+  const env = codingEnvironment(paths);
   let active;
   let installing;
 
@@ -60,10 +71,13 @@ export function withAcpBridge(upstream) {
   async function install() {
     if (installing) return installing;
     installing = (async () => {
-      await mkdir(home, { recursive: true });
+      await assertPrivateStorage(paths);
       try {
-        await access(join(cache, '.complete'));
-        return;
+        if (
+          (await readFile(join(cache, '.complete'), 'utf8')) ===
+          '0.95.0-managed-v1'
+        )
+          return;
       } catch {
         /* Install only complete caches. */
       }
@@ -76,9 +90,17 @@ export function withAcpBridge(upstream) {
       await new Promise((resolve, reject) => {
         const child = spawn(
           'npm',
-          ['ci', '--prefix', staging, '--omit=dev', '--no-audit', '--no-fund'],
+          [
+            'ci',
+            '--prefix',
+            staging,
+            '--omit=dev',
+            '--ignore-scripts',
+            '--no-audit',
+            '--no-fund',
+          ],
           {
-            cwd: workspace,
+            cwd: paths.root,
             env,
             stdio: 'ignore',
             detached: true,
@@ -86,21 +108,22 @@ export function withAcpBridge(upstream) {
         );
         const timeout = setTimeout(() => {
           kill(child);
-          reject(new Error('Adapter installation timed out.'));
+          reject(new Error('Coding adapter installation timed out.'));
         }, 180_000);
         child.once('error', () => {
           clearTimeout(timeout);
-          reject(new Error('Adapter installation failed.'));
+          reject(new Error('Coding adapter installation failed.'));
         });
         child.once('exit', (code) => {
           clearTimeout(timeout);
           code === 0
             ? resolve()
-            : reject(new Error('Adapter installation failed.'));
+            : reject(new Error('Coding adapter installation failed.'));
         });
       });
       await access(join(staging, 'node_modules', provider.entry));
-      await Bun.write(join(staging, '.complete'), provider.version);
+      await hardenAdapter(staging);
+      await Bun.write(join(staging, '.complete'), '0.95.0-managed-v1');
       await rm(cache, { recursive: true, force: true });
       await rename(staging, cache);
     })();
@@ -114,8 +137,14 @@ export function withAcpBridge(upstream) {
   const bridge = {
     async open(socket) {
       try {
+        await assertPrivateStorage(paths);
+        await assertManagedSettings();
         await install();
         if (socket.data.closed) return;
+        await assertPrivateEntry(
+          paths,
+          join(cache, 'node_modules', provider.entry),
+        );
         const child = spawn(
           'node',
           [join(cache, 'node_modules', provider.entry)],
@@ -142,8 +171,14 @@ export function withAcpBridge(upstream) {
         );
         child.once('exit', () => end(socket, 1000, 'Coding worker stopped.'));
         socket.send(JSON.stringify({ bridgeReady: true }));
-      } catch {
-        end(socket, 1011, 'Coding adapter installation failed.');
+      } catch (error) {
+        end(
+          socket,
+          1011,
+          error instanceof Error && safeReasons.has(error.message)
+            ? error.message
+            : 'Coding adapter installation failed.',
+        );
       }
     },
     message(socket, message) {
@@ -168,6 +203,7 @@ export function withAcpBridge(upstream) {
     ...upstream,
     websocket: {
       ...upstream.websocket,
+      maxPayloadLength: MAX_BYTES,
       open(socket) {
         return socket.data.acp
           ? bridge.open(socket)

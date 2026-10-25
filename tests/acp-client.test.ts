@@ -29,6 +29,47 @@ it('initializes an in-process agent, selects default mode, streams text, and clo
   expect(session).toHaveBeenCalledWith('fixture-session');
   expect(update.mock.calls[0][0].update.content.text).toContain('Working');
   expect(response.stopReason).toBe('end_turn');
+  expect(fake.state.sessionMeta).toMatchObject({
+    claudeCode: {
+      options: { settingSources: [], allowDangerouslySkipPermissions: false },
+    },
+  });
+});
+
+it.each(['acceptEdits', 'plan', 'auto', 'bypassPermissions'])(
+  'cancels a worker that reports current mode %s',
+  async (modeUpdate) => {
+    const fake = fakeCodingAgent({ modeUpdate, waitForCancel: true });
+    await expect(
+      runAcp({
+        target: fake.app,
+        provider: 'claude',
+        task: 'Task',
+        signal: new AbortController().signal,
+        permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        update: () => {},
+        session: () => {},
+      }),
+    ).rejects.toThrow('left default permission mode');
+    expect(fake.state.cancelled).toBe(1);
+  },
+);
+
+it('refuses a session that starts outside default mode before sending a prompt', async () => {
+  const fake = fakeCodingAgent({ initialMode: 'acceptEdits' });
+  await expect(
+    runAcp({
+      target: fake.app,
+      provider: 'claude',
+      task: 'Task',
+      signal: new AbortController().signal,
+      permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+      update: () => {},
+      session: () => {},
+    }),
+  ).rejects.toThrow('left default permission mode');
+  expect(fake.state.prompted).toBe(false);
+  expect(fake.state.cancelled).toBe(1);
 });
 
 it.each(['new', 'prompt'] as const)(
@@ -51,6 +92,23 @@ it.each(['new', 'prompt'] as const)(
     ).toBe(false);
   },
 );
+
+it('remembers a non-default mode notification sent before session/new returns', async () => {
+  const fake = fakeCodingAgent({ earlyModeUpdate: 'acceptEdits' });
+  await expect(
+    runAcp({
+      target: fake.app,
+      provider: 'claude',
+      task: 'Task',
+      signal: new AbortController().signal,
+      permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+      update: () => {},
+      session: () => {},
+    }),
+  ).rejects.toThrow('left default permission mode');
+  expect(fake.state.prompted).toBe(false);
+  expect(fake.state.cancelled).toBe(1);
+});
 
 it('cancels the protocol session before closing on abort', async () => {
   const fake = fakeCodingAgent({ waitForCancel: true });

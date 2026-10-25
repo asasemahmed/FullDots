@@ -26,5 +26,6 @@ EXPOSE 4100
 HEALTHCHECK --interval=2s --timeout=3s --start-period=2s --retries=30 \
   CMD bun -e "const r = await fetch('http://localhost:4100/health'); process.exit(r.ok ? 0 : 1)"
 COPY deployment/computers/acp-bridge /app/acp-bridge
+COPY --chown=0:0 --chmod=0444 deployment/computers/acp-bridge/managed-settings.json /etc/claude-code/managed-settings.json
 RUN node /app/acp-bridge/patch.mjs /app/src/index.ts
 CMD ["bun", "src/index.ts"]

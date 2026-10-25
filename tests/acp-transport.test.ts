@@ -80,6 +80,21 @@ it('refuses malformed bridge readiness and closes the socket', async () => {
   await vi.waitFor(() => expect(wss.clients.size).toBe(0));
 });
 
+it('keeps a safe bridge installation reason and removes reflected unknown messages', async () => {
+  for (const reason of [
+    'Coding adapter installation timed out.',
+    'reflected-private-fixture',
+  ]) {
+    const { wss, target } = await server();
+    wss.on('connection', (ws) => ws.close(1011, reason));
+    await expect(
+      connectCodingBridge(target, new AbortController().signal),
+    ).rejects.toThrow(
+      reason.startsWith('Coding') ? reason : 'Coding bridge is unavailable.',
+    );
+  }
+});
+
 it('cancels a connection waiting for adapter installation', async () => {
   const { wss, target } = await server();
   const abort = new AbortController();

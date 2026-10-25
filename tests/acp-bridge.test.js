@@ -15,6 +15,7 @@ it('requires both the existing credential and the exact Dot identity', () => {
     'x-openbot-bot-id': 'dot-a',
   });
   expect(authenticated(headers, token, 'dot-a')).toBe(true);
+  expect(authenticated(headers, `  ${token}\n`, 'dot-a')).toBe(true);
   expect(authenticated(headers, token, 'dot-b')).toBe(false);
   expect(authenticated(headers, `${token}-wrong`, 'dot-a')).toBe(false);
   expect(authenticated(new Headers(), token, 'dot-a')).toBe(false);
@@ -34,6 +35,7 @@ it('preserves the existing HTTP and screen handlers', async () => {
     websocket: { open: vi.fn(), message: vi.fn(), close: vi.fn() },
   };
   const bridge = withAcpBridge(upstream);
+  expect(bridge.websocket.maxPayloadLength).toBe(1024 * 1024);
   const socket = { data: { botId: 'dot-a' } };
   expect(
     await (

@@ -56,6 +56,7 @@ import type {
   RequestPermissionResponse,
 } from '@agentclientprotocol/sdk';
 import type { WorkspaceStore } from './workspace.js';
+import { unsafePermissionOption } from './agents/acp-policy.js';
 
 export type { GateComputer };
 
@@ -69,18 +70,27 @@ export async function codingPermission(
     signal: AbortSignal;
     redact: (text: string) => string;
     timeoutMs?: number;
+    modes?: readonly string[];
   },
   request: RequestPermissionRequest,
 ): Promise<RequestPermissionResponse> {
   const deny = (): RequestPermissionResponse => {
-    const option = request.options.find((item) => item.kind === 'reject_once');
+    const option = request.options.find(
+      (item) =>
+        item.kind === 'reject_once' &&
+        !unsafePermissionOption(item.optionId, deps.modes),
+    );
     return {
       outcome: option
         ? { outcome: 'selected', optionId: option.optionId }
         : { outcome: 'cancelled' },
     };
   };
-  const allow = request.options.find((item) => item.kind === 'allow_once');
+  const allow = request.options.find(
+    (item) =>
+      item.kind === 'allow_once' &&
+      !unsafePermissionOption(item.optionId, deps.modes),
+  );
   if (deps.signal.aborted) return deny();
   const title = deps
     .redact(request.toolCall.title ?? 'Coding agent action')

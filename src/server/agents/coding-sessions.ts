@@ -1,10 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
+import { CodingTaskBusyError } from './acp-policy.js';
 
 export type CodingStatus =
   | 'running'
   | 'completed'
   | 'cancelled'
+  | 'timed_out'
   | 'failed'
   | 'authentication_required'
   | 'interrupted';
@@ -48,11 +50,22 @@ export class CodingSessions {
   }
   start(dotId: string, threadId: string, provider: string): CodingSession {
     const id = randomUUID();
-    this.db
-      .prepare(
-        "INSERT INTO coding_sessions(id,dotId,threadId,provider,status,createdAt) VALUES (?,?,?,?,'running',?)",
+    try {
+      this.db
+        .prepare(
+          "INSERT INTO coding_sessions(id,dotId,threadId,provider,status,createdAt) VALUES (?,?,?,?,'running',?)",
+        )
+        .run(id, dotId, threadId, provider, Date.now());
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes(
+          'UNIQUE constraint failed: coding_sessions.dotId',
+        )
       )
-      .run(id, dotId, threadId, provider, Date.now());
+        throw new CodingTaskBusyError();
+      throw error;
+    }
     return this.get(id)!;
   }
   attach(id: string, agentSessionId: string) {

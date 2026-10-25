@@ -569,10 +569,12 @@ export class DotAgent extends AbstractAgent {
                   threadId: input.threadId,
                   signal: controller.signal,
                   check,
-                  progress: (text) => {
-                    for (const event of messages.notice(text))
-                      subscriber.next(event);
-                  },
+                  progress: (value) =>
+                    subscriber.next({
+                      type: EventType.CUSTOM,
+                      name: 'coding_agent_progress',
+                      value,
+                    } as BaseEvent),
                 })),
               );
             check();

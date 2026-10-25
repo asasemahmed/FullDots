@@ -8,6 +8,7 @@ import {
   type CodingToolDeps,
 } from '../src/server/agents/coding-tools.js';
 import { runAcp } from '../src/server/agents/acp-client.js';
+import { CodingBridgeError } from '../src/server/agents/acp-policy.js';
 import { computerFixture } from './fixtures/fake-computer.js';
 import { fakeCodingAgent } from './fixtures/fake-coding-agent.js';
 
@@ -113,7 +114,7 @@ it.each(['approve', 'deny'] as const)(
     });
     expect(f.close).toHaveBeenCalled();
     expect(f.deps.progress).toHaveBeenCalledWith(
-      expect.stringContaining('Working on'),
+      expect.objectContaining({ text: expect.stringContaining('Working on') }),
     );
   },
 );
@@ -194,4 +195,114 @@ it('refuses a saved switch revoked after tool discovery', async () => {
   f.store.codingSessions.configure(f.id, false);
   await expect(tool.execute!({ task: 'Task' })).rejects.toThrow('disabled');
   expect(f.store.codingSessions.list(f.id)).toEqual([]);
+});
+
+it.each([
+  'acceptEdits',
+  'plan',
+  'auto',
+  'bypassPermissions',
+  'exit-plan-auto',
+  'exit-plan-clear-auto',
+  'custom-mode',
+])(
+  'denies a mode-changing allow_once option %s even after owner approval',
+  async (optionId) => {
+    const f = fixture({
+      permission: true,
+      modes: ['default', 'custom-mode'],
+      permissionOptions: [
+        { optionId, name: 'Approve', kind: 'allow_once' },
+        { optionId: 'deny', name: 'Deny', kind: 'reject_once' },
+      ],
+    });
+    f.store.codingSessions.configure(f.id, true);
+    const [tool] = await codingTools(f.deps);
+    const running = tool.execute!({ task: 'Task' });
+    await vi.waitFor(() =>
+      expect(f.workspace.approvals.list()).toHaveLength(1),
+    );
+    f.deps.approvals.decide(f.workspace.approvals.list()[0].id, 'approve');
+    await running;
+    expect(f.fake.state.outcome).toEqual({
+      outcome: { outcome: 'selected', optionId: 'deny' },
+    });
+  },
+);
+
+it('denies an approved allow_always-only request', async () => {
+  const f = fixture({
+    permission: true,
+    permissionOptions: [
+      { optionId: 'always', name: 'Always allow', kind: 'allow_always' },
+    ],
+  });
+  f.store.codingSessions.configure(f.id, true);
+  const [tool] = await codingTools(f.deps);
+  const running = tool.execute!({ task: 'Task' });
+  await vi.waitFor(() => expect(f.workspace.approvals.list()).toHaveLength(1));
+  f.deps.approvals.decide(f.workspace.approvals.list()[0].id, 'approve');
+  await running;
+  expect(f.fake.state.outcome).toEqual({ outcome: { outcome: 'cancelled' } });
+});
+
+it('returns a clear result for a second task for the same Dot', async () => {
+  const f = fixture();
+  f.store.codingSessions.configure(f.id, true);
+  f.store.codingSessions.start(f.id, f.deps.threadId, 'claude');
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toEqual({
+    status: 'busy',
+    message: 'A coding task is already running for this Dot.',
+  });
+});
+
+it('distinguishes the task timeout from owner cancellation', async () => {
+  const f = fixture({ waitForCancel: true });
+  f.store.codingSessions.configure(f.id, true);
+  f.deps.timeoutMs = 100;
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'timed_out',
+    message: expect.stringContaining('timed out'),
+  });
+  expect(f.store.codingSessions.list(f.id)[0].status).toBe('timed_out');
+});
+
+it('reports the bridge install reason', async () => {
+  const f = fixture();
+  f.store.codingSessions.configure(f.id, true);
+  f.deps.connect = async () => {
+    throw new CodingBridgeError('Coding adapter installation failed.');
+  };
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'failed',
+    message: 'Coding adapter installation failed.',
+  });
+});
+
+it('denies a pending approval when a mode violation closes its session', async () => {
+  const f: ReturnType<typeof fixture> = fixture({
+    permission: true,
+    modeUpdate: 'acceptEdits',
+    beforeModeUpdate: async () => {
+      await vi.waitFor(() =>
+        expect(f.workspace.approvals.list({ status: 'pending' })).toHaveLength(
+          1,
+        ),
+      );
+    },
+  });
+  f.store.codingSessions.configure(f.id, true);
+  const [tool] = await codingTools(f.deps);
+  await expect(tool.execute!({ task: 'Task' })).resolves.toMatchObject({
+    status: 'failed',
+    message: expect.stringContaining('left default permission mode'),
+  });
+  await vi.waitFor(() =>
+    expect(f.workspace.approvals.list({ status: 'pending' })).toHaveLength(0),
+  );
+  expect(f.workspace.approvals.list()[0].status).toBe('denied');
+  expect(f.workspace.resumes.all()).toEqual([]);
 });

@@ -4,6 +4,15 @@ import type { Store } from '../store.js';
 import type { WorkspaceStore } from '../workspace.js';
 import type { ComputerService } from '../computer-service.js';
 import type { ApprovalService } from '../approval-service.js';
+import {
+  codingProgress,
+  type CodingProgressSnapshot,
+} from './coding-progress.js';
+import {
+  CodingBridgeError,
+  CodingModeError,
+  CodingTaskBusyError,
+} from './acp-policy.js';
 import { codingPermission, type HandoffStarter } from '../approval-gate.js';
 import {
   authenticationRequired,
@@ -22,7 +31,8 @@ export interface CodingToolDeps {
   threadId: string;
   signal: AbortSignal;
   check: () => void;
-  progress: (text: string) => void;
+  progress: (value: CodingProgressSnapshot) => void;
+  timeoutMs?: number;
   connect?: typeof connectCodingBridge;
   run?: (options: AcpRunOptions) => ReturnType<typeof runAcp>;
 }
@@ -54,24 +64,27 @@ export async function codingTools(deps: CodingToolDeps) {
         if (!store.codingSessions.enabled(dotId))
           throw new Error('Coding agents are disabled.');
         const controller = new AbortController();
+        const timeout = AbortSignal.timeout(deps.timeoutMs ?? 600_000);
         const signal = AbortSignal.any([
           deps.signal,
           controller.signal,
-          AbortSignal.timeout(600_000),
+          timeout,
         ]);
         const target = await deps.computer.codingTarget(dotId, signal);
-        const session = store.codingSessions.start(dotId, threadId, 'claude');
+        let session;
+        try {
+          session = store.codingSessions.start(dotId, threadId, 'claude');
+        } catch (error) {
+          if (error instanceof CodingTaskBusyError)
+            return { status: 'busy', message: error.message };
+          throw error;
+        }
+        const buffered = codingProgress(session.id, deps.progress);
         let bridge: Awaited<ReturnType<typeof connectCodingBridge>> | undefined;
         let checking = false;
         let result = '';
-        let streamed = 0;
         const progress = (text: string) => {
-          if (signal.aborted || streamed >= 40_000) return;
-          const safe = target
-            .redact(text)
-            .slice(0, Math.min(2000, 40_000 - streamed));
-          streamed += safe.length;
-          deps.progress(safe);
+          if (!signal.aborted) buffered.write(target.redact(text));
         };
         const watcher = setInterval(() => {
           try {
@@ -113,14 +126,15 @@ export async function codingTools(deps: CodingToolDeps) {
             task,
             signal,
             session: (id) => store.codingSessions.attach(session.id, id),
-            permission: (request) =>
+            permission: (request, modes, permissionSignal) =>
               codingPermission(
                 {
                   dotId,
                   threadId,
                   approvals: deps.approvals,
                   workspace,
-                  signal,
+                  signal: AbortSignal.any([signal, permissionSignal]),
+                  modes,
                   redact: target.redact,
                 },
                 request,
@@ -154,12 +168,16 @@ export async function codingTools(deps: CodingToolDeps) {
           };
         } catch (error) {
           if (signal.aborted) {
-            store.codingSessions.finish(session.id, 'cancelled');
+            const timedOut =
+              timeout.aborted && signal.reason === timeout.reason;
+            store.codingSessions.finish(
+              session.id,
+              timedOut ? 'timed_out' : 'cancelled',
+            );
             return {
-              status: 'cancelled',
+              status: timedOut ? 'timed_out' : 'cancelled',
               codingSessionId: session.id,
-              message:
-                'Coding work stopped. Review the workspace before retrying; completed edits are retained.',
+              message: `Coding work ${timedOut ? 'timed out' : 'stopped'}. Review the workspace before retrying; completed edits are retained.`,
             };
           }
           if (authenticationRequired(error)) {
@@ -183,11 +201,17 @@ export async function codingTools(deps: CodingToolDeps) {
             status: 'failed',
             codingSessionId: session.id,
             message:
-              'The coding worker could not finish. Check that the computer image includes the coding bridge. Review existing edits before retrying.',
+              error instanceof CodingBridgeError ||
+              error instanceof CodingModeError
+                ? error.message
+                : 'The coding worker could not finish. Check that the computer image includes the coding bridge. Review existing edits before retrying.',
           };
         } finally {
           clearInterval(watcher);
           bridge?.close();
+          buffered.finish(
+            store.codingSessions.get(session.id)?.status ?? 'failed',
+          );
         }
       },
     }),

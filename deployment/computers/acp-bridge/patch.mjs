@@ -9,7 +9,7 @@ export function addCodingBridge(source) {
       throw new Error(
         'Pinned computer server changed; review the coding bridge patch.',
       );
-  return `import { withAcpBridge } from "../acp-bridge/bridge.mjs";\n${source.replace(start, 'serve<StreamData>(withAcpBridge({').replace(end, '  },\n}));\n\ntype ActionBody = {')}`;
+  return `import { withAcpBridge } from "../acp-bridge/bridge.mjs";\nimport { prepareCodingStorage } from "../acp-bridge/storage.mjs";\nawait prepareCodingStorage();\n${source.replace(start, 'serve<StreamData>(withAcpBridge({').replace(end, '  },\n}));\n\ntype ActionBody = {')}`;
 }
 
 if (

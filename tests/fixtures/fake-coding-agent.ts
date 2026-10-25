@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   RequestError,
   type RequestPermissionResponse,
+  type PermissionOption,
 } from '@agentclientprotocol/sdk';
 
 export function fakeCodingAgent(
@@ -12,6 +13,12 @@ export function fakeCodingAgent(
     permission?: boolean;
     waitForCancel?: boolean;
     wrongPermissionSession?: boolean;
+    initialMode?: string;
+    modeUpdate?: string;
+    earlyModeUpdate?: string;
+    beforeModeUpdate?: () => Promise<void>;
+    permissionOptions?: PermissionOption[];
+    modes?: string[];
   } = {},
 ) {
   const state = {
@@ -20,6 +27,7 @@ export function fakeCodingAgent(
     cancelled: 0,
     prompted: false,
     outcome: undefined as RequestPermissionResponse | undefined,
+    sessionMeta: undefined as unknown,
   };
   let finish = () => {};
   const waiting = new Promise<void>((resolve) => {
@@ -36,15 +44,32 @@ export function fakeCodingAgent(
         agentInfo: { name: 'fixture', version: '1' },
       };
     })
-    .onRequest(methods.agent.session.new, ({ params }) => {
+    .onRequest(methods.agent.session.new, async ({ params, client }) => {
+      state.sessionMeta = params._meta;
       if (params.cwd !== '/workspace' || params.mcpServers.length)
         throw new Error('Unexpected session scope.');
       if (options.authAt === 'new') throw RequestError.authRequired();
+      if (options.earlyModeUpdate)
+        await client.notify(methods.client.session.update, {
+          sessionId: 'fixture-session',
+          update: {
+            sessionUpdate: 'current_mode_update',
+            currentModeId: options.earlyModeUpdate,
+          },
+        });
       return {
         sessionId: 'fixture-session',
         modes: {
-          currentModeId: 'default',
-          availableModes: [{ id: 'default', name: 'Manual' }],
+          currentModeId: options.initialMode ?? 'default',
+          availableModes: (
+            options.modes ?? [
+              'default',
+              'acceptEdits',
+              'plan',
+              'auto',
+              'bypassPermissions',
+            ]
+          ).map((id) => ({ id, name: id })),
         },
       };
     })
@@ -62,8 +87,8 @@ export function fakeCodingAgent(
           content: { type: 'text', text: 'Working on the change.\n' },
         },
       });
-      if (options.permission)
-        state.outcome = await client.request(
+      if (options.permission) {
+        const pending = client.request(
           methods.client.session.requestPermission,
           {
             sessionId: options.wrongPermissionSession
@@ -78,7 +103,7 @@ export function fakeCodingAgent(
               },
               locations: [{ path: '/workspace/result.txt' }],
             },
-            options: [
+            options: options.permissionOptions ?? [
               { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
               {
                 optionId: 'always',
@@ -89,6 +114,26 @@ export function fakeCodingAgent(
             ],
           },
         );
+        if (options.modeUpdate) {
+          await options.beforeModeUpdate?.();
+          await client.notify(methods.client.session.update, {
+            sessionId: 'fixture-session',
+            update: {
+              sessionUpdate: 'current_mode_update',
+              currentModeId: options.modeUpdate,
+            },
+          });
+        }
+        state.outcome = await pending;
+      }
+      if (options.modeUpdate && !options.permission)
+        await client.notify(methods.client.session.update, {
+          sessionId: 'fixture-session',
+          update: {
+            sessionUpdate: 'current_mode_update',
+            currentModeId: options.modeUpdate,
+          },
+        });
       if (options.waitForCancel) {
         signal.addEventListener('abort', finish, { once: true });
         await waiting;
