@@ -1,0 +1,11 @@
+{
+  "$comment": "High or critical advisories the CI audit accepts for now (scripts/audit.mjs). Each entry says why and until when; past reviewBy it fails again. Remove an entry as soon as a fixed version can be installed.",
+  "allow": [
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "Fixed only in zod 4.6.6; FullDots itself uses zod 4.6.7. The vulnerable zod 3.25.76 copies are nested inside @ag-ui/client, @ag-ui/proto, @a2ui/web_core and @copilotkit packages, which require zod 3, and forcing zod 4 into them breaks the build. They validate AG-UI events from FullDots' own server and model streams, whose sizes are already bounded.",
+      "reviewBy": "2027-01-31"
+    }
+  ]
+}

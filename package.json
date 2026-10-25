@@ -12,6 +12,7 @@
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node --env-file-if-exists=.env dist/server/server/index.js",
     "smoke": "node scripts/smoke.mjs",
+    "audit:ci": "node scripts/audit.mjs",
     "bench:team": "node --import tsx scripts/team-bench.ts",
     "brand": "node --import tsx scripts/brand-art.ts",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
