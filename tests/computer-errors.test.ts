@@ -4,7 +4,10 @@ import { computerRoutes } from '../src/server/computer-routes.js';
 import { ComputerService } from '../src/server/computer-service.js';
 import { WorkspaceStore } from '../src/server/workspace.js';
 import { ComputerError } from '../src/server/computer-errors.js';
-import { ComputerConflictError } from '../src/server/computer-conflict.js';
+import {
+  ComputerActionError,
+  ComputerConflictError,
+} from '../src/server/computer-conflict.js';
 import type { PlatformConfig } from '../src/server/platform-config.js';
 
 const stores: WorkspaceStore[] = [];
@@ -254,6 +257,23 @@ describe('computer routes error handling', () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain('out of date');
+  });
+
+  it('returns 502 with the reason when the computer refuses an action', async () => {
+    const { dot, computers, app } = createTestApp();
+    vi.spyOn(computers, 'action').mockRejectedValue(
+      new ComputerActionError(500, 'Navigation failed.'),
+    );
+    const res = await app.request(`/api/dots/${dot.id}/computer/actions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'read', input: {} }),
+    });
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe(
+      'Computer service returned HTTP 500. Navigation failed.',
+    );
   });
 
   it('returns 502 when supervisor reports an invalid endpoint', async () => {

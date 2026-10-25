@@ -3,7 +3,10 @@ import { z } from 'zod';
 import type { ComputerService } from './computer-service.js';
 import type { ComputerAction } from '../shared/computer-types.js';
 import { ComputerError } from './computer-errors.js';
-import { ComputerConflictError } from './computer-conflict.js';
+import {
+  ComputerActionError,
+  ComputerConflictError,
+} from './computer-conflict.js';
 export function computerRoutes(
   computers: ComputerService,
   options: { onRelease?: (dotId: string) => void } = {},
@@ -15,6 +18,11 @@ export function computerRoutes(
     }
     if (error instanceof ComputerConflictError) {
       return c.json({ error: error.message }, 409);
+    }
+    // The computer refused the action. Its reason is already redacted and capped, and the owner
+    // needs it to see what went wrong.
+    if (error instanceof ComputerActionError) {
+      return c.json({ error: error.message }, 502);
     }
     if (error instanceof z.ZodError) {
       return c.json({ error: 'Invalid computer request.' }, 400);
