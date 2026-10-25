@@ -33,7 +33,9 @@ const SHAPES: RegExp[] = [
   // Slack tokens and incoming webhooks.
   new RegExp(String.raw`${START}xox[abeoprs]-[A-Za-z0-9-]{10,}`, 'g'),
   new RegExp(String.raw`${START}xapp-\d-[A-Za-z0-9-]{10,}`, 'g'),
-  /hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]{16,}/g,
+  // A webhook is matched by its secret path, not its host: the host carries no secret, and a
+  // pattern that names a host reads to scanners as unanchored URL validation.
+  /\/services\/T[A-Z0-9]{6,}\/B[A-Z0-9]{6,}\/[A-Za-z0-9]{16,}/g,
   // Google.
   new RegExp(String.raw`${START}AIza[0-9A-Za-z_-]{35}`, 'g'),
   new RegExp(String.raw`${START}ya29\.[0-9A-Za-z_-]{20,}`, 'g'),
