@@ -48,6 +48,17 @@ The **How it signs in** column says how the preset connects:
 
 The **Token alternative** column names the environment variable for a token. For a browser sign-in preset, it is the option under **Use a token instead**. For a token preset, it is the variable the connector reads.
 
+## Discover servers
+
+**Discover** is the second tab on **Settings → Connectors**. It searches the public [MCP registry](https://registry.modelcontextprotocol.io) for servers you might connect to, and lists each result with its name, description, version and a link to its repository.
+
+- **Off by default.** Set `CONNECTORS_REGISTRY_SEARCH=true` in `.env` and restart FullDots to turn it on. While it is off, the tab explains how and shows no search box. The route answers `403` with a message that says how to turn it on.
+- **Your search text leaves this machine.** Each search sends the text you type to `registry.modelcontextprotocol.io`. The request carries only that text and the paging values the registry needs. It has no cookies, no account and no connector values. Leave the setting off if you do not want the text to leave the machine.
+- **The registry matches server names, not descriptions.** A search for "weather" finds `io.github.example/weather`, but not a server whose only mention of weather is in its description.
+- **It only lists.** Installing a server from Discover is not available yet. To add one, use **Custom connector** on the Connectors tab. The Remote and Local program badges say how the server runs: a hosted endpoint, or a program FullDots would start on this machine (which also needs `CONNECTORS_ALLOW_STDIO=true`).
+- **Results are cached for 24 hours** on the server, per search and page, so repeat searches do not query the registry again. The cache holds up to 200 searches and is cleared when FullDots restarts.
+- **Limits.** The registry is contacted with a 10-second timeout. An answer over 1 MB, a redirect, or an answer FullDots cannot read is refused, and the tab shows a short message.
+
 | Service           | How it signs in | Endpoint                                         | Token alternative       |
 | ----------------- | --------------- | ------------------------------------------------ | ----------------------- |
 | `github`          | Token in .env   | `https://api.githubcopilot.com/mcp/`             | `GITHUB_TOKEN`          |

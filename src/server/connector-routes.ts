@@ -8,6 +8,7 @@ import type { ConnectorAuthStore } from './connector-auth-store.js';
 import type { ConnectorStore } from './connector-store.js';
 import type { ConnectorRegistry } from './connectors.js';
 import type { WorkspaceStore } from './workspace.js';
+import { RegistryError, searchRegistry } from './registry-client.js';
 
 export interface ConnectorRoutesDeps {
   store: ConnectorStore;
@@ -16,7 +17,16 @@ export interface ConnectorRoutesDeps {
   /** Changing a connector's url or auth drops its stored authorization. */
   connectorAuth: Pick<ConnectorAuthStore, 'clear'>;
   allowStdio: boolean;
+  /** CONNECTORS_REGISTRY_SEARCH=true lets the Discover tab search the public registry. */
+  registrySearch?: boolean;
 }
+
+const REGISTRY_OFF =
+  'Searching the public MCP registry is off. Set CONNECTORS_REGISTRY_SEARCH=true on the server and restart FullDots to turn it on.';
+const registryQuery = z.object({
+  q: z.string().trim().min(1).max(100),
+  cursor: z.string().min(1).max(1000).optional(),
+});
 
 const MAX_GRANTS = 100;
 const MAX_TOOLS = 500;
@@ -97,10 +107,15 @@ const invalidMessage = (error: z.ZodError) =>
 
 export function connectorRoutes(deps: ConnectorRoutesDeps) {
   const { store, registry, workspace, connectorAuth, allowStdio } = deps;
+  const registrySearch = !!deps.registrySearch;
   const app = new Hono();
 
   // Every body goes through the registry's redaction: no resolved secret leaves this module.
-  const send = (c: Context, body: unknown, status: 200 | 201 | 400 | 404) =>
+  const send = (
+    c: Context,
+    body: unknown,
+    status: 200 | 201 | 400 | 403 | 404 | 502,
+  ) =>
     c.body(registry.redact(JSON.stringify(body)), status, {
       'Content-Type': 'application/json',
     });
@@ -129,10 +144,37 @@ export function connectorRoutes(deps: ConnectorRoutesDeps) {
   app.get('/connectors', (c) =>
     send(
       c,
-      { connectors: registry.views(), presets: connectorPresets, allowStdio },
+      {
+        connectors: registry.views(),
+        presets: connectorPresets,
+        allowStdio,
+        registrySearch,
+      },
       200,
     ),
   );
+
+  // Read-only: it lists servers and never installs one.
+  app.get('/connectors/registry/search', async (c) => {
+    if (!registrySearch) return send(c, { error: REGISTRY_OFF }, 403);
+    const parsed = registryQuery.safeParse({
+      q: c.req.query('q') ?? '',
+      cursor: c.req.query('cursor') || undefined,
+    });
+    if (!parsed.success)
+      return send(c, { error: 'Enter a search of 1 to 100 characters.' }, 400);
+    try {
+      return send(
+        c,
+        await searchRegistry(parsed.data.q, parsed.data.cursor),
+        200,
+      );
+    } catch (error) {
+      if (error instanceof RegistryError)
+        return send(c, { error: error.message }, 502);
+      throw error;
+    }
+  });
 
   app.get('/connectors/:id', (c) => {
     const view = registry.view(c.req.param('id'));
