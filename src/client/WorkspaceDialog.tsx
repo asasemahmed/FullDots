@@ -315,6 +315,11 @@ export function WorkspaceDialog({
       ? (dialog.dot?.approvalMode ?? 'sensitive')
       : 'sensitive',
   );
+  const [agentEndpoint, setAgentEndpoint] = useState(
+    dialog.type === 'dot' ? (dialog.dot?.agentEndpoint ?? '') : '',
+  );
+  const [agentAuth, setAgentAuth] = useState('');
+  const [clearAgentAuth, setClearAgentAuth] = useState(false);
   const [color, setColor] = useState<DotColor | null>(
     dialog.type === 'dot' ? (dialog.dot?.color ?? null) : null,
   );
@@ -611,6 +616,12 @@ export function WorkspaceDialog({
                 memoryAllowed: memory,
                 ...modelFields(modelChoice),
                 approvalMode,
+                agentEndpoint: agentEndpoint.trim() || null,
+                ...(agentAuth
+                  ? { agentAuth }
+                  : clearAgentAuth
+                    ? { agentAuth: null }
+                    : {}),
                 color,
                 species,
                 gear,
@@ -975,6 +986,71 @@ export function WorkspaceDialog({
                       </p>
                     </div>
                   )}
+                </DotSection>
+                <DotSection
+                  id="agent"
+                  icon={Settings2}
+                  title="Advanced"
+                  description="Use an agent you run yourself."
+                >
+                  <label className="dlg-label" htmlFor="agent-endpoint">
+                    Agent endpoint
+                  </label>
+                  <input
+                    id="agent-endpoint"
+                    className="dlg-input"
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={2000}
+                    placeholder="https://agent.example/ag-ui"
+                    value={agentEndpoint}
+                    onChange={(event) => setAgentEndpoint(event.target.value)}
+                  />
+                  <label className="dlg-label" htmlFor="agent-authorization">
+                    Authorization header
+                  </label>
+                  <input
+                    id="agent-authorization"
+                    className="dlg-input"
+                    type="password"
+                    autoComplete="new-password"
+                    maxLength={4000}
+                    placeholder={
+                      dialog.dot?.agentAuthSet && !clearAgentAuth
+                        ? 'A header is saved. Leave this blank to keep it.'
+                        : 'Optional'
+                    }
+                    value={agentAuth}
+                    onChange={(event) => {
+                      setAgentAuth(event.target.value);
+                      setClearAgentAuth(false);
+                    }}
+                  />
+                  <p className="dlg-hint">
+                    Optional. Sent only as the Authorization header. FullDots
+                    encrypts it and does not show it again.
+                  </p>
+                  {dialog.dot?.agentAuthSet && !clearAgentAuth && (
+                    <button
+                      type="button"
+                      className="dlg-hint"
+                      onClick={() => {
+                        setAgentAuth('');
+                        setClearAgentAuth(true);
+                      }}
+                    >
+                      Remove saved header
+                    </button>
+                  )}
+                  <p className="dlg-hint">
+                    When this is set, this Dot's turns go to that agent. A
+                    remote agent uses its own tools. FullDots' approval gate
+                    does not see them. Hand-offs, Spaces and the computer are
+                    FullDots tools, and this Dot does not use them while an
+                    agent endpoint is set.
+                  </p>
                 </DotSection>
               </>
             )}

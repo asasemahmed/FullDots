@@ -38,6 +38,10 @@ export interface PlatformConfig extends WebConfig {
   publicOrigin?: string;
   /** COMPOSIO_API_KEY. Absent means connected apps are not offered. */
   composioApiKey?: string;
+  /** Hosts from AGENT_ENDPOINT_ALLOWED_HOSTS. Exact host or host:port. */
+  agentEndpointAllowedHosts?: ReadonlySet<string>;
+  /** Test seam. Production uses the platform fetch. */
+  agentFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 /**
  * `modelReady` and `defaultModel` come from the model provider registry (a usable `.env` or stored

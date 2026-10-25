@@ -2,7 +2,7 @@ import { ApprovalStore } from './approval-store.js';
 import { ComputerStore } from './computer-store.js';
 import { ComputerFrameStore } from './computer-frames.js';
 import { ConnectorAuthStore } from './connector-auth-store.js';
-import { loadConnectorKey } from './connector-crypto.js';
+import { loadConnectorKey, open, seal } from './connector-crypto.js';
 import { ConnectorStore } from './connector-store.js';
 import { ModelProviderStore } from './model-provider-store.js';
 import { HandoffStore } from './handoff-store.js';
@@ -63,6 +63,7 @@ export interface DotLook {
 }
 export class WorkspaceStore {
   private db: DatabaseSync;
+  private readonly connectorKey: Buffer;
   readonly pages: Pages;
   /** Files kept in Spaces, beside the pages. */
   readonly spaceFiles: SpaceFiles;
@@ -131,6 +132,9 @@ export class WorkspaceStore {
       ['dots', 'composioPolicyHash', 'TEXT'],
       // A team chat names its team; every other conversation keeps NULL.
       ['thread_bindings', 'teamId', 'TEXT'],
+      // A remote AG-UI agent. The header is sealed; the public Dot never carries it.
+      ['dots', 'agentEndpoint', 'TEXT'],
+      ['dots', 'agentAuth', 'TEXT'],
     ]) {
       if (
         !this.db
@@ -159,6 +163,7 @@ export class WorkspaceStore {
     const connectorKey =
       options.connectorKey ??
       loadConnectorKey({ env: process.env, databasePath: path });
+    this.connectorKey = connectorKey;
     this.connectorAuth = new ConnectorAuthStore(this.db, connectorKey);
     this.modelProviders = new ModelProviderStore(this.db, connectorKey);
     this.approvals = new ApprovalStore(this.db);
@@ -236,9 +241,17 @@ export class WorkspaceStore {
             skillDeliveryEnabled: _skillDeliveryEnabled,
             composioSessionId: _composioSessionId,
             composioPolicyHash: _composioPolicyHash,
+            agentAuth,
+            agentEndpoint,
             ...row
           }) => ({
             ...knownLook(row),
+            ...(typeof agentEndpoint === 'string' && agentEndpoint
+              ? { agentEndpoint }
+              : {}),
+            ...(typeof agentAuth === 'string' && agentAuth
+              ? { agentAuthSet: true }
+              : {}),
             spaceIds: this.db
               .prepare(
                 'SELECT spaceId FROM dot_spaces WHERE dotId=? ORDER BY spaceId',
@@ -410,6 +423,46 @@ export class WorkspaceStore {
       throw error;
     }
     return this.dot(id)!;
+  }
+  /**
+   * Saves the agent address and, when `auth` is a string, seals the authorization header.
+   * `auth` undefined keeps the saved header. Null clears it. A null endpoint clears both.
+   */
+  setAgentEndpoint(
+    id: string,
+    endpoint: string | null,
+    auth: string | null | undefined,
+  ): Dot {
+    if (!this.dot(id)) throw new Error('Dot not found.');
+    const existing = this.db
+      .prepare('SELECT agentAuth FROM dots WHERE id=?')
+      .get(id) as { agentAuth: string | null } | undefined;
+    const sealed = !endpoint
+      ? null
+      : auth === undefined
+        ? (existing?.agentAuth ?? null)
+        : auth
+          ? seal(this.connectorKey, auth, `${id}:agentAuth`)
+          : null;
+    this.db
+      .prepare('UPDATE dots SET agentEndpoint=?, agentAuth=? WHERE id=?')
+      .run(endpoint, sealed, id);
+    return this.dot(id)!;
+  }
+  /** The authorization header for a dial, or undefined when none is saved. */
+  openAgentAuth(id: string): string | undefined {
+    const row = this.db
+      .prepare('SELECT agentAuth FROM dots WHERE id=?')
+      .get(id) as { agentAuth: string | null } | undefined;
+    if (!row?.agentAuth) return undefined;
+    return open(this.connectorKey, row.agentAuth, `${id}:agentAuth`);
+  }
+  /** True when a header is stored but cannot be opened with this key. */
+  agentAuthUnreadable(id: string): boolean {
+    const row = this.db
+      .prepare('SELECT agentAuth FROM dots WHERE id=?')
+      .get(id) as { agentAuth: string | null } | undefined;
+    return !!row?.agentAuth && !this.openAgentAuth(id);
   }
   /** Pauses or resumes one Dot: a paused Dot starts no turns and its background work waits. */
   setDotPaused(id: string, paused: boolean): Dot {

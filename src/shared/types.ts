@@ -238,6 +238,10 @@ export interface Dot {
   composioAllowed?: boolean;
   /** Toolkit slugs such as `gmail`. Empty means every toolkit in the Composio project. */
   composioToolkits?: string[];
+  /** An https AG-UI endpoint. When set, this Dot's turns go there instead of the built-in loop. */
+  agentEndpoint?: string;
+  /** True when an authorization header is saved. The value is never sent to the browser. */
+  agentAuthSet?: boolean;
 }
 export interface Conversation {
   id: string;
