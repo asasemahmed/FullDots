@@ -50,7 +50,7 @@ A teammate that stops to wait for you (an approval, a takeover, a question) does
 
 **When the results return** the band folds into one chip per teammate (**Show the work** opens it again), the **Delegated work** turn shows a card per teammate with a summary and **Show full result**, and the lead's combined answer below it says which teammates it was **Built from**.
 
-**Sidebar.** A teammate's chat sits under the chat that handed the work over (the arrow folds it), with the teammate's character. A small pulse marks any chat with work running in it or under it, and each Dot row says whether the Dot is **Working** or **Needs you**.
+**Sidebar.** In the lead's list of chats, a teammate's chat sits under the chat that handed the work over (the arrow folds it), with the teammate's character; it is also in the teammate's own list. A small pulse marks any chat with work running in it or under it, and each Dot row says whether the Dot is **Working** or **Needs you**.
 
 **Keyboard and screen readers.** Each lane is a focusable group named after its teammate and its state. On a focused lane, Enter opens or closes its chat, S stops it, and A moves to its approval buttons. Lane changes are announced politely, at most once every two seconds per lane. With reduced motion the packet, the pulses and the bobbing are off and every change is instant, still in words.
 
@@ -94,7 +94,7 @@ API: `GET`/`POST /api/conversations/:id/participants` (`{ dotId }`, the confirm)
 
 ## Named teams
 
-A named team is a lead Dot plus up to eight members, with a name, an emoji, a colour, a work style and a mode. Teams live in the sidebar's **Teams** section, between Dots and Spaces: each row shows the team's emoji and name, its members' characters (lead first, a little larger) and a pulse while any of them is working. **+** opens the team builder; a row's menu has **Start team chat**, **Edit team** and **Archive team**. A team's page (`#/team/<id>`) shows who does what, how the team works, its recent chats and runs, and **Start team chat**.
+A named team is a lead Dot plus up to eight members, with a name, an emoji, a colour, a work style and a mode. Teams live behind the **Teams** button in the sidebar footer: each row in its panel shows the team's emoji and name, its members' characters (lead first, a little larger) and a pulse while any of them is working. **+** opens the team builder; a row's menu has **Start team chat**, **Edit team** and **Archive team**. A team's page (`#/team/<id>`) shows who does what, how the team works, its recent chats and runs, and **Start team chat**.
 
 ### Building a team
 
