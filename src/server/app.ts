@@ -18,6 +18,7 @@ import { namedTeamRoutes } from './teams/named-team-routes.js';
 import { teamGroups } from './teams/team-groups.js';
 import { groupRoutes } from './group-routes.js';
 import { ruleRoutes } from './rule-routes.js';
+import { dotPackRoutes } from './dot-pack-routes.js';
 import { promptRoutes } from './prompt-routes.js';
 import { searchRoutes } from './search-routes.js';
 import { messageActionRoutes } from './message-action-routes.js';
@@ -286,6 +287,7 @@ export function createApp({
     );
   if (platform) app.route('/api', groupRoutes(platform));
   if (platform) app.route('/api', ruleRoutes(platform.workspace));
+  if (platform) app.route('/api', dotPackRoutes(platform.workspace));
   if (platform) {
     app.route(
       '/api',
