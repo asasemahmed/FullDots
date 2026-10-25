@@ -1,8 +1,10 @@
+import { constants } from 'node:fs';
 import {
   chmod,
   cp,
   lstat,
   mkdir,
+  open,
   readFile,
   realpath,
   rm,
@@ -68,17 +70,28 @@ export async function assertPrivateEntry(paths, entry) {
 export async function assertManagedSettings(
   path = '/etc/claude-code/managed-settings.json',
 ) {
+  // One handle for the checks and the read, so the file cannot be swapped in between.
+  // O_NOFOLLOW refuses a symlink outright.
+  let handle;
   try {
-    const info = await lstat(path);
+    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const info = await handle.stat();
+    // Where O_NOFOLLOW is missing, confirm the path is not a link and names the opened file.
+    const entry = await lstat(path);
+    if (
+      entry.isSymbolicLink() ||
+      entry.ino !== info.ino ||
+      entry.dev !== info.dev
+    )
+      throw new Error('Coding managed settings are missing or unsafe.');
     const parent = await stat(join(path, '..'));
     const expected = await readFile(
       new URL('./managed-settings.json', import.meta.url),
       'utf8',
     );
-    const actual = await readFile(path, 'utf8');
+    const actual = await handle.readFile('utf8');
     if (
       !info.isFile() ||
-      info.isSymbolicLink() ||
       info.uid !== 0 ||
       parent.uid !== 0 ||
       (info.mode & 0o022) !== 0 ||
@@ -88,6 +101,8 @@ export async function assertManagedSettings(
       throw new Error('Coding managed settings are missing or unsafe.');
   } catch {
     throw new Error('Coding managed settings are missing or unsafe.');
+  } finally {
+    await handle?.close();
   }
 }
 

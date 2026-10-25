@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { URL } from 'node:url';
 import {
+  assertManagedSettings,
   assertPrivateEntry,
   assertPrivateStorage,
   codingEnvironment,
@@ -168,4 +169,38 @@ it('ships a policy with no pre-allowed actions or untrusted hooks', async () => 
     'utf8',
   );
   expect(dockerfile).toContain('COPY --chown=0:0 --chmod=0444');
+});
+
+it('refuses managed settings that are missing, changed or a link', async () => {
+  const { root } = await fixture();
+  const message = 'Coding managed settings are missing or unsafe.';
+  await expect(
+    assertManagedSettings(join(root, 'missing.json')),
+  ).rejects.toThrow(message);
+
+  const changed = join(root, 'changed.json');
+  await writeFile(changed, '{"permissions":{"allow":["Bash"]}}');
+  await expect(assertManagedSettings(changed)).rejects.toThrow(message);
+
+  const real = join(root, 'real.json');
+  await writeFile(
+    real,
+    await readFile(
+      new URL(
+        '../deployment/computers/acp-bridge/managed-settings.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const link = join(root, 'link.json');
+  let linked = true;
+  try {
+    await symlink(real, link);
+  } catch {
+    // Creating symlinks needs extra rights on some Windows setups.
+    linked = false;
+  }
+  if (linked)
+    await expect(assertManagedSettings(link)).rejects.toThrow(message);
 });
