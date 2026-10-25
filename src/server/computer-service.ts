@@ -22,7 +22,9 @@ import {
   classifyConflict,
   failureReason,
 } from './computer-conflict.js';
+import { ComputerError } from './computer-errors.js';
 export { ComputerConflictError } from './computer-conflict.js';
+export { ComputerError } from './computer-errors.js';
 import { liveFrames, type LiveFrames } from './computer-frames.js';
 import { keyframeFromPng } from './frame-image.js';
 const stateSchema = z.object({
@@ -167,7 +169,7 @@ export class ComputerService {
   }
   private requireDot(id: string) {
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(id) || !this.workspace.dot(id))
-      throw new Error('Dot not found.');
+      throw new ComputerError(404, 'Dot not found.');
   }
   private allowed(
     id: string,
@@ -176,14 +178,14 @@ export class ComputerService {
   ) {
     this.requireDot(id);
     if (!this.configured)
-      throw new Error('Computer service is not configured.');
+      throw new ComputerError(503, 'Computer service is not configured.');
     const policy = this.workspace.computers.permissions(id);
     if (!policy.enabled || (kind && !policy[kind]))
-      throw new Error('Computer permission is disabled.');
+      throw new ComputerError(403, 'Computer permission is disabled.');
     if (actor === 'agent' && this.paused())
-      throw new Error('Agents are paused.');
+      throw new ComputerError(403, 'Agents are paused.');
     if (actor === 'agent' && this.workspace.dot(id)?.paused)
-      throw new Error('This Dot is paused.');
+      throw new ComputerError(403, 'This Dot is paused.');
   }
   private async json(
     url: string,
@@ -219,7 +221,10 @@ export class ComputerService {
         );
       }
       if (!response.body)
-        throw new Error('Computer service returned an empty response.');
+        throw new ComputerError(
+          502,
+          'Computer service returned an empty response.',
+        );
       const reader = response.body.getReader();
       let size = 0;
       const chunks: Uint8Array[] = [];
@@ -229,7 +234,10 @@ export class ComputerService {
         size += value.length;
         if (size > this.responseBytes) {
           await reader.cancel();
-          throw new Error('Computer response exceeded its size limit.');
+          throw new ComputerError(
+            502,
+            'Computer response exceeded its size limit.',
+          );
         }
         chunks.push(value);
       }
@@ -238,16 +246,22 @@ export class ComputerService {
       );
     } catch (error) {
       if (combined.aborted)
-        throw new Error('Computer request was cancelled or timed out.', {
-          cause: error,
-        });
+        throw new ComputerError(
+          502,
+          'Computer request was cancelled or timed out.',
+          {
+            cause: error,
+          },
+        );
       if (
         error instanceof ComputerConflictError ||
+        error instanceof ComputerError ||
         (error instanceof Error &&
           /^Computer (service returned|response exceeded)/.test(error.message))
       )
         throw error;
-      throw new Error(
+      throw new ComputerError(
+        502,
         'Computer service is unavailable or returned an invalid response.',
         { cause: error },
       );
@@ -277,10 +291,10 @@ export class ComputerService {
     const state = stateSchema.parse(raw);
     const ns = this.config.computerNamespace ?? 'opendots';
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(ns))
-      throw new Error('Invalid computer namespace.');
+      throw new ComputerError(503, 'Invalid computer namespace.');
     const expected = `${ns}-computer-${id}`;
     if (state.botId !== id || state.container !== expected)
-      throw new Error('Computer identity mismatch.');
+      throw new ComputerError(502, 'Computer identity mismatch.');
     const url = new URL(
       state.url ??
         (state.port
@@ -303,7 +317,10 @@ export class ComputerService {
       url.hash ||
       (!network && !local)
     )
-      throw new Error('Computer endpoint is not bound to this Dot.');
+      throw new ComputerError(
+        502,
+        'Computer endpoint is not bound to this Dot.',
+      );
     return url.origin;
   }
   private async existing(id: string, signal?: AbortSignal) {
@@ -315,7 +332,7 @@ export class ComputerService {
   private async running(id: string, signal?: AbortSignal) {
     const state = await this.existing(id, signal);
     if (!state || state.status !== 'running')
-      throw new Error('Start this Dot’s computer first.');
+      throw new ComputerError(409, 'Start this Dot’s computer first.');
     return this.endpoint(id, state);
   }
   async status(id: string): Promise<ComputerStatus> {
@@ -399,7 +416,7 @@ export class ComputerService {
   async stop(id: string) {
     await this.audited(id, 'stop', 'owner', async () => {
       if (!this.configured)
-        throw new Error('Computer service is not configured.');
+        throw new ComputerError(503, 'Computer service is not configured.');
       await this.supervisor(`/computers/${id}/stop`, {});
     });
     return this.status(id);
@@ -407,7 +424,7 @@ export class ComputerService {
   async control(id: string, verb: 'take' | 'release') {
     await this.audited(id, verb, 'owner', async () => {
       if (!this.configured)
-        throw new Error('Computer service is not configured.');
+        throw new ComputerError(503, 'Computer service is not configured.');
       if (verb === 'take') this.allowed(id, 'browser', 'owner');
       const url = await this.running(id);
       if (verb === 'take') this.allowed(id, 'browser', 'owner');
@@ -445,7 +462,7 @@ export class ComputerService {
           ),
         );
       if (!control.request)
-        throw new Error('There is no active control request.');
+        throw new ComputerError(409, 'There is no active control request.');
       await this.json(
         `${url}/control/${verb}`,
         this.token(id),
@@ -499,7 +516,7 @@ export class ComputerService {
   async cancelOwnerControl(id: string): Promise<ComputerControl> {
     return this.audited(id, 'cancel_control', 'owner', async () => {
       if (!this.configured)
-        throw new Error('Computer service is not configured.');
+        throw new ComputerError(503, 'Computer service is not configured.');
       const url = await this.running(id);
       const settle = async (verb: 'cancel' | 'release', requestId: string) => {
         try {
@@ -541,7 +558,7 @@ export class ComputerService {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (!Object.hasOwn(this.inputs, action))
-      throw new Error('Unknown computer action.');
+      throw new ComputerError(400, 'Unknown computer action.');
     const parsed = this.inputs[action].parse(input);
     return this.session(id, action, actor, signal, async (call) => {
       try {
@@ -583,7 +600,7 @@ export class ComputerService {
   ): Promise<T> {
     return this.audited(id, label, actor, async () => {
       if (actor === 'agent' && label.startsWith('human_'))
-        throw new Error('Human controls are owner-only.');
+        throw new ComputerError(403, 'Human controls are owner-only.');
       const kind = permissionKind(label);
       this.allowed(id, kind, actor);
       const cancellation = new AbortController();
@@ -601,9 +618,12 @@ export class ComputerService {
         let url: string | undefined;
         const call: ComputerSessionCall = async (action, input) => {
           if (!Object.hasOwn(this.inputs, action))
-            throw new Error('Unknown computer action.');
+            throw new ComputerError(400, 'Unknown computer action.');
           if (permissionKind(action) !== kind)
-            throw new Error('That call needs a different permission.');
+            throw new ComputerError(
+              403,
+              'That call needs a different permission.',
+            );
           const parsed = this.inputs[action].parse(input ?? {});
           url ??= await this.running(id, activeSignal);
           this.allowed(id, kind, actor);

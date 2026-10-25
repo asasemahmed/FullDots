@@ -10,6 +10,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- Computer actions now answer with the right status (403, 404, 409, 502, 503) instead of 400 for everything, and unhandled computer failures mask raw error details.
 - Browser search recognises Brave's current bot check ("Verifying you're not a bot"), which a new browser profile often sees. It used to be read as a results page with no results; now the search moves on to the next engine in `WEB_SEARCH_ENGINE`.
 
 ## 2.0.0 — the flock (2026-10-22)
