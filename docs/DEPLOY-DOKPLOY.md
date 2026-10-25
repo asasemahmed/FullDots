@@ -16,7 +16,7 @@ Only `app` is reachable from the internet, through Dokploy's proxy on your domai
 ## Before you start
 
 - **A server with Dokploy installed.** Any Linux VPS works (Ubuntu 24.04 is a good choice). Run Dokploy's one-line installer as root on a fresh server: `curl -sSL https://dokploy.com/install.sh | sh`, then open `http://<server-ip>:3000` and create the admin account.
-- **Size:** 2 vCPU and 4 GB RAM for FullDots without computers. With Dot computers, plan 8 GB RAM or more: each running computer gets up to 2 GB (`COMPUTER_MEMORY_BYTES`). Builds need about 10 GB of free disk.
+- **Size:** 2 vCPU and 4 GB RAM for FullDots without computers. With Dot computers, plan 8 GB RAM or more: each running computer gets up to 2 GB (`COMPUTER_MEMORY_BYTES`) and 2 CPUs (`COMPUTER_CPUS`). Builds need about 10 GB of free disk.
 - **A domain or subdomain** such as `dots.example.com`, with an `A` record pointing to the server's IP. Create the record before you add the domain in Dokploy, so the HTTPS certificate can be issued.
 - **The code on GitHub.** Dokploy builds what is on the branch you choose, so push your commits first.
 
