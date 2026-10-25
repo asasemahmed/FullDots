@@ -605,6 +605,9 @@ export class DotAgent extends AbstractAgent {
             });
             return chat({
               adapter,
+              // Keep the earlier request and validation behavior across the 1.0 upgrade.
+              promptCache: 'none',
+              repairToolInput: false,
               // Screenshots saved in earlier turns would otherwise be sent to the model again each time.
               messages: converted.messages.map((message) =>
                 message.role === 'tool' && typeof message.content === 'string'

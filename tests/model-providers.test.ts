@@ -390,6 +390,7 @@ describe('providerFetch and adapterFor', () => {
     const adapter = registry.adapterFor(resolved, 0);
     const stream = chat({
       adapter,
+      threadId: 'provider-stream-contract',
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { [resolved.maxTokensKey]: 321 },
     });
@@ -422,6 +423,7 @@ describe('providerFetch and adapterFor', () => {
     });
     const stream = chat({
       adapter: registry.adapterFor(resolved, 0),
+      threadId: 'keyless-provider-contract',
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: { [resolved.maxTokensKey]: 50 },
     });
