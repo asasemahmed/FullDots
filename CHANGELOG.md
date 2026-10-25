@@ -14,6 +14,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Changed
 
+- **FullDots now uses ag-ui 1.0, TanStack AI 1.0 and CopilotKit 1.80.** Shared protocol types use one version throughout the agent stack; streaming, approvals and saved conversations keep their existing behavior.
 - **Dot computers are limited to 2 CPUs.** The supervisor now sets a CPU limit on each computer next to its memory limit. Change it with `COMPUTER_CPUS` (a decimal such as `0.5` or `4`; `0` means no limit). A computer created earlier keeps its old limit until its container is removed (`docker rm -f opendots-computer-<dot id>`; its files and browser profile stay in volumes) and started again, and the supervisor image must be rebuilt once to pick the setting up. See [Dot computers](docs/COMPUTERS.md).
 
 ### Fixed

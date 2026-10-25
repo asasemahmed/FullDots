@@ -133,6 +133,36 @@ const chunks = (events: BaseEvent[]) =>
 const systemText = (request: Request) =>
   JSON.stringify(request.messages.filter((m: Request) => m.role === 'system'));
 
+it('keeps provider requests free of newly automatic prompt-cache fields', async () => {
+  const f = setup({ replies: [() => text('Hello.')] });
+  await f.run();
+  expect(f.requests).toHaveLength(1);
+  expect(f.requests[0].prompt_cache_key).toBeUndefined();
+  expect(f.requests[0].prompt_cache_retention).toBeUndefined();
+  expect(f.requests[0].messages.at(-1)).toMatchObject({
+    role: 'user',
+    content: 'Do the task.',
+  });
+});
+
+it('rejects an invalid tool input instead of repairing it into a page write', async () => {
+  const f = setup({
+    replies: [
+      () => toolCall('invalid-page', 'create_space_page', { title: 123 }),
+      () => text('The page input was invalid.'),
+    ],
+  });
+  const create = vi.spyOn(f.workspace.pages, 'create');
+  const events = await f.run();
+  expect(create).not.toHaveBeenCalled();
+  expect(f.requests).toHaveLength(2);
+  const result = events.find(
+    (event) => event.type === EventType.TOOL_CALL_RESULT,
+  );
+  expect(result).toMatchObject({ toolCallId: 'invalid-page' });
+  expect(chunks(events).at(-1)?.delta).toBe('The page input was invalid.');
+});
+
 it('puts the line said before acting and the final answer in separate messages', async () => {
   const f = setup({
     replies: [
