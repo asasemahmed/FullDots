@@ -279,6 +279,7 @@ export interface GalleryProps {
   onCustom: () => void;
   initialQuery?: string;
   initialFilter?: GalleryFilter;
+  initialTab?: GalleryTab;
 }
 
 function ConnectorCard({
@@ -446,6 +447,23 @@ const TABS: { id: GalleryTab; label: string }[] = [
   { id: 'discover', label: 'Discover' },
 ];
 
+/**
+ * The tab a key moves to from `current`, following the WAI-ARIA tabs pattern: Left and Right
+ * step (and wrap), Home and End jump. Undefined for any other key.
+ */
+export function galleryTabKey(
+  current: GalleryTab,
+  key: string,
+): GalleryTab | undefined {
+  const count = TABS.length;
+  const index = TABS.findIndex((item) => item.id === current);
+  if (key === 'ArrowRight') return TABS[(index + 1) % count]!.id;
+  if (key === 'ArrowLeft') return TABS[(index - 1 + count) % count]!.id;
+  if (key === 'Home') return TABS[0]!.id;
+  if (key === 'End') return TABS[count - 1]!.id;
+  return undefined;
+}
+
 export function ConnectorGallery({
   connectors,
   presets,
@@ -459,10 +477,11 @@ export function ConnectorGallery({
   onCustom,
   initialQuery = '',
   initialFilter = 'all',
+  initialTab = 'connectors',
 }: GalleryProps) {
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<GalleryFilter>(initialFilter);
-  const [tab, setTab] = useState<GalleryTab>('connectors');
+  const [tab, setTab] = useState<GalleryTab>(initialTab);
   const searchId = useId();
   const mine = filterConnectors(connectors, query, filter);
   const groups = groupPresets(filterPresets(presets, query));
@@ -486,13 +505,28 @@ export function ConnectorGallery({
           </p>
         </div>
         <div className="cg-tools">
-          <div className="cg-filter" role="group" aria-label="Section">
+          <div
+            className="cg-filter"
+            role="tablist"
+            aria-label="Connectors sections"
+            onKeyDown={(event) => {
+              const next = galleryTabKey(tab, event.key);
+              if (!next) return;
+              event.preventDefault();
+              setTab(next);
+              document.getElementById(`cg-tab-${next}`)?.focus();
+            }}
+          >
             {TABS.map((item) => (
               <button
                 key={item.id}
                 type="button"
+                role="tab"
+                id={`cg-tab-${item.id}`}
                 className="cg-filter-btn"
-                aria-pressed={tab === item.id}
+                aria-selected={tab === item.id}
+                aria-controls={`cg-panel-${item.id}`}
+                tabIndex={tab === item.id ? 0 : -1}
                 onClick={() => setTab(item.id)}
               >
                 {item.label}
@@ -536,13 +570,23 @@ export function ConnectorGallery({
       </header>
 
       {tab === 'discover' ? (
-        <RegistryDiscover
-          enabled={!!registrySearch}
-          allowStdio={allowStdio}
-          onAdd={onAddRegistry}
-        />
+        <div
+          role="tabpanel"
+          id="cg-panel-discover"
+          aria-labelledby="cg-tab-discover"
+        >
+          <RegistryDiscover
+            enabled={!!registrySearch}
+            allowStdio={allowStdio}
+            onAdd={onAddRegistry}
+          />
+        </div>
       ) : (
-        <>
+        <div
+          role="tabpanel"
+          id="cg-panel-connectors"
+          aria-labelledby="cg-tab-connectors"
+        >
           {connectors.length > 0 && (
             <section
               className="cg-section"
@@ -657,7 +701,7 @@ export function ConnectorGallery({
               </p>
             )}
           </section>
-        </>
+        </div>
       )}
     </div>
   );

@@ -25,3 +25,7 @@ All colour lives in `src/client/tokens.css` as custom properties. `:root` holds 
 ## Motion and access
 
 Every animation has a reduced-motion fallback (enforced by `tests/reduced-motion.test.ts`), and every state shown by colour or motion is also written in words. Interactive parts are reachable by keyboard; the work lanes add Enter, S and A on a focused lane.
+
+## Install FullDots as an app
+
+FullDots can be installed as a standalone app on phones and desktops. On a phone, choose **Add to Home Screen** from the browser menu. On a desktop browser, click the **Install** button in the address bar. The app opens in its own window with its own icon. It still needs your server running; there is no offline mode.

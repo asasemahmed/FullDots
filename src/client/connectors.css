@@ -285,7 +285,8 @@
   background: transparent;
   color: var(--cx-ink);
 }
-.cx-root .cg-filter-btn[aria-pressed='true'] {
+.cx-root .cg-filter-btn[aria-pressed='true'],
+.cx-root .cg-filter-btn[aria-selected='true'] {
   background: var(--surface-0);
   color: var(--cx-ink);
   font-weight: 600;
