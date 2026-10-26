@@ -60,6 +60,7 @@ export const bridgeReasons = new Set([
   'Coding storage resolves inside the computer Files root.',
   'Coding adapter resolves inside the computer Files root.',
   'Coding managed settings are missing or unsafe.',
+  'Codex read limits are missing or unsafe.',
   'Pinned adapter settings loader changed; review before installing.',
   'Unknown coding provider.',
 ]);

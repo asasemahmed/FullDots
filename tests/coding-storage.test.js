@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { URL } from 'node:url';
 import {
+  assertCodexReadLimits,
   assertManagedSettings,
   assertPrivateEntry,
   assertPrivateStorage,
@@ -207,6 +208,92 @@ it('refuses managed settings that are missing, changed or a link', async () => {
   }
   if (linked)
     await expect(assertManagedSettings(link)).rejects.toThrow(message);
+});
+
+it('ships a Codex read limit for the private coding directory', async () => {
+  const text = await readFile(
+    new URL(
+      '../deployment/computers/acp-bridge/codex-requirements.toml',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  expect(text).toContain('deny_read = ["/profiles/.coding"]');
+  expect(text).not.toContain('glob_scan_max_depth');
+  expect(text).not.toContain('/proc');
+  expect(text).not.toContain('**');
+  const dockerfile = await readFile(
+    new URL('../deployment/computers/computer.Dockerfile', import.meta.url),
+    'utf8',
+  );
+  expect(dockerfile).toContain(
+    'COPY --chown=0:0 --chmod=0444 deployment/computers/acp-bridge/codex-requirements.toml /etc/codex/requirements.toml',
+  );
+});
+
+it('refuses Codex read limits that are missing, changed or a link', async () => {
+  const { root } = await fixture();
+  const message = 'Codex read limits are missing or unsafe.';
+  await expect(
+    assertCodexReadLimits(join(root, 'missing.toml')),
+  ).rejects.toThrow(message);
+
+  const changed = join(root, 'changed.toml');
+  await writeFile(changed, 'deny_read = []\n');
+  await expect(assertCodexReadLimits(changed)).rejects.toThrow(message);
+
+  const real = join(root, 'real.toml');
+  await writeFile(
+    real,
+    await readFile(
+      new URL(
+        '../deployment/computers/acp-bridge/codex-requirements.toml',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const link = join(root, 'link.toml');
+  let linked = true;
+  try {
+    await symlink(real, link);
+  } catch {
+    linked = false;
+  }
+  if (linked)
+    await expect(assertCodexReadLimits(link)).rejects.toThrow(message);
+});
+
+it('refuses to start Codex without its read limits and still checks Claude Code managed settings', async () => {
+  const f = await fixture();
+  vi.stubEnv('WORKSPACE_DIR', f.workspace);
+  vi.stubEnv('PROFILES_DIR', f.profiles);
+  const bridge = withAcpBridge({ websocket: {} });
+  const codex = {
+    data: { acp: true, provider: 'codex' },
+    close: vi.fn(),
+    send: vi.fn(),
+  };
+  await bridge.websocket.open(codex);
+  expect(codex.close).toHaveBeenCalledWith(
+    1011,
+    'Codex read limits are missing or unsafe.',
+  );
+  expect(codex.send).not.toHaveBeenCalled();
+  expect(codex.data.child).toBeUndefined();
+
+  const claude = {
+    data: { acp: true, provider: 'claude' },
+    close: vi.fn(),
+    send: vi.fn(),
+  };
+  await bridge.websocket.open(claude);
+  expect(claude.close).toHaveBeenCalledWith(
+    1011,
+    'Coding managed settings are missing or unsafe.',
+  );
+  expect(claude.send).not.toHaveBeenCalled();
+  expect(claude.data.child).toBeUndefined();
 });
 
 it('keeps the Codex cache, home and settings folder in the coding storage outside the Files root', async () => {

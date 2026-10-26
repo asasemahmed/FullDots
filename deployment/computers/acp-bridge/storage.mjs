@@ -84,9 +84,29 @@ export async function assertPrivateEntry(paths, entry) {
     throw new Error('Coding adapter resolves inside the computer Files root.');
 }
 
+export async function assertCodexReadLimits(
+  path = '/etc/codex/requirements.toml',
+) {
+  // Codex loads this file as its requirements layer. The same one-handle check
+  // as managed settings: a missing or edited copy would leave private files readable.
+  return assertRootOwnedCopy(
+    path,
+    new URL('./codex-requirements.toml', import.meta.url),
+    'Codex read limits are missing or unsafe.',
+  );
+}
+
 export async function assertManagedSettings(
   path = '/etc/claude-code/managed-settings.json',
 ) {
+  return assertRootOwnedCopy(
+    path,
+    new URL('./managed-settings.json', import.meta.url),
+    'Coding managed settings are missing or unsafe.',
+  );
+}
+
+async function assertRootOwnedCopy(path, source, message) {
   // One handle for the checks and the read, so the file cannot be swapped in between.
   // O_NOFOLLOW refuses a symlink outright.
   let handle;
@@ -100,12 +120,9 @@ export async function assertManagedSettings(
       entry.ino !== info.ino ||
       entry.dev !== info.dev
     )
-      throw new Error('Coding managed settings are missing or unsafe.');
+      throw new Error(message);
     const parent = await stat(join(path, '..'));
-    const expected = await readFile(
-      new URL('./managed-settings.json', import.meta.url),
-      'utf8',
-    );
+    const expected = await readFile(source, 'utf8');
     const actual = await handle.readFile('utf8');
     if (
       !info.isFile() ||
@@ -115,9 +132,9 @@ export async function assertManagedSettings(
       (parent.mode & 0o022) !== 0 ||
       actual !== expected
     )
-      throw new Error('Coding managed settings are missing or unsafe.');
+      throw new Error(message);
   } catch {
-    throw new Error('Coding managed settings are missing or unsafe.');
+    throw new Error(message);
   } finally {
     await handle?.close();
   }

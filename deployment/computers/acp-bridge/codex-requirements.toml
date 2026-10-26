@@ -1,0 +1,4 @@
+# Enforced by Codex 0.160.1 from /etc/codex/requirements.toml.
+# An exact directory. A glob deny makes the Linux sandbox refuse every command.
+[permissions.filesystem]
+deny_read = ["/profiles/.coding"]
