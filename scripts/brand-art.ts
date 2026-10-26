@@ -1,6 +1,6 @@
-// Draws the brand files from the same penguin the app uses: the mark and favicon in public/, and
-// the logos, characters and their PNG copies in docs/brand/. Run `npm run brand` after changing
-// src/client/penguin/engine.ts or the palettes, and commit what it writes.
+// Draws the brand files from the same penguin the app uses: the mark and favicon in public/,
+// the logos, characters and their PNG copies in docs/brand/, and the app icons in public/icons/.
+// Run `npm run brand` after changing src/client/penguin/engine.ts or the palettes, and commit what it writes.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,8 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const brand = join(root, 'docs', 'brand');
+const iconsDir = join(root, 'public', 'icons');
+const manifestBg = '#f8f7f4';
 const mark: PenguinLook = {
   palette: DOT_PALETTES.indigo,
   species: 'emperor',
@@ -98,6 +100,38 @@ for (const file of files) {
   );
 }
 
+mkdirSync(iconsDir, { recursive: true });
+
+const appIcons: {
+  path: string;
+  svg: string;
+  size: [number, number];
+  background?: string;
+}[] = [
+  {
+    path: join(iconsDir, 'icon-192.png'),
+    svg: penguinSvg(mark, 'idle', 'icon', { size: 192, title: 'FullDots' }),
+    size: [192, 192],
+  },
+  {
+    path: join(iconsDir, 'icon-512.png'),
+    svg: penguinSvg(mark, 'idle', 'icon', { size: 512, title: 'FullDots' }),
+    size: [512, 512],
+  },
+  {
+    path: join(iconsDir, 'icon-512-maskable.png'),
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><rect width="512" height="512" fill="${manifestBg}"/><svg x="51" y="51" width="410" height="410" viewBox="${viewBox('icon')}">${penguinMarkup(mark, restPose('idle'), 'icon', { id: 'maskable' })}</svg></svg>`,
+    size: [512, 512],
+    background: manifestBg,
+  },
+  {
+    path: join(iconsDir, 'apple-touch-icon.png'),
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180"><rect width="180" height="180" fill="${manifestBg}"/><svg x="0" y="0" width="180" height="180" viewBox="${viewBox('icon')}">${penguinMarkup(mark, restPose('idle'), 'icon', { id: 'apple' })}</svg></svg>`,
+    size: [180, 180],
+    background: manifestBg,
+  },
+];
+
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
@@ -118,7 +152,22 @@ try {
       clip: { x: 0, y: 0, width, height },
     });
   }
+
+  for (const icon of appIcons) {
+    const [width, height] = icon.size;
+    await page.setViewportSize({ width, height });
+    await page.setContent(
+      `<style>html,body{margin:0;background:${icon.background ?? 'transparent'}}svg{display:block;width:${width}px;height:${height}px}</style>${icon.svg}`,
+    );
+    await page.screenshot({
+      path: icon.path,
+      omitBackground: !icon.background,
+      clip: { x: 0, y: 0, width, height },
+    });
+  }
 } finally {
   await browser.close();
 }
-console.log(`Wrote ${files.length} SVG files and their PNG copies.`);
+console.log(
+  `Wrote ${files.length} SVG files, their PNG copies, and ${appIcons.length} app icons.`,
+);
