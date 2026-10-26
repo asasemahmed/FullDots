@@ -11,8 +11,10 @@ import {
   connectorTitle,
   filterConnectors,
   filterPresets,
+  galleryTabKey,
   groupPresets,
   prettyName,
+  type GalleryTab,
 } from '../src/client/ConnectorGallery';
 import {
   ConnectorForm,
@@ -306,6 +308,101 @@ describe('ConnectorGallery', () => {
     expect(html).toContain('class="connector-logo"');
     expect(html).toContain('data-connector="linear"');
     expect(html).not.toContain('cs-page');
+  });
+});
+
+describe('Connectors and Discover are real tabs', () => {
+  const gallery = (initialTab?: GalleryTab) =>
+    renderToStaticMarkup(
+      <ConnectorGallery
+        connectors={[]}
+        presets={connectorPresets}
+        allowStdio={false}
+        registrySearch={false}
+        {...(initialTab ? { initialTab } : {})}
+        onOpenConnector={noop}
+        onConnect={noop}
+        onOpenPreset={noop}
+        onCustom={noop}
+      />,
+    );
+  /** The opening tag of every element with the given role. */
+  const tagsWithRole = (html: string, role: string) =>
+    html.match(new RegExp(`<[a-z]+[^>]*role="${role}"[^>]*>`, 'g')) ?? [];
+
+  it('has one tablist with two tabs, each controlling its own panel', () => {
+    const html = gallery();
+    expect(countOf(html, 'role="tablist"')).toBe(1);
+    expect(html).toContain('aria-label="Connectors sections"');
+    const tabs = tagsWithRole(html, 'tab');
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toContain('id="cg-tab-connectors"');
+    expect(tabs[0]).toContain('aria-selected="true"');
+    expect(tabs[0]).toContain('aria-controls="cg-panel-connectors"');
+    expect(tabs[1]).toContain('id="cg-tab-discover"');
+    expect(tabs[1]).toContain('aria-selected="false"');
+    expect(tabs[1]).toContain('aria-controls="cg-panel-discover"');
+  });
+
+  it('marks the two tabs with aria-selected, not aria-pressed', () => {
+    for (const tab of tagsWithRole(gallery(), 'tab'))
+      expect(tab).not.toContain('aria-pressed');
+  });
+
+  it('renders one tabpanel, labelled by the selected tab', () => {
+    const html = gallery();
+    expect(countOf(html, 'role="tabpanel"')).toBe(1);
+    expect(html).toContain('id="cg-panel-connectors"');
+    expect(html).toContain('aria-labelledby="cg-tab-connectors"');
+    expect(html).toContain('Add a connector');
+  });
+
+  it('renders only the Discover panel when Discover is selected', () => {
+    const html = gallery('discover');
+    const tabs = tagsWithRole(html, 'tab');
+    expect(tabs[0]).toContain('aria-selected="false"');
+    expect(tabs[1]).toContain('aria-selected="true"');
+    expect(countOf(html, 'role="tabpanel"')).toBe(1);
+    expect(html).toContain('id="cg-panel-discover"');
+    expect(html).toContain('aria-labelledby="cg-tab-discover"');
+    expect(html).toContain('Discover servers');
+    expect(html).not.toContain('Add a connector');
+  });
+
+  it('puts only the selected tab in the tab order', () => {
+    const connectorsTabs = tagsWithRole(gallery(), 'tab');
+    expect(connectorsTabs[0]).toContain('tabindex="0"');
+    expect(connectorsTabs[1]).toContain('tabindex="-1"');
+    const discoverTabs = tagsWithRole(gallery('discover'), 'tab');
+    expect(discoverTabs[0]).toContain('tabindex="-1"');
+    expect(discoverTabs[1]).toContain('tabindex="0"');
+  });
+
+  it('keeps the All, Connected and Needs attention filter on aria-pressed', () => {
+    const html = gallery();
+    const filters = html.match(/<button[^>]*cg-filter-btn[^>]*>/g) ?? [];
+    const pressed = filters.filter((tag) => tag.includes('aria-pressed'));
+    expect(pressed.length).toBeGreaterThanOrEqual(3);
+    expect(gallery('discover')).not.toContain('aria-label="Show"');
+  });
+
+  it('moves between the tabs with the arrow keys, wrapping at the ends', () => {
+    expect(galleryTabKey('connectors', 'ArrowRight')).toBe('discover');
+    expect(galleryTabKey('discover', 'ArrowLeft')).toBe('connectors');
+    expect(galleryTabKey('connectors', 'ArrowLeft')).toBe('discover');
+    expect(galleryTabKey('discover', 'ArrowRight')).toBe('connectors');
+  });
+
+  it('jumps to the first and last tab with Home and End', () => {
+    expect(galleryTabKey('discover', 'Home')).toBe('connectors');
+    expect(galleryTabKey('connectors', 'End')).toBe('discover');
+    expect(galleryTabKey('connectors', 'Home')).toBe('connectors');
+    expect(galleryTabKey('discover', 'End')).toBe('discover');
+  });
+
+  it('ignores every other key', () => {
+    for (const key of ['ArrowUp', 'ArrowDown', 'Enter', ' ', 'a'])
+      expect(galleryTabKey('connectors', key)).toBeUndefined();
   });
 });
 

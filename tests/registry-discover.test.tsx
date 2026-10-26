@@ -190,7 +190,7 @@ describe('ConnectorGallery Discover tab', () => {
     const markup = gallery();
     expect(markup).toContain('>Connectors<');
     expect(markup).toContain('>Discover<');
-    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain('Search connectors');
     expect(markup).not.toContain('Discover servers');
   });
