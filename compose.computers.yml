@@ -4,7 +4,7 @@
 services:
   computer-image:
     profiles: [build-computers]
-    image: opendots-computer:b6932d3-acp3
+    image: opendots-computer:b6932d3-acp4
     build:
       context: .
       dockerfile: deployment/computers/computer.Dockerfile
@@ -25,7 +25,7 @@ services:
       SUPERVISOR_TOKEN: ${COMPUTER_SUPERVISOR_TOKEN:?Set COMPUTER_SUPERVISOR_TOKEN in .env}
       COMPUTER_TOKEN: ${COMPUTER_TOKEN:?Set COMPUTER_TOKEN in .env}
       COMPUTER_NAMESPACE: ${COMPUTER_NAMESPACE:-opendots}
-      COMPUTER_IMAGE: opendots-computer:b6932d3-acp3
+      COMPUTER_IMAGE: opendots-computer:b6932d3-acp4
       COMPUTER_BROWSER_MODE: ${COMPUTER_BROWSER_MODE:-headed}
       COMPUTER_NETWORK: ''
       COMPUTER_MEMORY_BYTES: ${COMPUTER_MEMORY_BYTES:-2147483648}

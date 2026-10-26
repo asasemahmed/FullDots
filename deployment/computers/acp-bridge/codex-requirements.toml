@@ -1,0 +1,7 @@
+# Enforced by Codex 0.160.1 from /etc/codex/requirements.toml.
+# deny_read applies to sandboxed file reads and shell commands. The Codex process
+# itself can still read CODEX_HOME at startup. On Linux, ** expands only to
+# glob_scan_max_depth directory levels.
+[permissions.filesystem]
+deny_read = ["/profiles/.coding/**", "/proc/**"]
+glob_scan_max_depth = 16

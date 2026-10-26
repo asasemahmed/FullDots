@@ -4,6 +4,7 @@ import { access, cp, mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertCodexReadLimits,
   assertManagedSettings,
   assertPrivateEntry,
   assertPrivateStorage,
@@ -21,6 +22,7 @@ const safeReasons = new Set([
   'Coding storage resolves inside the computer Files root.',
   'Coding adapter resolves inside the computer Files root.',
   'Coding managed settings are missing or unsafe.',
+  'Codex read limits are missing or unsafe.',
   'Pinned adapter settings loader changed; review before installing.',
   'Unknown coding provider.',
 ]);
@@ -174,6 +176,7 @@ export function withAcpBridge(upstream) {
         );
         const { cache } = paths;
         await assertPrivateStorage(paths);
+        if (id === 'codex') await assertCodexReadLimits();
         await assertManagedSettings();
         await install(id);
         if (socket.data.closed) return;

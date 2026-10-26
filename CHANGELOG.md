@@ -28,6 +28,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- **Codex can no longer read its private coding files.** In the read-only preset, sandboxed file reads and shell commands now refuse `/profiles/.coding/**` and `/proc/**`, including the sign-in file. The rule is a root-owned requirements file in the computer image, and the bridge will not start Codex if that file is missing or changed. On Linux the `**` rules expand to 16 directory levels. See [`docs/COMPUTERS.md`](docs/COMPUTERS.md#choose-claude-code-or-codex).
 - A dark theme no longer flashes light when the page loads under `npm start` or in Docker. The server's Content-Security-Policy (`script-src 'self'`) blocked the inline script that applies the saved theme before the first paint, so it only ran under `npm run dev`. The script is now `public/theme-init.js`, loaded from `<head>`, and the policy is unchanged.
 - Computer actions now answer with the right status (403, 404, 409, 502, 503) instead of 400 for everything, and unhandled computer failures mask raw error details.
 - Browser search recognises Brave's current bot check ("Verifying you're not a bot"), which a new browser profile often sees. It used to be read as a results page with no results; now the search moves on to the next engine in `WEB_SEARCH_ENGINE`.
