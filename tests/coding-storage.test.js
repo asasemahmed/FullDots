@@ -210,7 +210,7 @@ it('refuses managed settings that are missing, changed or a link', async () => {
     await expect(assertManagedSettings(link)).rejects.toThrow(message);
 });
 
-it('ships Codex read limits for the private coding tree and proc', async () => {
+it('ships a Codex read limit for the private coding directory', async () => {
   const text = await readFile(
     new URL(
       '../deployment/computers/acp-bridge/codex-requirements.toml',
@@ -218,8 +218,10 @@ it('ships Codex read limits for the private coding tree and proc', async () => {
     ),
     'utf8',
   );
-  expect(text).toContain('deny_read = ["/profiles/.coding/**", "/proc/**"]');
-  expect(text).toContain('glob_scan_max_depth = 16');
+  expect(text).toContain('deny_read = ["/profiles/.coding"]');
+  expect(text).not.toContain('glob_scan_max_depth');
+  expect(text).not.toContain('/proc');
+  expect(text).not.toContain('**');
   const dockerfile = await readFile(
     new URL('../deployment/computers/computer.Dockerfile', import.meta.url),
     'utf8',
