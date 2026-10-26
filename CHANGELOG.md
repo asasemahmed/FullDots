@@ -28,6 +28,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- Settings > Connectors: the Connectors and Discover switch is now a set of tabs that screen readers announce and the arrow keys move between.
 - A dark theme no longer flashes light when the page loads under `npm start` or in Docker. The server's Content-Security-Policy (`script-src 'self'`) blocked the inline script that applies the saved theme before the first paint, so it only ran under `npm run dev`. The script is now `public/theme-init.js`, loaded from `<head>`, and the policy is unchanged.
 - Computer actions now answer with the right status (403, 404, 409, 502, 503) instead of 400 for everything, and unhandled computer failures mask raw error details.
 - Browser search recognises Brave's current bot check ("Verifying you're not a bot"), which a new browser profile often sees. It used to be read as a results page with no results; now the search moves on to the next engine in `WEB_SEARCH_ENGINE`.
