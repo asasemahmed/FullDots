@@ -64,15 +64,16 @@ it('defaults off, persists per-Dot opt-in, and stops active work when disabled',
   const headers = f.request({}).headers;
   expect(await (await f.app.request(f.path, { headers })).json()).toEqual({
     enabled: false,
+    provider: 'claude',
   });
   expect(
     await (await f.app.request(f.path, f.request({ enabled: true }))).json(),
-  ).toEqual({ enabled: true });
+  ).toEqual({ enabled: true, provider: 'claude' });
   expect(f.store.codingSessions.enabled(f.id)).toBe(true);
   const stop = vi.spyOn(f.platform.turns, 'stop');
   expect(
     await (await f.app.request(f.path, f.request({ enabled: false }))).json(),
-  ).toEqual({ enabled: false });
+  ).toEqual({ enabled: false, provider: 'claude' });
   expect(stop).toHaveBeenCalledWith(f.id);
 });
 
@@ -91,7 +92,33 @@ it('rejects unknown Dots and arbitrary settings without making changes', async (
     {},
     { enabled: 'true' },
     { enabled: true, command: 'untrusted' },
+    { enabled: true, provider: 'gemini' },
+    { enabled: true, provider: 'constructor' },
+    { enabled: true, provider: null },
   ])
     expect((await f.app.request(f.path, f.request(body))).status).toBe(400);
   expect(f.store.codingSessions.enabled(f.id)).toBe(false);
+});
+
+it('saves the chosen coding agent, keeps it when a save leaves it out, and reads it back', async () => {
+  const f = fixture();
+  const headers = f.request({}).headers;
+  expect(
+    await (
+      await f.app.request(
+        f.path,
+        f.request({ enabled: true, provider: 'codex' }),
+      )
+    ).json(),
+  ).toEqual({ enabled: true, provider: 'codex' });
+  expect(f.store.codingSessions.provider(f.id)).toBe('codex');
+  expect(
+    await (await f.app.request(f.path, f.request({ enabled: false }))).json(),
+  ).toEqual({ enabled: false, provider: 'codex' });
+  expect(await (await f.app.request(f.path, { headers })).json()).toEqual({
+    enabled: false,
+    provider: 'codex',
+  });
+  await f.app.request(f.path, f.request({ enabled: true, provider: 'claude' }));
+  expect(f.store.codingSessions.provider(f.id)).toBe('claude');
 });

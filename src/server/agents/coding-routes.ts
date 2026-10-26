@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Platform } from '../platform.js';
+import { codingProviderSchema } from './acp-policy.js';
 
-const settings = z.object({ enabled: z.boolean() }).strict();
+const settings = z
+  .object({ enabled: z.boolean(), provider: codingProviderSchema.optional() })
+  .strict();
 
 export function codingRoutes(platform: Platform) {
   const app = new Hono();
@@ -14,19 +17,21 @@ export function codingRoutes(platform: Platform) {
   app.get('/dots/:id/coding-agents', (c) =>
     c.json({
       enabled: platform.store.codingSessions.enabled(c.req.param('id')),
+      provider: platform.store.codingSessions.provider(c.req.param('id')),
     }),
   );
   app.put('/dots/:id/coding-agents', async (c) => {
     const parsed = settings.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success)
       return c.json(
-        { error: 'Choose whether coding agents are enabled.' },
+        { error: 'Choose whether coding agents are enabled, and which one.' },
         400,
       );
     const id = c.req.param('id');
     const result = platform.store.codingSessions.configure(
       id,
       parsed.data.enabled,
+      parsed.data.provider,
     );
     if (!parsed.data.enabled) platform.turns.stop(id);
     return c.json(result);

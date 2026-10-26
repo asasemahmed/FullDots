@@ -13,26 +13,43 @@ import {
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export function codingPaths(workspace = '/workspace', profiles = '/profiles') {
+/** `adapter` is the versioned cache folder name of one coding agent, for example `codex-2.2.2`. */
+export function codingPaths(
+  workspace = '/workspace',
+  profiles = '/profiles',
+  adapter = 'claude-0.95.0',
+) {
   const root = join(profiles, '.coding');
   return {
     workspace,
     root,
+    // One home for every coding agent. Each keeps its own sign-in folder inside it.
     home: join(root, 'home'),
-    cache: join(root, 'adapters', 'claude-0.95.0'),
-    staging: join(root, 'adapters', 'claude-0.95.0.installing'),
+    cache: join(root, 'adapters', adapter),
+    staging: join(root, 'adapters', `${adapter}.installing`),
   };
 }
 
-export function codingEnvironment(paths) {
-  return {
+/**
+ * The only environment a coding worker gets: no computer or supervisor credentials.
+ * Every agent's settings and sign-in folder is under the private home, never the Files root.
+ */
+export function codingEnvironment(paths, provider = 'claude') {
+  const base = {
     PATH: process.env.PATH,
     HOME: paths.home,
-    CLAUDE_CONFIG_DIR: join(paths.home, '.claude'),
     LANG: 'C.UTF-8',
     TERM: 'xterm-256color',
     NPM_CONFIG_USERCONFIG: '/dev/null',
   };
+  if (provider === 'codex')
+    return {
+      ...base,
+      CODEX_HOME: join(paths.home, '.codex'),
+      // Start in the preset that asks before edits. The app selects it again and checks it.
+      INITIAL_AGENT_MODE: 'read-only',
+    };
+  return { ...base, CLAUDE_CONFIG_DIR: join(paths.home, '.claude') };
 }
 
 function inside(root, target) {

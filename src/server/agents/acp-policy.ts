@@ -1,3 +1,10 @@
+import { z } from 'zod';
+
+/** Coding agents a Dot can use. Anything else is refused, here and in the computer bridge. */
+export const codingProviderIds = ['claude', 'codex'] as const;
+export type CodingProviderId = (typeof codingProviderIds)[number];
+export const codingProviderSchema = z.enum(codingProviderIds);
+
 export function unsafePermissionOption(
   id: string,
   modes: readonly string[] = [],
@@ -15,6 +22,15 @@ export function unsafePermissionOption(
       'dontask',
       'manual',
       'bypass',
+      // Codex presets and its plan-to-implementation switch. The app only ever selects read-only.
+      'read-only',
+      'workspace-write',
+      'agent',
+      'agent-full-access',
+      'implement_plan',
+      // Codex grants that last for the rest of the turn: an approval covers one action, once.
+      'allow_permissions_turn',
+      'allow_permissions_turn_strict_auto_review',
     ].includes(normalized) ||
     normalized.startsWith('exit-plan-') ||
     /(?:^|[-_])(?:auto|acceptedits|bypasspermissions|dontask)(?:$|[-_])/.test(
@@ -45,4 +61,5 @@ export const bridgeReasons = new Set([
   'Coding adapter resolves inside the computer Files root.',
   'Coding managed settings are missing or unsafe.',
   'Pinned adapter settings loader changed; review before installing.',
+  'Unknown coding provider.',
 ]);

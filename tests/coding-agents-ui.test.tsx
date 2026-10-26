@@ -58,6 +58,7 @@ async function fixture(
     existing?: boolean;
     loadError?: boolean;
     enabled?: boolean;
+    provider?: string;
     failSave?: boolean;
   } = {},
 ) {
@@ -66,7 +67,10 @@ async function fixture(
     if (path === '/dots' && method === 'POST') return { id: 'created-dot' };
     if (path.endsWith('/coding-agents')) {
       if (options.loadError) throw new Error('Fixture load failed');
-      return { enabled: options.enabled ?? false };
+      return {
+        enabled: options.enabled ?? false,
+        provider: options.provider ?? 'claude',
+      };
     }
     if (path === '/connectors') return { connectors: [] };
     if (path.endsWith('/connectors')) return { grants: [] };
@@ -125,7 +129,7 @@ it('defaults off and saves the loaded preference only after submitting', async (
   expect(existing.mutate).toHaveBeenCalledWith(
     '/dots/dot-1/coding-agents',
     'PUT',
-    { enabled: false },
+    { enabled: false, provider: 'claude' },
   );
   expect(existing.onClose).toHaveBeenCalledOnce();
 });
@@ -181,7 +185,7 @@ it('saves the final off choice after a failed enable response and reuses the cre
   expect(f.mutate).toHaveBeenLastCalledWith(
     '/dots/created-dot/coding-agents',
     'PUT',
-    { enabled: false },
+    { enabled: false, provider: 'claude' },
   );
   expect(f.onClose).toHaveBeenCalledOnce();
 });
@@ -196,4 +200,37 @@ it('keeps Retry outside the switch label', async () => {
   await act(async () => retry.props.onClick());
   expect(f.field().props.enabled).toBe(true);
   expect(f.field().props.error).toBeNull();
+});
+
+it('shows the saved agent choice and saves a change to Codex', async () => {
+  const f = await fixture({ existing: true, enabled: true });
+  expect(f.field().props.provider).toBe('claude');
+  const select = () => f.field().findByType('select');
+  expect(select().props.value).toBe('claude');
+  expect(
+    select()
+      .findAllByType('option')
+      .map((option) => option.props.value),
+  ).toEqual(['claude', 'codex']);
+  await act(async () =>
+    select().props.onChange({ target: { value: 'codex' } }),
+  );
+  expect(select().props.value).toBe('codex');
+  expect(f.mutate).not.toHaveBeenCalled();
+  await f.submit();
+  expect(f.mutate).toHaveBeenCalledWith('/dots/dot-1/coding-agents', 'PUT', {
+    enabled: true,
+    provider: 'codex',
+  });
+});
+
+it('loads Codex as the saved choice and hides the choice while the switch is off', async () => {
+  const on = await fixture({
+    existing: true,
+    enabled: true,
+    provider: 'codex',
+  });
+  expect(on.field().findByType('select').props.value).toBe('codex');
+  const off = await fixture({ existing: true, enabled: false });
+  expect(off.field().findAllByType('select')).toHaveLength(0);
 });
