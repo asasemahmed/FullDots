@@ -38,6 +38,7 @@ import {
 import { DotColorPicker } from './DotColorPicker';
 import { DotLookPicker } from './DotLookPicker';
 import { DotNotes } from './DotNotes';
+import { ExportDotButton, ImportDotPanel } from './DotPack';
 import { DotRulesEditor } from './DotRulesEditor';
 import { Mascot } from './Mascot';
 import { ModelPicker, modelFields, type ModelChoice } from './ModelPicker';
@@ -719,6 +720,9 @@ export function WorkspaceDialog({
             className="dlg-body"
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
           >
+            {dialog.type === 'dot' && !dialog.dot && (
+              <ImportDotPanel mutate={mutate} onImported={onClose} />
+            )}
             {dialog.type === 'dot' && (
               <>
                 <DotSection
@@ -1362,6 +1366,9 @@ export function WorkspaceDialog({
               )}
               {showFooter && (
                 <div className="dlg-actions">
+                  {dialog.type === 'dot' && dialog.dot && (
+                    <ExportDotButton dot={dialog.dot} />
+                  )}
                   <button type="button" className="dlg-btn" onClick={onClose}>
                     Cancel
                   </button>

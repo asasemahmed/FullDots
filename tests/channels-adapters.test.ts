@@ -47,6 +47,11 @@ it('decodes Telegram owner messages and native buttons while rejecting strangers
   vi.spyOn(adapter.bot.api, 'getMe').mockResolvedValue(me as never);
   vi.spyOn(adapter.bot, 'start').mockResolvedValue(undefined);
   vi.spyOn(adapter.bot.api, 'answerCallbackQuery').mockResolvedValue(true);
+  // Calls made through a context (ctx.answerCallbackQuery) skip the spies above and would reach
+  // api.telegram.org with the fixture token; its late failure log could outlive the test. The
+  // last transformer runs first, so this one answers every remaining call locally.
+  const offline = vi.fn(async () => ({ ok: true as const, result: true }));
+  adapter.bot.api.config.use(offline as never);
   const send = vi
     .spyOn(adapter.bot.api, 'sendMessage')
     .mockResolvedValue({ message_id: 20, chat: { id: 111 } } as never);
@@ -76,6 +81,13 @@ it('decodes Telegram owner messages and native buttons while rejecting strangers
       message,
     },
   });
+  // The button's acknowledgement was answered locally, not sent to Telegram.
+  expect(offline).toHaveBeenCalledWith(
+    expect.anything(),
+    'answerCallbackQuery',
+    expect.anything(),
+    undefined,
+  );
   expect(target.onInteraction).toHaveBeenCalledWith(
     expect.objectContaining({
       id: 'ck:approve',

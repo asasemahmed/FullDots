@@ -184,6 +184,33 @@ The page names the team chat as its source. Runs you stop are not logged. The te
 
 API: `GET /api/teams` (`?archived=1` for archived ones too; also lists the Dots working right now), `POST /api/teams` (`reviewerDotId`, `runLog` and `space` optional), `POST /api/teams/from-template`, `GET`/`PATCH /api/teams/:id`, `PUT /api/teams/:id/members` (`{ members: [{ dotId, role }] }` in order), `POST /api/teams/:id/space`, `POST /api/teams/:id/archive`, `POST /api/teams/:id/conversations`, `POST /api/teams/:id/dispatch`, `GET /api/teams/runs/:id`, `POST /api/teams/runs/:id/cancel`. `GET /api/dots/:id/team` also lists the team-given teammates as `implied`.
 
+## Share a Dot
+
+A Dot pack is a small JSON file that holds a Dot's role, look, approval mode, rules and saved prompts. Use one to copy a Dot to another FullDots install, or to keep a backup of a Dot's setup.
+
+**To export:** open the Dot, then choose **Export** at the bottom of the form. The browser saves a file named after the Dot, such as `market-scout.dot-pack.json`.
+
+**To import:** choose **Create Dot** in the sidebar, then choose the file under **Import a Dot pack**. FullDots shows the name, the role, how many rules are set, the approval mode and how many saved prompts the file holds. Choose **Create this Dot** to make the copy. Nothing is created until then.
+
+What a pack holds:
+
+- The name, the role, the colour, the penguin and its gear.
+- Whether research and memory are allowed.
+- The approval mode.
+- The rules you set for the Dot. Rules left on Inherit are not written.
+- The saved prompts that belong to this Dot. Prompts for everyone are not included.
+
+What a pack never holds: the Dot's id, its conversations, notes, memories, connector access, Connected apps settings, computer access, the model and its keys, and any token or password.
+
+Rules to know about:
+
+- **A copy is always a new Dot.** Importing never changes a Dot that already exists, and importing the same file twice makes two Dots.
+- **No access comes with it.** The new Dot starts with no connector grants, no Connected apps access and no computer access. It uses the default model. Grant what it needs on the Dot's form.
+- **Approvals can be stricter, not looser.** A pack that asks for **Writes** or **Sensitive** keeps that choice. A pack that asks for **Off** starts on **Sensitive**, because a file cannot turn approvals off.
+- **Locked rules stay locked.** A pack that sets Spend money or Delete things to Allow is refused. Those rules can only be Inherit, Ask me first or Never.
+- **Secrets are removed.** Text that looks like a key, token or password is replaced with `[redacted]` when a pack is exported and again when it is imported. Check the role of an imported Dot before you rely on it.
+- **Limits.** A pack holds at most 20 prompts. The role is at most 2,000 characters, the name 40, and a file at most 200 KB. A file with an unknown field, a file for another kind of tool, or a pack version this FullDots does not read is refused, with the reason shown.
+
 ## Settings
 
 | Variable                 | Default | Purpose                                                                  |
