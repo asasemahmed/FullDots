@@ -2,6 +2,7 @@ import { Readable, Writable } from 'node:stream';
 import { WebSocket, createWebSocketStream } from 'ws';
 import {
   bridgeReasons,
+  type CodingProviderId,
   CodingBridgeError,
   CodingModeError,
   unsafePermissionOption,
@@ -18,10 +19,34 @@ import {
   type SessionNotification,
 } from '@agentclientprotocol/sdk';
 
+/**
+ * `mode` is the only permission mode the app ever selects. It must be the one that asks before
+ * changes: Claude Code's `default`, and Codex's `read-only` (read-only sandbox, the owner approves
+ * edits and escalations). Codex's other presets edit the workspace or review actions by themselves.
+ * `mustReport` means the worker has to list that mode in `session/new`; if it does not, the app
+ * cannot confirm an ask-first mode and stops before sending a prompt.
+ */
 export const codingProviders = {
-  claude: { label: 'Claude Code', cwd: '/workspace', mode: 'default' },
-} as const;
-export type CodingProvider = keyof typeof codingProviders;
+  claude: {
+    label: 'Claude Code',
+    cwd: '/workspace',
+    mode: 'default',
+    mustReport: false,
+  },
+  codex: {
+    label: 'Codex',
+    cwd: '/workspace',
+    mode: 'read-only',
+    mustReport: true,
+  },
+} as const satisfies Record<
+  CodingProviderId,
+  { label: string; cwd: string; mode: string; mustReport: boolean }
+>;
+export type CodingProvider = CodingProviderId;
+
+/** Tells the computer bridge which coding agent to start. Absent means Claude Code. */
+export const codingProviderHeader = 'x-fulldots-coding-provider';
 
 export function authenticationRequired(error: unknown): boolean {
   return (
@@ -50,6 +75,7 @@ export interface AcpRunOptions {
 }
 
 export async function runAcp(options: AcpRunOptions) {
+  const config = codingProviders[options.provider];
   let sessionId: string | undefined;
   let modes: string[] = [];
   let modeError: CodingModeError | undefined;
@@ -91,7 +117,7 @@ export async function runAcp(options: AcpRunOptions) {
       if (
         !sessionId &&
         params.update.sessionUpdate === 'current_mode_update' &&
-        params.update.currentModeId !== 'default'
+        params.update.currentModeId !== config.mode
       ) {
         modeError = new CodingModeError();
         return;
@@ -99,7 +125,7 @@ export async function runAcp(options: AcpRunOptions) {
       if (params.sessionId === sessionId) {
         if (
           params.update.sessionUpdate === 'current_mode_update' &&
-          params.update.currentModeId !== 'default'
+          params.update.currentModeId !== config.mode
         ) {
           modeError = new CodingModeError();
           cancel();
@@ -125,7 +151,6 @@ export async function runAcp(options: AcpRunOptions) {
   options.signal.addEventListener('abort', cancel, { once: true });
   try {
     options.signal.throwIfAborted();
-    const config = codingProviders[options.provider];
     const initialized = await connection.agent.request(
       methods.agent.initialize,
       {
@@ -142,23 +167,32 @@ export async function runAcp(options: AcpRunOptions) {
     const session = await connection.agent.request(methods.agent.session.new, {
       cwd: config.cwd,
       mcpServers: [],
-      _meta: {
-        claudeCode: {
-          options: {
-            settingSources: [],
-            allowDangerouslySkipPermissions: false,
-            extraArgs: { 'strict-mcp-config': '' },
-          },
-        },
-      },
+      // Claude Code's session options. Codex takes no per-session settings from the app.
+      ...(options.provider === 'claude'
+        ? {
+            _meta: {
+              claudeCode: {
+                options: {
+                  settingSources: [],
+                  allowDangerouslySkipPermissions: false,
+                  extraArgs: { 'strict-mcp-config': '' },
+                },
+              },
+            },
+          }
+        : {}),
     });
     sessionId = session.sessionId;
     modes = session.modes?.availableModes.map((mode) => mode.id) ?? [];
     options.session(sessionId);
-    if (
-      modeError ||
-      (session.modes && session.modes.currentModeId !== 'default')
-    ) {
+    // Claude Code starts in `default`. Codex may start in another preset, so the app selects the
+    // ask-first one below, but only if the worker lists it.
+    const startsWrong =
+      options.provider === 'claude' &&
+      !!session.modes &&
+      session.modes.currentModeId !== config.mode;
+    const cannotConfirm = config.mustReport && !modes.includes(config.mode);
+    if (modeError || startsWrong || cannotConfirm) {
       modeError ??= new CodingModeError();
       cancel();
       throw modeError;
@@ -192,10 +226,11 @@ export async function runAcp(options: AcpRunOptions) {
 export async function connectCodingBridge(
   target: { url: string; headers: Record<string, string> },
   signal: AbortSignal,
+  provider: CodingProvider = 'claude',
 ): Promise<{ stream: Stream; close: () => void }> {
   signal.throwIfAborted();
   const socket = new WebSocket(target.url, {
-    headers: target.headers,
+    headers: { ...target.headers, [codingProviderHeader]: provider },
     maxPayload: 1024 * 1024,
     followRedirects: false,
     perMessageDeflate: false,
@@ -233,7 +268,18 @@ export async function connectCodingBridge(
       };
       const ready = (data: Buffer) => {
         try {
-          if (JSON.parse(data.toString()).bridgeReady !== true) return fail();
+          const frame = JSON.parse(data.toString());
+          if (frame.bridgeReady !== true) return fail();
+          // An older computer image ignores the provider header and always starts Claude Code.
+          if ((frame.provider ?? 'claude') !== provider) {
+            cleanup();
+            reject(
+              new CodingBridgeError(
+                `${codingProviders[provider].label} is not available in this computer image. Rebuild the computer image and restart the computer.`,
+              ),
+            );
+            return;
+          }
           cleanup();
           resolve();
         } catch {

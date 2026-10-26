@@ -1,0 +1,8 @@
+{
+  "name": "fulldots-computer-coding-adapter",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "2.2.2"
+  }
+}

@@ -22,13 +22,36 @@ const safeReasons = new Set([
   'Coding adapter resolves inside the computer Files root.',
   'Coding managed settings are missing or unsafe.',
   'Pinned adapter settings loader changed; review before installing.',
+  'Unknown coding provider.',
 ]);
+// Each coding agent is pinned to one exact version with its own reviewed lockfile folder and cache.
+// Changing a version, a lockfile or the completion marker installs into a fresh cache.
 const PROVIDERS = {
   claude: {
     version: '0.95.0',
     entry: '@agentclientprotocol/claude-agent-acp/dist/index.js',
+    directory: 'claude-0.95.0',
+    manifests: './adapter/',
+    marker: '0.95.0-managed-v1',
+  },
+  codex: {
+    version: '2.2.2',
+    entry: '@agentclientprotocol/codex-acp/dist/index.js',
+    directory: 'codex-2.2.2',
+    manifests: './adapter-codex/',
+    marker: 'codex-2.2.2-managed-v1',
   },
 };
+
+/** The request header naming the coding agent. A request without it keeps starting Claude Code. */
+export const PROVIDER_HEADER = 'x-fulldots-coding-provider';
+
+/** Only names listed in PROVIDERS are accepted; inherited names such as "constructor" are not. */
+export function providerName(value) {
+  return typeof value === 'string' && Object.hasOwn(PROVIDERS, value)
+    ? value
+    : undefined;
+}
 
 export function authenticated(headers, token, dotId) {
   const offered = Buffer.from(headers.get('x-openbot-computer-token') ?? '');
@@ -53,12 +76,17 @@ function kill(child) {
 
 export function withAcpBridge(upstream) {
   const workspace = process.env.WORKSPACE_DIR || '/workspace';
-  const paths = codingPaths(workspace, process.env.PROFILES_DIR || '/profiles');
-  const { cache } = paths;
-  const provider = PROVIDERS.claude;
-  const env = codingEnvironment(paths);
+  const profiles = process.env.PROFILES_DIR || '/profiles';
+  const installs = new Map();
   let active;
-  let installing;
+
+  function runtime(name) {
+    const id = providerName(name);
+    if (!id) throw new Error('Unknown coding provider.');
+    const provider = PROVIDERS[id];
+    const paths = codingPaths(workspace, profiles, provider.directory);
+    return { id, provider, paths, env: codingEnvironment(paths, id) };
+  }
 
   function end(socket, code, reason) {
     if (socket.data.closed) return;
@@ -68,14 +96,15 @@ export function withAcpBridge(upstream) {
     socket.close(code, reason);
   }
 
-  async function install() {
-    if (installing) return installing;
-    installing = (async () => {
+  async function install(name) {
+    if (installs.has(name)) return installs.get(name);
+    const { id, provider, paths, env } = runtime(name);
+    const { cache } = paths;
+    const installing = (async () => {
       await assertPrivateStorage(paths);
       try {
         if (
-          (await readFile(join(cache, '.complete'), 'utf8')) ===
-          '0.95.0-managed-v1'
+          (await readFile(join(cache, '.complete'), 'utf8')) === provider.marker
         )
           return;
       } catch {
@@ -84,7 +113,9 @@ export function withAcpBridge(upstream) {
       const staging = `${cache}.installing`;
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });
-      const manifests = fileURLToPath(new URL('./adapter/', import.meta.url));
+      const manifests = fileURLToPath(
+        new URL(provider.manifests, import.meta.url),
+      );
       for (const file of ['package.json', 'package-lock.json'])
         await cp(join(manifests, file), join(staging, file));
       await new Promise((resolve, reject) => {
@@ -122,24 +153,29 @@ export function withAcpBridge(upstream) {
         });
       });
       await access(join(staging, 'node_modules', provider.entry));
-      await hardenAdapter(staging);
-      await Bun.write(join(staging, '.complete'), '0.95.0-managed-v1');
+      await hardenAdapter(staging, id);
+      await Bun.write(join(staging, '.complete'), provider.marker);
       await rm(cache, { recursive: true, force: true });
       await rename(staging, cache);
     })();
+    installs.set(name, installing);
     try {
       await installing;
     } finally {
-      installing = undefined;
+      installs.delete(name);
     }
   }
 
   const bridge = {
     async open(socket) {
       try {
+        const { id, provider, paths, env } = runtime(
+          socket.data.provider ?? 'claude',
+        );
+        const { cache } = paths;
         await assertPrivateStorage(paths);
         await assertManagedSettings();
-        await install();
+        await install(id);
         if (socket.data.closed) return;
         await assertPrivateEntry(
           paths,
@@ -170,7 +206,7 @@ export function withAcpBridge(upstream) {
           end(socket, 1011, 'Coding worker could not start.'),
         );
         child.once('exit', () => end(socket, 1000, 'Coding worker stopped.'));
-        socket.send(JSON.stringify({ bridgeReady: true }));
+        socket.send(JSON.stringify({ bridgeReady: true, provider: id }));
       } catch (error) {
         end(
           socket,
@@ -236,7 +272,13 @@ export function withAcpBridge(upstream) {
         return new Response('A coding session is already active.', {
           status: 409,
         });
-      const data = { acp: true, closed: false };
+      // Refused before the upgrade, so an unknown name never reaches the installer or a process.
+      const provider = providerName(
+        request.headers.get(PROVIDER_HEADER) ?? 'claude',
+      );
+      if (!provider)
+        return new Response('Unknown coding provider.', { status: 400 });
+      const data = { acp: true, closed: false, provider };
       if (!server.upgrade(request, { data }))
         return new Response('Expected WebSocket upgrade.', { status: 400 });
       active = data;

@@ -181,3 +181,83 @@ it('frames split NDJSON messages over real byte streams against an SDK agent', a
     toClient.destroy();
   }
 });
+
+const codexModes = [
+  'read-only',
+  'workspace-write',
+  'agent',
+  'agent-full-access',
+];
+
+it('selects Codex read-only mode and sends no Claude Code session options', async () => {
+  const fake = fakeCodingAgent({ initialMode: 'agent', modes: codexModes });
+  const response = await runAcp({
+    target: fake.app,
+    provider: 'codex',
+    task: 'Make a change',
+    signal: new AbortController().signal,
+    permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+    update: () => {},
+    session: () => {},
+  });
+  expect(response.stopReason).toBe('end_turn');
+  expect(fake.state.mode).toBe('read-only');
+  expect(fake.state.sessionMeta).toBeUndefined();
+});
+
+it('never prompts Codex when it does not list the ask-first mode', async () => {
+  const fake = fakeCodingAgent({ modes: ['agent', 'agent-full-access'] });
+  await expect(
+    runAcp({
+      target: fake.app,
+      provider: 'codex',
+      task: 'Task',
+      signal: new AbortController().signal,
+      permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+      update: () => {},
+      session: () => {},
+    }),
+  ).rejects.toThrow('left default permission mode');
+  expect(fake.state.prompted).toBe(false);
+  expect(fake.state.mode).toBe('');
+});
+
+it.each(['agent', 'workspace-write', 'agent-full-access'])(
+  'cancels Codex when it reports mode %s',
+  async (modeUpdate) => {
+    const fake = fakeCodingAgent({
+      initialMode: 'read-only',
+      modes: codexModes,
+      modeUpdate,
+      waitForCancel: true,
+    });
+    await expect(
+      runAcp({
+        target: fake.app,
+        provider: 'codex',
+        task: 'Task',
+        signal: new AbortController().signal,
+        permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        update: () => {},
+        session: () => {},
+      }),
+    ).rejects.toThrow('left default permission mode');
+    expect(fake.state.cancelled).toBe(1);
+  },
+);
+
+it('still refuses a Claude Code session that starts outside default when Codex presets exist', async () => {
+  const fake = fakeCodingAgent({ initialMode: 'read-only' });
+  await expect(
+    runAcp({
+      target: fake.app,
+      provider: 'claude',
+      task: 'Task',
+      signal: new AbortController().signal,
+      permission: async () => ({ outcome: { outcome: 'cancelled' } }),
+      update: () => {},
+      session: () => {},
+    }),
+  ).rejects.toThrow('left default permission mode');
+  expect(fake.state.prompted).toBe(false);
+});

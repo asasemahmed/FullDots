@@ -45,7 +45,10 @@ import { ModelProvidersSettings } from './ModelProvidersSettings';
 import { PromptsSettings } from './palette/PromptsSettings';
 import { useThemePreference, type ThemePreference } from './theme';
 import { DotDelegatesField } from './teams/DotDelegatesField';
-import { CodingAgentsField } from './CodingAgentsField';
+import {
+  CodingAgentsField,
+  type CodingProviderChoice,
+} from './CodingAgentsField';
 import type {
   ApprovalMode,
   ConnectorView,
@@ -338,6 +341,8 @@ export function WorkspaceDialog({
   const [rulesDirty, setRulesDirty] = useState(false);
   const savedDotId = useRef<string | undefined>(undefined);
   const [codingAgents, setCodingAgents] = useState(false);
+  const [codingProvider, setCodingProvider] =
+    useState<CodingProviderChoice>('claude');
   const [codingAgentsLoading, setCodingAgentsLoading] = useState(
     dialog.type === 'dot' && Boolean(dialog.dot),
   );
@@ -354,6 +359,7 @@ export function WorkspaceDialog({
     if (dialog.type !== 'dot') return;
     if (!dialog.dot) {
       setCodingAgents(false);
+      setCodingProvider('claude');
       setCodingAgentsLoading(false);
       setCodingAgentsLoaded(true);
       setCodingAgentsError(null);
@@ -364,10 +370,13 @@ export function WorkspaceDialog({
     setCodingAgentsLoading(true);
     setCodingAgentsLoaded(false);
     setCodingAgentsError(null);
-    void api<{ enabled: boolean }>(`/dots/${dialog.dot.id}/coding-agents`)
+    void api<{ enabled: boolean; provider?: CodingProviderChoice }>(
+      `/dots/${dialog.dot.id}/coding-agents`,
+    )
       .then((res) => {
         if (!active) return;
         setCodingAgents(Boolean(res?.enabled));
+        setCodingProvider(res?.provider === 'codex' ? 'codex' : 'claude');
         setCodingAgentsLoaded(true);
         setCodingAgentsLoading(false);
       })
@@ -387,6 +396,11 @@ export function WorkspaceDialog({
 
   const onCodingAgentsChange = (next: boolean) => {
     setCodingAgents(next);
+    setCodingAgentsDirty(true);
+  };
+
+  const onCodingProviderChange = (next: CodingProviderChoice) => {
+    setCodingProvider(next);
     setCodingAgentsDirty(true);
   };
 
@@ -685,6 +699,7 @@ export function WorkspaceDialog({
                 if (saved && shouldSaveCodingAgents) {
                   saved = await mutate(`/dots/${dotId}/coding-agents`, 'PUT', {
                     enabled: codingAgents,
+                    provider: codingProvider,
                   });
                   if (saved) setCodingAgentsDirty(false);
                 }
@@ -941,6 +956,8 @@ export function WorkspaceDialog({
                     <CodingAgentsField
                       enabled={codingAgents}
                       onChange={onCodingAgentsChange}
+                      provider={codingProvider}
+                      onProviderChange={onCodingProviderChange}
                       loading={codingAgentsLoading}
                       error={codingAgentsError}
                       disabled={

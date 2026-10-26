@@ -21,7 +21,11 @@ import {
   prepareCodingStorage,
 } from '../deployment/computers/acp-bridge/storage.mjs';
 import { withAcpBridge } from '../deployment/computers/acp-bridge/bridge.mjs';
-import { managedOnlyAdapterSettings } from '../deployment/computers/acp-bridge/harden-adapter.mjs';
+import {
+  hardenAdapter,
+  managedOnlyAdapterSettings,
+  untrustedProjectCodexSettings,
+} from '../deployment/computers/acp-bridge/harden-adapter.mjs';
 
 const roots = [];
 afterEach(async () => {
@@ -203,4 +207,125 @@ it('refuses managed settings that are missing, changed or a link', async () => {
   }
   if (linked)
     await expect(assertManagedSettings(link)).rejects.toThrow(message);
+});
+
+it('keeps the Codex cache, home and settings folder in the coding storage outside the Files root', async () => {
+  const f = await fixture();
+  const codex = codingPaths(f.workspace, f.profiles, 'codex-2.2.2');
+  await assertPrivateStorage(codex);
+  const env = codingEnvironment(codex, 'codex');
+  for (const path of [codex.cache, codex.staging, env.HOME, env.CODEX_HOME]) {
+    expect(relative(f.workspace, path).startsWith('..')).toBe(true);
+    expect(relative(join(f.profiles, '.coding'), path).startsWith('..')).toBe(
+      false,
+    );
+  }
+  expect(env.CODEX_HOME).toBe(join(codex.home, '.codex'));
+  // One home is shared; the two agents never share an adapter cache.
+  expect(codex.home).toBe(f.paths.home);
+  expect(codex.cache).not.toBe(f.paths.cache);
+  expect(relative(f.paths.root, codex.cache)).toBe(
+    join('adapters', 'codex-2.2.2'),
+  );
+});
+
+it('gives Codex a limited environment that starts in the ask-first preset', async () => {
+  const f = await fixture();
+  vi.stubEnv('COMPUTER_TOKEN', 'fixture-computer-token-long-enough');
+  vi.stubEnv('OPENAI_API_KEY', 'fixture-' + 'value');
+  const env = codingEnvironment(f.paths, 'codex');
+  expect(env.INITIAL_AGENT_MODE).toBe('read-only');
+  expect(env.CLAUDE_CONFIG_DIR).toBeUndefined();
+  expect(env.COMPUTER_TOKEN).toBeUndefined();
+  expect(env.OPENAI_API_KEY).toBeUndefined();
+  expect(env.NPM_CONFIG_USERCONFIG).toBe('/dev/null');
+  // Claude Code's environment is unchanged.
+  const claude = codingEnvironment(f.paths);
+  expect(claude.CLAUDE_CONFIG_DIR).toBe(join(f.paths.home, '.claude'));
+  expect(claude.CODEX_HOME).toBeUndefined();
+  expect(claude.INITIAL_AGENT_MODE).toBeUndefined();
+});
+
+it('refuses to launch Codex if the coding storage is under the Files root', async () => {
+  const f = await fixture();
+  vi.stubEnv('WORKSPACE_DIR', f.workspace);
+  vi.stubEnv('PROFILES_DIR', f.workspace);
+  const socket = {
+    data: { acp: true, provider: 'codex' },
+    close: vi.fn(),
+    send: vi.fn(),
+  };
+  await withAcpBridge({ websocket: {} }).websocket.open(socket);
+  expect(socket.close).toHaveBeenCalledWith(
+    1011,
+    'Coding storage must stay outside the computer Files root.',
+  );
+  expect(socket.send).not.toHaveBeenCalled();
+  expect(socket.data.child).toBeUndefined();
+});
+
+it('rejects a Codex cache symlink that resolves inside the Files root', async () => {
+  const f = await fixture();
+  const codex = codingPaths(f.workspace, f.profiles, 'codex-2.2.2');
+  await assertPrivateStorage(codex);
+  await rm(codex.cache, { recursive: true });
+  await symlink(
+    f.workspace,
+    codex.cache,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+  await expect(assertPrivateStorage(codex)).rejects.toThrow('resolves inside');
+});
+
+it('marks the project untrusted in the pinned Codex adapter and refuses drift', () => {
+  const source =
+    'projects: Object.fromEntries(roots.map((root) => [root, { trust_level: "trusted" }]))';
+  const patched = untrustedProjectCodexSettings(source);
+  expect(patched).toContain('trust_level: "untrusted"');
+  expect(patched).not.toContain('"trusted"');
+  expect(() => untrustedProjectCodexSettings('changed loader')).toThrow(
+    'Pinned adapter',
+  );
+  expect(() => untrustedProjectCodexSettings(source + source)).toThrow(
+    'Pinned adapter',
+  );
+});
+
+it('hardens the installed Codex adapter file and leaves Claude Code hardening alone', async () => {
+  const { root } = await fixture();
+  const file = join(
+    root,
+    'cache/node_modules/@agentclientprotocol/codex-acp/dist/index.js',
+  );
+  await mkdir(join(file, '..'), { recursive: true });
+  await writeFile(file, '{ trust_level: "trusted" }');
+  await hardenAdapter(join(root, 'cache'), 'codex');
+  expect(await readFile(file, 'utf8')).toBe('{ trust_level: "untrusted" }');
+  // Claude Code's file is not there, so its hardening cannot be applied to a Codex cache.
+  await expect(hardenAdapter(join(root, 'cache'))).rejects.toThrow();
+});
+
+it('pins Codex to one exact reviewed version with a lockfile', async () => {
+  const folder = new URL(
+    '../deployment/computers/acp-bridge/adapter-codex/',
+    import.meta.url,
+  );
+  const manifest = JSON.parse(
+    await readFile(new URL('package.json', folder), 'utf8'),
+  );
+  expect(manifest.dependencies).toEqual({
+    '@agentclientprotocol/codex-acp': '2.2.2',
+  });
+  const lock = JSON.parse(
+    await readFile(new URL('package-lock.json', folder), 'utf8'),
+  );
+  expect(
+    lock.packages['node_modules/@agentclientprotocol/codex-acp'].version,
+  ).toBe('2.2.2');
+  const bridge = await readFile(
+    new URL('../deployment/computers/acp-bridge/bridge.mjs', import.meta.url),
+    'utf8',
+  );
+  expect(bridge).toContain("'@agentclientprotocol/codex-acp/dist/index.js'");
+  expect(bridge).not.toContain('@zed-industries');
 });

@@ -16,6 +16,7 @@ import {
 import { codingPermission, type HandoffStarter } from '../approval-gate.js';
 import {
   authenticationRequired,
+  codingProviders,
   connectCodingBridge,
   runAcp,
   type AcpRunOptions,
@@ -71,9 +72,12 @@ export async function codingTools(deps: CodingToolDeps) {
           timeout,
         ]);
         const target = await deps.computer.codingTarget(dotId, signal);
+        // Read once per task: a change made while it runs applies to the next task.
+        const provider = store.codingSessions.provider(dotId);
+        const label = codingProviders[provider].label;
         let session;
         try {
-          session = store.codingSessions.start(dotId, threadId, 'claude');
+          session = store.codingSessions.start(dotId, threadId, provider);
         } catch (error) {
           if (error instanceof CodingTaskBusyError)
             return { status: 'busy', message: error.message };
@@ -119,10 +123,14 @@ export async function codingTools(deps: CodingToolDeps) {
           progress(
             '\nCoding agent is connecting inside this Dot’s computer.\n',
           );
-          bridge = await (deps.connect ?? connectCodingBridge)(target, signal);
+          bridge = await (deps.connect ?? connectCodingBridge)(
+            target,
+            signal,
+            provider,
+          );
           const response = await (deps.run ?? runAcp)({
             target: bridge.stream,
-            provider: 'claude',
+            provider,
             task,
             signal,
             session: (id) => store.codingSessions.attach(session.id, id),
@@ -188,7 +196,9 @@ export async function codingTools(deps: CodingToolDeps) {
               threadId,
               kind: 'credential',
               reason:
-                'Sign in to Claude Code in this Dot’s computer. Credentials stay inside the computer.',
+                provider === 'codex'
+                  ? `Sign in to ${label} in this Dot’s computer, with an API key or your ChatGPT account. Credentials stay inside the computer.`
+                  : `Sign in to ${label} in this Dot’s computer. Credentials stay inside the computer.`,
             });
             return {
               status: 'handoff',
