@@ -30,6 +30,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- **A remote agent name is checked at the address it really points to.** A public name that resolves to this machine, a private network, or a cloud metadata address is refused, including when the name changes its answer before the connection. A host listed in `AGENT_ENDPOINT_ALLOWED_HOSTS` may still point at a private address. Metadata addresses stay refused. See [`docs/AGENTS.md`](docs/AGENTS.md#which-addresses-are-allowed).
 - **Codex can no longer read its private coding files.** In the read-only preset, sandboxed file reads and shell commands now refuse `/profiles/.coding`, including the sign-in file. The rule names that directory. A glob deny is not used, because denying `/proc` that way makes every sandboxed command fail. The sandbox already has its own process namespace. See [`docs/COMPUTERS.md`](docs/COMPUTERS.md#choose-claude-code-or-codex).
 - Settings > Connectors: the Connectors and Discover switch is now a set of tabs that screen readers announce and the arrow keys move between.
 - A dark theme no longer flashes light when the page loads under `npm start` or in Docker. The server's Content-Security-Policy (`script-src 'self'`) blocked the inline script that applies the saved theme before the first paint, so it only ran under `npm run dev`. The script is now `public/theme-init.js`, loaded from `<head>`, and the policy is unchanged.

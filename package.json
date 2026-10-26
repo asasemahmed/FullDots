@@ -73,6 +73,7 @@
     "remark-gfm": "^4.0.1",
     "rxjs": "^7.8.1",
     "simple-icons": "^16.34.0",
+    "undici": "6.29.1",
     "ws": "^8.22.0",
     "zod": "^4.6.5"
   },
@@ -108,7 +109,7 @@
     "url": "https://github.com/asasemahmed/FullDots/issues"
   },
   "overrides": {
-    "undici": "^6.29.0",
+    "undici": "6.29.1",
     "@ag-ui/core": "$@ag-ui/core",
     "@ag-ui/client": "$@ag-ui/client",
     "@ag-ui/encoder": "1.0.3",

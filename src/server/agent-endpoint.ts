@@ -1,6 +1,15 @@
 // Endpoint checks and the redirecting fetch follow OpenBot (MIT): a stored agent
 // address is a server-side request the owner chose, so every hop is checked, and
 // an authorization header does not follow a redirect to a different host.
+// The name is resolved again when the socket connects, and only an address that
+// passed that check is dialled. A name that changes its answer in between is refused.
+import type { LookupAddress, LookupOptions } from 'node:dns';
+import { lookup } from 'node:dns/promises';
+import {
+  Agent,
+  fetch as undiciFetch,
+  type RequestInit as UndiciRequestInit,
+} from 'undici';
 import { isLoopbackHost, isPrivateLiteral } from './connector-oauth.js';
 
 /** Largest agent response, matching the default computer response cap. */
@@ -126,6 +135,131 @@ function localOrPrivate(url: URL): boolean {
   return isLoopbackHost(host) || isPrivateLiteral(host);
 }
 
+export interface ResolvedAddress {
+  address: string;
+  family: number;
+}
+
+/** One lookup of every address. Tests pass a fake; the default uses DNS and does not dial. */
+export type AgentResolver = (
+  hostname: string,
+) => Promise<readonly ResolvedAddress[]>;
+
+async function dnsResolve(
+  hostname: string,
+): Promise<readonly ResolvedAddress[]> {
+  return lookup(hostname, { all: true, verbatim: true });
+}
+
+/** IPv4-mapped IPv6 (`::ffff:10.0.0.5` and `::ffff:a00:5`) reduced to the IPv4 address. */
+function canonicalAddress(address: string): string {
+  const host = address
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  const dotted = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
+  if (dotted?.[1]) return dotted[1];
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (!hex?.[1] || !hex[2]) return host;
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+}
+
+function addressBlocked(address: string, listed: boolean): string | undefined {
+  const host = canonicalAddress(address);
+  if (
+    NEVER_ALLOWED.has(spellHost(host)) ||
+    NEVER_ALLOWED.has(spellHost(address))
+  )
+    return 'That address is not allowed for an agent.';
+  if (listed) return undefined;
+  if (isLoopbackHost(host) || isPrivateLiteral(host)) return 'private';
+  return undefined;
+}
+
+/**
+ * Why this hop must not be dialled, after every resolved address has been seen.
+ * A listed host may resolve privately. A metadata address may not, listed or not.
+ * One private address among public ones is enough to refuse.
+ */
+export function resolutionRefusal(
+  url: URL,
+  records: readonly ResolvedAddress[],
+  allowed: ReadonlySet<string>,
+): string | undefined {
+  if (records.length === 0)
+    return 'That address could not be checked, so the connection was refused.';
+  const listed = hostIsListed(url, allowed);
+  for (const record of records) {
+    const blocked = addressBlocked(record.address, listed);
+    if (blocked === 'private')
+      return `That address (${hostOnly(url)}) is on this machine or a private network. List its host in AGENT_ENDPOINT_ALLOWED_HOSTS to allow it.`;
+    if (blocked) return blocked;
+  }
+  return undefined;
+}
+
+type LookupCallback = (
+  error: NodeJS.ErrnoException | null,
+  addresses: string | LookupAddress[],
+  family?: number,
+) => void;
+
+type ConnectLookup = (
+  hostname: string,
+  options: LookupOptions,
+  callback: LookupCallback,
+) => void;
+
+/**
+ * undici `connect.lookup`. Resolves, refuses if any address is blocked, and
+ * returns only the addresses just checked so a later answer cannot be dialled.
+ */
+export function agentConnectLookup(args: {
+  allowedHosts?: ReadonlySet<string>;
+  resolve?: AgentResolver;
+  target: () => URL;
+}): ConnectLookup {
+  const allowed = args.allowedHosts ?? new Set<string>();
+  const resolve = args.resolve ?? dnsResolve;
+  return (hostname, lookupOptions, callback) => {
+    void resolve(hostname).then(
+      (records) => {
+        const reason = resolutionRefusal(args.target(), records, allowed);
+        if (reason) {
+          callback(new EndpointNotAllowedError(reason), []);
+          return;
+        }
+        const checked = records.map((record) => ({
+          address: record.address,
+          family: record.family,
+        }));
+        const first = checked[0];
+        if (!first) {
+          callback(
+            new EndpointNotAllowedError(
+              'That address could not be checked, so the connection was refused.',
+            ),
+            [],
+          );
+          return;
+        }
+        if (lookupOptions.all) callback(null, checked);
+        else callback(null, first.address, first.family);
+      },
+      () => {
+        callback(
+          new EndpointNotAllowedError(
+            'That address could not be checked, so the connection was refused.',
+          ),
+          [],
+        );
+      },
+    );
+  };
+}
+
 /**
  * Whether this address may be saved or dialled.
  * Public https addresses are allowed. http, localhost, and private or link-local
@@ -230,20 +364,86 @@ function capBody(response: Response, max: number): Response {
 
 export interface AgentFetchOptions {
   allowedHosts?: ReadonlySet<string>;
-  fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
+  fetchImpl?: (
+    url: string,
+    init?: RequestInit & { dispatcher?: Agent },
+  ) => Promise<Response>;
   /** Whole-request time limit. The turn's own stop time. */
   timeoutMs?: number;
   maxBodyBytes?: number;
+  /** Address lookup. Tests inject this so nothing is resolved on the network. */
+  resolve?: AgentResolver;
+}
+
+function releaseAgent(response: Response, agent: Agent, max: number): Response {
+  const capped = capBody(response, max);
+  const body = capped.body;
+  if (!body) {
+    void agent.close();
+    return capped;
+  }
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    void agent.close();
+  };
+  const reader = body.getReader();
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          close();
+          controller.close();
+          return;
+        }
+        controller.enqueue(next.value);
+      } catch (error) {
+        close();
+        throw error;
+      }
+    },
+    cancel(reason) {
+      close();
+      return reader.cancel(reason);
+    },
+  });
+  return new Response(stream, {
+    status: capped.status,
+    statusText: capped.statusText,
+    headers: capped.headers,
+  });
+}
+
+function refusalOf(error: unknown): EndpointNotAllowedError | undefined {
+  let current = error;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+    if (current instanceof EndpointNotAllowedError) return current;
+    current = current.cause;
+  }
+  return undefined;
 }
 
 /**
  * `fetch` that checks the stored address and every redirect before dialling it.
  * Redirects are followed, up to three, because an https upgrade is normal.
  * The method and body stay a POST: an agent speaks AG-UI, not a browser navigation.
+ * The socket is opened only to an address this call just resolved and allowed.
  */
 export function createAgentFetch(options: AgentFetchOptions = {}) {
   const allowed = options.allowedHosts ?? new Set<string>();
-  const doFetch = options.fetchImpl ?? fetch;
+  const resolve = options.resolve ?? dnsResolve;
+  const doFetch: (
+    url: string,
+    init?: RequestInit & { dispatcher?: Agent },
+  ) => Promise<Response> =
+    options.fetchImpl ??
+    ((address, init) =>
+      undiciFetch(
+        address,
+        init as UndiciRequestInit,
+      ) as unknown as Promise<Response>);
   const maxBytes = options.maxBodyBytes ?? AGENT_MAX_BODY_BYTES;
   const check = (address: string) => checkAgentEndpoint(address, allowed);
 
@@ -253,35 +453,69 @@ export function createAgentFetch(options: AgentFetchOptions = {}) {
     const origin = stored.url;
     let target = stored.url;
     let carried = init;
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-      const signals: AbortSignal[] = [];
-      if (options.timeoutMs)
-        signals.push(AbortSignal.timeout(options.timeoutMs));
-      if (carried?.signal) signals.push(carried.signal);
-      const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
-      const response = await doFetch(target, {
-        ...carried,
-        redirect: 'manual',
-        ...(signal ? { signal } : {}),
-      });
-      if (!REDIRECT_STATUSES.has(response.status))
-        return capBody(response, maxBytes);
-      const location = response.headers.get('location');
-      await response.body?.cancel().catch(() => undefined);
-      if (!location) return response;
-      const next = new URL(location, target).href;
-      const verdict = check(next);
-      if (!verdict.allowed)
-        throw new EndpointNotAllowedError(
-          `The agent redirected to ${hostOnly(new URL(next))}, and that address was refused. ${verdict.reason}`,
-        );
-      if (!sameCredentialScope(origin, verdict.url))
-        carried = withoutAuthorization(carried);
-      target = verdict.url;
+    let current = new URL(target);
+    const ownSocket = !options.fetchImpl;
+    const agent = ownSocket
+      ? new Agent({
+          connect: {
+            lookup: agentConnectLookup({
+              allowedHosts: allowed,
+              resolve,
+              target: () => current,
+            }),
+          },
+        })
+      : undefined;
+    try {
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+        current = new URL(target);
+        const resolved = await resolve(current.hostname).catch(() => []);
+        const reason = resolutionRefusal(current, resolved, allowed);
+        if (reason) throw new EndpointNotAllowedError(reason);
+        const signals: AbortSignal[] = [];
+        if (options.timeoutMs)
+          signals.push(AbortSignal.timeout(options.timeoutMs));
+        if (carried?.signal) signals.push(carried.signal);
+        const signal =
+          signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+        let response: Response;
+        try {
+          response = await doFetch(target, {
+            ...carried,
+            redirect: 'manual',
+            ...(agent ? { dispatcher: agent } : {}),
+            ...(signal ? { signal } : {}),
+          });
+        } catch (error) {
+          const refused = refusalOf(error);
+          if (refused) throw refused;
+          throw error;
+        }
+        if (!REDIRECT_STATUSES.has(response.status))
+          return agent
+            ? releaseAgent(response, agent, maxBytes)
+            : capBody(response, maxBytes);
+        const location = response.headers.get('location');
+        await response.body?.cancel().catch(() => undefined);
+        if (!location)
+          return agent ? releaseAgent(response, agent, maxBytes) : response;
+        const next = new URL(location, target).href;
+        const verdict = check(next);
+        if (!verdict.allowed)
+          throw new EndpointNotAllowedError(
+            `The agent redirected to ${hostOnly(new URL(next))}, and that address was refused. ${verdict.reason}`,
+          );
+        if (!sameCredentialScope(origin, verdict.url))
+          carried = withoutAuthorization(carried);
+        target = verdict.url;
+      }
+      throw new EndpointNotAllowedError(
+        'The agent redirected too many times, so the connection was refused.',
+      );
+    } catch (error) {
+      await agent?.close();
+      throw error;
     }
-    throw new EndpointNotAllowedError(
-      'The agent redirected too many times, so the connection was refused.',
-    );
   };
 }
 

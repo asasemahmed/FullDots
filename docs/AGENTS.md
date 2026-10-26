@@ -29,9 +29,9 @@ AGENT_ENDPOINT_ALLOWED_HOSTS=agents.internal,10.0.0.42:9000
 
 A host on its own covers any port on that host. A host with a port pins that port. Matching is exact: no wildcards and no suffixes. An entry written as a URL, or containing `*`, stops FullDots from starting and names that entry.
 
-The check runs when you save the Dot, and again on every redirect the agent answers with. A redirect to a private address is refused unless that host is listed too. The authorization header is not sent on to a different host. Cloud metadata addresses, such as `169.254.169.254`, are refused even when listed.
+The check runs when you save the Dot, and again on every connection and every redirect. FullDots looks the name up and refuses it if any address is on this machine, a private or link-local network, or a cloud metadata address such as `169.254.169.254`. That includes a name that answers with a public address and then a private one. The connection uses an address from that check. A redirect to a name that points at a private address is refused and not contacted. The authorization header is not sent on to a different host.
 
-Host names are not looked up, so a public name that points at a private address is not caught here.
+A host you listed may point at a private address. A metadata address stays refused even when listed.
 
 The request stops at the same time limit as a built-in turn (`AGENT_TURN_TIMEOUT`, then `AGENT_TURN_GRACE`). A response larger than 4 MB is stopped. That is the same default cap as a computer response.
 
