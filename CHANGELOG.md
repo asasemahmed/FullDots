@@ -6,6 +6,8 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Added
 
+- **A full Linux desktop for each Dot.** Choose Full desktop in computer settings to use Linux apps, native mouse and keyboard input, whole-screen viewing, takeover and replay. Desktop actions require an owner-enabled Images flag for the Dot's model; typing always asks unless approvals are off. The desktop image is built locally, runs its GUI as a separate user, and defaults to 4 GiB of memory. See [Dot computers](docs/COMPUTERS.md#full-desktop).
+
 - **Install FullDots as an app.** A web app manifest and app icons let you install FullDots on phones and desktops. On a phone, choose Add to Home Screen; on a desktop browser, click Install in the address bar. The app opens in its own window. It still needs your server running; there is no offline mode. See [`docs/UI.md`](docs/UI.md#install-fulldots-as-an-app) (closing [#12](https://github.com/asasemahmed/FullDots/issues/12)).
 
 - **A Dot can use an agent you run.** In the Dot dialog, Advanced takes an https AG-UI endpoint and an optional authorization header. The header is encrypted and is not sent back to the browser. That Dot's turns then go to the agent. Chat, mission control, pause and stop work as they do for any Dot. A remote agent uses its own tools, which the approval gate does not see. Hand-offs, Spaces and the computer stay FullDots tools. Private and local addresses are refused unless the host is listed in `AGENT_ENDPOINT_ALLOWED_HOSTS`. See [`docs/AGENTS.md`](docs/AGENTS.md).

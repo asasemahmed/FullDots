@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dot } from '../shared/types';
 import type {
   ComputerAction,
+  ComputerKind,
   ComputerPermissions,
   ComputerStatus,
 } from '../shared/computer-types';
@@ -101,51 +102,66 @@ export function ComputerPanel({
       lifecycle.current.loaded = true;
       lifecycle.current.running = next.state === 'running';
       setError('');
-      if (
+      const kind = next.permissions.kind ?? 'browser';
+      const isDesktop = kind === 'desktop';
+      const screenAvailable =
         next.state === 'running' &&
-        next.permissions.browser &&
-        next.permissions.enabled
-      ) {
+        next.permissions.enabled &&
+        (isDesktop
+          ? Boolean(next.permissions.desktop)
+          : next.permissions.browser);
+
+      if (screenAvailable) {
         if (lifecycle.current.streaming) {
           // The live screen has no address bar, so ask the page where it is now and then.
-          const every = lifecycle.current.agentActive
-            ? PAGE_READ_ACTIVE_MS
-            : PAGE_READ_MS;
-          if (Date.now() - lifecycle.current.urlAt > every) {
-            lifecycle.current.urlAt = Date.now();
-            try {
-              const read = await api<{ url?: unknown; title?: unknown }>(
-                `${base}/actions`,
-                'POST',
-                { action: 'read', input: {} },
-                controller.current?.signal,
-              );
-              if (current() && typeof read.url === 'string') {
-                const url = read.url;
-                const title =
-                  typeof read.title === 'string' && read.title.trim()
-                    ? read.title
-                    : undefined;
-                setPage({ url, title });
+          if (next.permissions.browser) {
+            const every = lifecycle.current.agentActive
+              ? PAGE_READ_ACTIVE_MS
+              : PAGE_READ_MS;
+            if (Date.now() - lifecycle.current.urlAt > every) {
+              lifecycle.current.urlAt = Date.now();
+              try {
+                const read = await api<{ url?: unknown; title?: unknown }>(
+                  `${base}/actions`,
+                  'POST',
+                  { action: 'read', input: {} },
+                  controller.current?.signal,
+                );
+                if (current() && typeof read.url === 'string') {
+                  const url = read.url;
+                  const title =
+                    typeof read.title === 'string' && read.title.trim()
+                      ? read.title
+                      : undefined;
+                  setPage({ url, title });
+                }
+              } catch {
+                // The address is a courtesy; the screen is what matters.
               }
-            } catch {
-              // The address is a courtesy; the screen is what matters.
             }
+          } else {
+            setPage(undefined);
           }
         } else
           try {
+            const action = isDesktop ? 'desktop_screenshot' : 'screenshot';
             const capture = await api<Snapshot>(
               `${base}/actions`,
               'POST',
-              { action: 'screenshot', input: {} },
+              { action, input: {} },
               controller.current?.signal,
             );
             if (current()) {
               setSnapshot(capture);
-              setPage((before) => ({
-                url: capture.url,
-                title: before?.url === capture.url ? before.title : undefined,
-              }));
+              if (isDesktop && !next.permissions.browser) {
+                setPage(undefined);
+              } else if (capture.url) {
+                setPage((before) => ({
+                  url: capture.url!,
+                  title:
+                    before?.url === capture.url ? before?.title : undefined,
+                }));
+              }
               setSnapshotError('');
             }
           } catch (cause) {
@@ -260,7 +276,10 @@ export function ComputerPanel({
     const outcome = await run('/actions', { action, input });
     return outcome.ok ? (outcome.result ?? null) : undefined;
   };
-  const setPermission = async (key: PermissionKey, value: boolean) => {
+  const setPermission = async (
+    key: PermissionKey,
+    value: boolean | ComputerKind,
+  ) => {
     clearTimeout(noteTimers.current[key]);
     setOptimistic((before) => ({ ...before, [key]: value }));
     setNotes((before) => ({ ...before, [key]: 'saving' }));
@@ -289,9 +308,13 @@ export function ComputerPanel({
 
   const human =
     status?.control?.holder === 'human' && !status.control.transitioning;
-  const browser = isUsable(status) && !!status?.permissions.browser;
+  const kind = status?.permissions.kind ?? 'browser';
+  const isDesktop = kind === 'desktop';
+  const screenAvailable =
+    isUsable(status) &&
+    (isDesktop ? !!status?.permissions.desktop : !!status?.permissions.browser);
   const streaming =
-    browser &&
+    screenAvailable &&
     ['connecting', 'live', 'reconnecting', 'paused'].includes(stream.phase);
   const now = Math.max(statusAt, clock);
   const activity = human

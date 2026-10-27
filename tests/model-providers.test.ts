@@ -585,7 +585,10 @@ describe('models', () => {
     const groq = addGroq();
     const result = await registry.models(groq.id);
     expect(result).toMatchObject({ stale: false });
-    expect(result.models).toEqual([{ id: 'fake-large' }, { id: 'fake-small' }]);
+    expect(result.models).toEqual([
+      { id: 'fake-large', images: false },
+      { id: 'fake-small', images: false },
+    ]);
     expect(fake.listings()[0]).toMatchObject({
       path: '/openai/v1/models',
       headers: { authorization: `Bearer ${GROQ_KEY}` },
@@ -618,7 +621,7 @@ describe('models', () => {
       key: { kind: 'stored', value: 'mistral-key-1234567' },
     });
     expect((await registry.models(mistral.id)).models).toEqual([
-      { id: 'mistral-large' },
+      { id: 'mistral-large', images: false },
     ]);
   });
 
@@ -643,6 +646,7 @@ describe('models', () => {
     expect(models[0]).toEqual({
       id: 'fake-large',
       name: 'Name of fake-large',
+      images: false,
       tools: true,
       contextLength: 32000,
     });
@@ -660,7 +664,11 @@ describe('models', () => {
     });
     const { models, stale } = await registry.models(anthropic.id);
     expect(stale).toBe(false);
-    expect(models[0]).toEqual({ id: 'fake-large', name: 'Display fake-large' });
+    expect(models[0]).toEqual({
+      id: 'fake-large',
+      name: 'Display fake-large',
+      images: false,
+    });
     const request = fake.listings()[0]!;
     expect(request.path).toBe('/v1/models');
     expect(request.search).toBe('?limit=1000');

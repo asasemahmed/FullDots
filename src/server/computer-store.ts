@@ -7,10 +7,24 @@ import type {
 import type { ActionAuditEntry } from '../shared/types.js';
 export class ComputerStore {
   constructor(private db: DatabaseSync) {
-    db.exec(`CREATE TABLE IF NOT EXISTS computer_permissions(dotId TEXT PRIMARY KEY,value TEXT NOT NULL);
+    db.exec(`CREATE TABLE IF NOT EXISTS computer_permissions(dotId TEXT PRIMARY KEY,value TEXT NOT NULL,kind TEXT NOT NULL DEFAULT 'browser');
       CREATE TABLE IF NOT EXISTS computer_audit(id TEXT PRIMARY KEY,dotId TEXT NOT NULL,action TEXT NOT NULL,actor TEXT NOT NULL,outcome TEXT NOT NULL,createdAt INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS action_audit(id TEXT PRIMARY KEY,dotId TEXT NOT NULL,threadId TEXT,tool TEXT NOT NULL,actor TEXT NOT NULL,outcome TEXT NOT NULL,createdAt INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS action_audit_dot ON action_audit(dotId,createdAt);`);
+    const hasKind = db
+      .prepare('PRAGMA table_info(computer_permissions)')
+      .all()
+      .some(
+        (col) =>
+          typeof col === 'object' &&
+          col !== null &&
+          (col as { name?: unknown }).name === 'kind',
+      );
+    if (!hasKind) {
+      db.exec(
+        `ALTER TABLE computer_permissions ADD COLUMN kind TEXT NOT NULL DEFAULT 'browser'`,
+      );
+    }
     const row = db.prepare('SELECT COUNT(*) AS n FROM action_audit').get();
     if (Number(row?.n) === 0)
       db.exec(
@@ -19,17 +33,48 @@ export class ComputerStore {
   }
   permissions(id: string): ComputerPermissions {
     const row = this.db
-      .prepare('SELECT value FROM computer_permissions WHERE dotId=?')
-      .get(id);
-    return row
-      ? JSON.parse(String(row.value))
-      : { enabled: false, browser: false, files: false, shell: false };
+      .prepare('SELECT value, kind FROM computer_permissions WHERE dotId=?')
+      .get(id) as { value: string; kind?: string } | undefined;
+    if (!row) {
+      return {
+        enabled: false,
+        browser: false,
+        files: false,
+        shell: false,
+        desktop: false,
+        kind: 'browser',
+      };
+    }
+    const parsed = JSON.parse(String(row.value));
+    const kind =
+      (row.kind ?? parsed.kind ?? 'browser') === 'desktop'
+        ? 'desktop'
+        : 'browser';
+    return {
+      enabled: parsed.enabled === true,
+      browser: parsed.browser === true,
+      files: parsed.files === true,
+      shell: parsed.shell === true,
+      desktop: parsed.desktop === true,
+      kind,
+      ...(parsed.replay !== undefined ? { replay: parsed.replay } : {}),
+    };
   }
   patch(id: string, patch: Partial<ComputerPermissions>) {
-    const value = { ...this.permissions(id), ...patch };
+    const current = this.permissions(id);
+    const value: ComputerPermissions = {
+      ...current,
+      ...patch,
+      desktop: patch.desktop !== undefined ? patch.desktop : current.desktop,
+      kind: patch.kind !== undefined ? patch.kind : current.kind,
+    };
+    const kind = value.kind ?? 'browser';
     this.db
-      .prepare('INSERT OR REPLACE INTO computer_permissions VALUES (?,?)')
-      .run(id, JSON.stringify(value));
+      .prepare(
+        `INSERT INTO computer_permissions(dotId, value, kind) VALUES (?,?,?)
+         ON CONFLICT(dotId) DO UPDATE SET value=excluded.value, kind=excluded.kind`,
+      )
+      .run(id, JSON.stringify(value), kind);
     return value;
   }
   begin(

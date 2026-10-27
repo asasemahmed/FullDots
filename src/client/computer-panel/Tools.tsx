@@ -265,7 +265,7 @@ export function KeyboardTool({
     <div className="cp-tool">
       <p className="cp-hint">
         {human
-          ? 'Most of the time you can click and type on the screen itself. These are for exact clicks and for text that goes straight to the browser, not into chat.'
+          ? 'Most of the time you can click and type on the screen itself. These are for exact clicks and for text that goes straight to the computer, not into chat.'
           : 'Take control first. Then you can click exact points, type text and press keys here.'}
       </p>
       <form

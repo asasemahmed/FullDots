@@ -491,6 +491,8 @@ describe('templates', () => {
         paused: false,
       });
       expect(p.workspace.computers.permissions(dot.id)).toEqual({
+        kind: 'browser',
+        desktop: false,
         enabled: false,
         browser: false,
         files: false,

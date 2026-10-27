@@ -4,6 +4,14 @@ A model provider is a service that runs the language models your Dots use. FullD
 
 Providers are managed in **Settings → Models**. You can also keep using the variables in `.env`; see [Default (from .env)](#the-built-in-provider-default-from-env).
 
+## Image input for a desktop computer
+
+Open a provider and turn on **Images** beside a model that accepts image input. For a model missing from the list, enter its ID, choose **Image input** and save the setting. It is saved separately for each provider and model, including the built-in provider. It does not change the provider's key.
+
+This setting starts off for every model. FullDots never infers support from a model name or a provider's list. A Dot's full-desktop actions are refused until image input is enabled for the model it actually uses, including its resolved default. Turning the setting off also prevents images from a running turn being sent.
+
+For [Full desktop](COMPUTERS.md#full-desktop), only the latest screenshot is added to the current model request. It is omitted while you hold or request control and discarded if control changes during capture. Screenshots do not become stored tool-result text or carry into another turn. The model provider receives the screenshot, just as it receives the conversation. Browser computers keep using page text and element references without image input.
+
 ## Add a provider
 
 1. Open **Settings** and choose **Models**.

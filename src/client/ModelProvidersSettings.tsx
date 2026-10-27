@@ -199,6 +199,20 @@ export function ModelProvidersSettings({
           providers={data.providers}
           presets={data.presets}
           defaultModel={data.defaultModel}
+          modelImages={data.modelImages}
+          onModelImagesChange={(partialImages) =>
+            setData((current) =>
+              current
+                ? {
+                    ...current,
+                    modelImages: {
+                      ...(current.modelImages ?? {}),
+                      ...partialImages,
+                    },
+                  }
+                : current,
+            )
+          }
           onClose={() => setSheet(undefined)}
           onSaved={(view, options) => {
             upsert(view);

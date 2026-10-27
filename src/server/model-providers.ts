@@ -539,6 +539,30 @@ export class ModelProviderRegistry {
     return `${name} · ${target.model}`;
   }
 
+  /* --- model vision / images capability --------------------------- */
+
+  /**
+   * Whether the model is flagged as supporting images/vision in Settings → Models.
+   * False by default. If providerId or model are omitted, falls back to the default target.
+   * Resolves fallback if a provider is missing or deleted.
+   */
+  hasModelImages(providerId?: string | null, model?: string | null): boolean {
+    try {
+      const resolved = this.resolve({ providerId, model });
+      return this.store.getModelImages(resolved.providerId, resolved.model);
+    } catch {
+      return false;
+    }
+  }
+
+  setModelImages(providerId: string, model: string, images: boolean): void {
+    this.store.setModelImages(providerId, model, images);
+  }
+
+  allModelImages(): Record<string, boolean> {
+    return this.store.getAllModelImages();
+  }
+
   /* --- resolving -------------------------------------------------- */
 
   resolve(
@@ -615,7 +639,7 @@ export class ModelProviderRegistry {
     if (cached && cached.stamp !== stamp) this.cache.delete(id);
     else if (cached && !options.refresh) {
       const ttl = cached.failed ? MODEL_FAILURE_TTL_MS : MODEL_CACHE_TTL_MS;
-      if (this.now() - cached.at < ttl) return this.listResult(cached);
+      if (this.now() - cached.at < ttl) return this.listResult(cached, id);
     }
     const running = this.inflight.get(id);
     if (running && !options.refresh) return running;
@@ -915,7 +939,7 @@ export class ModelProviderRegistry {
         failed: false,
       };
       this.cache.set(id, cached);
-      return this.listResult(cached);
+      return this.listResult(cached, id);
     } catch (error) {
       const cached: CacheEntry = {
         at: this.now(),
@@ -925,13 +949,16 @@ export class ModelProviderRegistry {
         error: this.errorText(error, entry),
       };
       this.cache.set(id, cached);
-      return this.listResult(cached);
+      return this.listResult(cached, id);
     }
   }
 
-  private listResult(entry: CacheEntry): ModelListResult {
+  private listResult(entry: CacheEntry, providerId: string): ModelListResult {
     return {
-      models: entry.models,
+      models: entry.models.map((m) => ({
+        ...m,
+        images: this.store.getModelImages(providerId, m.id),
+      })),
       fetchedAt: entry.at,
       stale: entry.failed,
       ...(entry.error ? { error: entry.error } : {}),

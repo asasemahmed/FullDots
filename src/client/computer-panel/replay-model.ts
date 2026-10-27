@@ -26,6 +26,12 @@ const BROWSER_ACTIONS = new Set([
   'snapshot',
   'read',
   'screenshot',
+  'desktop_screenshot',
+  'desktop_click',
+  'desktop_drag',
+  'desktop_type',
+  'desktop_key',
+  'desktop_scroll',
 ]);
 
 export interface ReplayEntry {

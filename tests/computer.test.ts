@@ -97,6 +97,8 @@ it('defaults every permission off and persists policy and metadata-only audit ac
   let workspace = new WorkspaceStore(path, 'owner');
   const id = workspace.dots()[0].id;
   expect(workspace.computers.permissions(id)).toEqual({
+    kind: 'browser',
+    desktop: false,
     enabled: false,
     browser: false,
     files: false,
