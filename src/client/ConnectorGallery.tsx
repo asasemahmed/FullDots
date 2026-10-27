@@ -525,7 +525,9 @@ export function ConnectorGallery({
                 id={`cg-tab-${item.id}`}
                 className="cg-filter-btn"
                 aria-selected={tab === item.id}
-                aria-controls={`cg-panel-${item.id}`}
+                aria-controls={
+                  tab === item.id ? `cg-panel-${item.id}` : undefined
+                }
                 tabIndex={tab === item.id ? 0 : -1}
                 onClick={() => setTab(item.id)}
               >

@@ -28,6 +28,7 @@ export interface ApprovalRequestInput {
   argsHash: string | null;
   summary: string;
   argsRedacted: string;
+  argsPreview?: string;
 }
 
 const DEFAULT_SWEEP_MS = 600_000;

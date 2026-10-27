@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import {
   Clock,
   Hand,
@@ -526,6 +526,217 @@ function HandoffCard({
   );
 }
 
+const CONTROL_OR_FORMAT_RE = /[\p{Cc}\p{Cf}\p{Bidi_Control}]/gu;
+
+/**
+ * Escapes control characters (C0 and C1 excluding LF and TAB) as literal \uXXXX,
+ * and escapes bidi/format control characters so they cannot hide or reorder commands.
+ */
+export function escapePreviewText(text: string): string {
+  return text.replace(CONTROL_OR_FORMAT_RE, (ch) => {
+    if (ch === '\n' || ch === '\t') return ch;
+    const code = ch.codePointAt(0);
+    if (code !== undefined && code <= 0xffff) {
+      return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`;
+    }
+    let out = '';
+    for (let i = 0; i < ch.length; i++) {
+      out += `\\u${ch.charCodeAt(i).toString(16).toUpperCase().padStart(4, '0')}`;
+    }
+    return out;
+  });
+}
+
+export function formatPreviewCount(totalLength: number): string {
+  if (totalLength > 2000) {
+    return `first 2,000 of ${totalLength.toLocaleString('en-US')} characters`;
+  }
+  return `${totalLength.toLocaleString('en-US')} characters`;
+}
+
+interface FetchedPreviewState {
+  approvalId: string;
+  expiresAt: number;
+  preview: string | null;
+  error: boolean;
+}
+
+/**
+ * Shows a desktop_type pending approval's exact proposed text in a monospace pre,
+ * with character count. Uses argsPreview if present or fetches /approvals/{id}.
+ */
+export function DesktopTypePreview({
+  approval,
+}: {
+  approval?: Approval | null;
+}) {
+  const [expired, setExpired] = useState(false);
+  const [fetched, setFetched] = useState<FetchedPreviewState | null>(null);
+
+  // Expiry timer: trigger expiry state and clear fetched text when expiresAt passes
+  useEffect(() => {
+    setExpired(false);
+    if (
+      !approval ||
+      approval.tool !== 'desktop_type' ||
+      approval.status !== 'pending' ||
+      typeof approval.expiresAt !== 'number' ||
+      !Number.isFinite(approval.expiresAt)
+    ) {
+      return;
+    }
+    const remaining = approval.expiresAt - Date.now();
+    if (remaining <= 0) {
+      setExpired(true);
+      setFetched(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setExpired(true);
+      setFetched(null);
+    }, remaining);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [approval?.id, approval?.tool, approval?.status, approval?.expiresAt]);
+
+  // Fetch pending preview via owner approval API if absent
+  useEffect(() => {
+    setFetched(null);
+
+    if (
+      !approval ||
+      approval.tool !== 'desktop_type' ||
+      approval.status !== 'pending' ||
+      typeof approval.expiresAt !== 'number' ||
+      !Number.isFinite(approval.expiresAt) ||
+      approval.expiresAt <= Date.now() ||
+      typeof approval.argsPreview === 'string'
+    ) {
+      return;
+    }
+
+    const currentApprovalId = approval.id;
+    const currentExpiresAt = approval.expiresAt;
+    const controller = new AbortController();
+
+    api<Approval>(
+      `/approvals/${encodeURIComponent(currentApprovalId)}`,
+      'GET',
+      undefined,
+      controller.signal,
+    )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        if (approval.status !== 'pending') return;
+        if (Date.now() >= currentExpiresAt) {
+          setFetched(null);
+          return;
+        }
+        if (
+          data &&
+          data.id === currentApprovalId &&
+          data.tool === 'desktop_type' &&
+          data.status === 'pending' &&
+          typeof data.expiresAt === 'number' &&
+          Number.isFinite(data.expiresAt) &&
+          data.expiresAt > Date.now() &&
+          typeof data.argsPreview === 'string'
+        ) {
+          setFetched({
+            approvalId: currentApprovalId,
+            expiresAt: currentExpiresAt,
+            preview: data.argsPreview,
+            error: false,
+          });
+        } else {
+          setFetched({
+            approvalId: currentApprovalId,
+            expiresAt: currentExpiresAt,
+            preview: null,
+            error: true,
+          });
+        }
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        if (approval.status !== 'pending') return;
+        if (Date.now() >= currentExpiresAt) {
+          setFetched(null);
+          return;
+        }
+        setFetched({
+          approvalId: currentApprovalId,
+          expiresAt: currentExpiresAt,
+          preview: null,
+          error: true,
+        });
+      });
+
+    return () => {
+      controller.abort();
+      setFetched(null);
+    };
+  }, [
+    approval?.id,
+    approval?.tool,
+    approval?.status,
+    approval?.expiresAt,
+    approval?.argsPreview,
+  ]);
+
+  // Must be pending desktop_type
+  if (
+    !approval ||
+    approval.tool !== 'desktop_type' ||
+    approval.status !== 'pending'
+  ) {
+    return null;
+  }
+
+  // Fail closed for missing/nonfinite expiresAt or past expiry
+  const hasValidFutureExpiry =
+    typeof approval.expiresAt === 'number' &&
+    Number.isFinite(approval.expiresAt) &&
+    approval.expiresAt > Date.now();
+
+  if (!hasValidFutureExpiry || expired) {
+    return null;
+  }
+
+  // Key fetched state to render identity: must match approval id and expiry
+  const isMatchingFetched =
+    fetched !== null &&
+    fetched.approvalId === approval.id &&
+    fetched.expiresAt === approval.expiresAt;
+
+  if (isMatchingFetched && fetched.error) {
+    return <p className="approval-hint">Could not load preview.</p>;
+  }
+
+  const previewText =
+    typeof approval.argsPreview === 'string'
+      ? approval.argsPreview
+      : isMatchingFetched
+        ? fetched.preview
+        : null;
+
+  if (typeof previewText !== 'string') {
+    return null;
+  }
+
+  const clipped = previewText.slice(0, 2000);
+  const escaped = escapePreviewText(clipped);
+  const countLabel = formatPreviewCount(previewText.length);
+
+  return (
+    <div className="approval-desktop-preview">
+      <pre className="approval-exact">{escaped}</pre>
+      <p className="approval-hint">{countLabel}</p>
+    </div>
+  );
+}
+
 /**
  * The card the owner answers in the chat. `result` is what the tool returned
  * when it paused; `approval` is the live row (absent until the first poll, in
@@ -574,6 +785,7 @@ export function ApprovalCard({
         exact={approval?.argsRedacted || asked.exact}
         tool={approval?.tool}
       />
+      <DesktopTypePreview approval={approval} />
       {advisory && <p className="approval-hint">{ADVISORY_NOTE}</p>}
       {approval?.note && status !== 'pending' && (
         <p className="approval-note">Your note: {approval.note}</p>

@@ -23,6 +23,43 @@ import {
 
 const closers: (() => Promise<void>)[] = [],
   dirs: string[] = [];
+
+it.each(['slack', 'telegram'] as const)(
+  'sends only the desktop typing count to %s',
+  async (provider) => {
+    const f = fixture();
+    await f.enable(provider);
+    const frame = channelTurn(provider);
+    await f.receive(provider, frame);
+    const thread = f.platform.channels.store.thread(
+      provider,
+      1,
+      frame.conversationKey,
+    )!;
+    const text = 'printf fixture-preview\n\techo done';
+    const row = f.platform.approvals.request({
+      dotId: f.dotId,
+      threadId: thread.id,
+      toolCallId: randomUUID(),
+      tool: 'desktop_type',
+      argsHash: 'fixture-intent',
+      summary: text,
+      argsRedacted: 'type [hidden] on desktop',
+      argsPreview: text,
+    });
+    await f.platform.channels.tick();
+    const sent = JSON.stringify(f.transport.posts);
+    expect(sent).toContain(
+      `type ${text.length} characters on the desktop. Open FullDots to see the text.`,
+    );
+    expect(sent).not.toContain('fixture-preview');
+    expect(sent).not.toContain('argsPreview');
+    expect(f.workspace.approvals.get(row.id)).not.toHaveProperty('argsPreview');
+    expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain(
+      'fixture-preview',
+    );
+  },
+);
 beforeEach(() => {
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});

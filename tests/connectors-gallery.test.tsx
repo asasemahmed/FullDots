@@ -341,7 +341,31 @@ describe('Connectors and Discover are real tabs', () => {
     expect(tabs[0]).toContain('aria-controls="cg-panel-connectors"');
     expect(tabs[1]).toContain('id="cg-tab-discover"');
     expect(tabs[1]).toContain('aria-selected="false"');
-    expect(tabs[1]).toContain('aria-controls="cg-panel-discover"');
+    expect(tabs[1]).not.toContain('aria-controls');
+  });
+
+  it('ensures every nonempty aria-controls resolves to a rendered ID for both selected tabs', () => {
+    for (const selectedTab of ['connectors', 'discover'] as const) {
+      const html = gallery(selectedTab);
+      const matches = Array.from(html.matchAll(/aria-controls="([^"]+)"/g));
+      expect(matches.length).toBeGreaterThan(0);
+      for (const match of matches) {
+        const targetId = match[1];
+        expect(targetId).toBeTruthy();
+        expect(html).toContain(`id="${targetId}"`);
+      }
+      const selectedMatch = html.match(
+        new RegExp(`<button[^>]*id="cg-tab-${selectedTab}"[^>]*>`),
+      )?.[0];
+      expect(selectedMatch).toContain(
+        `aria-controls="cg-panel-${selectedTab}"`,
+      );
+      const otherTab = selectedTab === 'connectors' ? 'discover' : 'connectors';
+      const otherMatch = html.match(
+        new RegExp(`<button[^>]*id="cg-tab-${otherTab}"[^>]*>`),
+      )?.[0];
+      expect(otherMatch).not.toContain('aria-controls');
+    }
   });
 
   it('marks the two tabs with aria-selected, not aria-pressed', () => {

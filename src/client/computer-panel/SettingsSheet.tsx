@@ -215,6 +215,14 @@ export function SettingsSheet({
           }),
         )}
       </ul>
+      {(currentKind === 'desktop' ||
+        Boolean(optimistic.desktop ?? status.permissions.desktop)) && (
+        <p className="cp-hint">
+          Full desktop includes a terminal. The Dot can run commands in its own
+          computer through it, even with Terminal off. Every key press and typed
+          text still asks you first.
+        </p>
+      )}
       <h4 className="cp-section-title">Replay</h4>
       <ul className="cp-settings">
         {settingSwitch({

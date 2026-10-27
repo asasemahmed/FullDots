@@ -13,6 +13,7 @@ import {
   ApprovalDecision,
   ApprovalParts,
   ApprovalTile,
+  DesktopTypePreview,
   HANDOFF_HINT,
   handoffIcon,
   statusIcon,
@@ -190,6 +191,7 @@ export function ApprovalsView({
                   exact={approval.argsRedacted}
                   tool={approval.tool}
                 />
+                <DesktopTypePreview approval={approval} />
                 <ApprovalDecision
                   id={approval.id}
                   onDecide={onDecide}

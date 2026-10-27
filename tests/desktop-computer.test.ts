@@ -20,6 +20,29 @@ import { modelProviderRoutes } from '../src/server/model-provider-routes.js';
 import { createFakeProvider } from './fixtures/fake-provider.js';
 
 const stores: Array<{ close(): void }> = [];
+
+it('keeps typed text and approval previews out of computer audit and replay steps', async () => {
+  const f = fixture();
+  f.enableImages();
+  const text = 'printf fixture-private-preview';
+  await f.service.session(
+    f.id,
+    'desktop_type',
+    'agent',
+    undefined,
+    (call) => call('desktop_type', { text }),
+    { threadId: 'thread', toolCallId: 'typed' },
+  );
+  await f.service.framesSettled();
+  const audit = f.workspace.computers.audit(f.id);
+  const replay = f.workspace.frames.steps(f.id, 'thread');
+  expect(audit.some((row) => row.action === 'desktop_type')).toBe(true);
+  expect(replay.some((row) => row.action === 'desktop_type')).toBe(true);
+  for (const records of [audit, replay]) {
+    expect(JSON.stringify(records)).not.toContain('fixture-private-preview');
+    expect(JSON.stringify(records)).not.toContain('argsPreview');
+  }
+});
 afterEach(() => stores.splice(0).forEach((store) => store.close()));
 const valid = {
   desktop_screenshot: {},
