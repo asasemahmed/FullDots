@@ -469,6 +469,8 @@ export interface ModelProviderPageProps {
   onReload: () => void;
   /** The number of models this provider offers, once known. */
   onCount: (id: string, count: number) => void;
+  modelImages?: Record<string, boolean>;
+  onModelImagesChange?: (modelImages: Record<string, boolean>) => void;
   /** State for the first render (tests). */
   initialModels?: ModelsListResult;
   initialTest?: TestState;
@@ -545,25 +547,28 @@ export function ModelProviderPage(props: ModelProviderPageProps) {
   );
 }
 
-function ProviderForm({
-  target,
-  view,
-  preset,
-  titleId,
-  defaultModel,
-  onClose,
-  onSaved,
-  onDeleted,
-  onDefaultChanged,
-  onReload,
-  onCount,
-  initialModels,
-  initialTest,
-}: ModelProviderPageProps & {
-  view: ModelProviderView | undefined;
-  preset: ModelPreset;
-  titleId: string;
-}) {
+function ProviderForm(
+  props: ModelProviderPageProps & {
+    view: ModelProviderView | undefined;
+    preset: ModelPreset;
+    titleId: string;
+  },
+) {
+  const {
+    target,
+    view,
+    preset,
+    titleId,
+    defaultModel,
+    onClose,
+    onSaved,
+    onDeleted,
+    onDefaultChanged,
+    onReload,
+    onCount,
+    initialModels,
+    initialTest,
+  } = props;
   const uid = useId();
   const creating = !view;
   const readOnly = !!view?.builtIn;
@@ -589,6 +594,22 @@ function ProviderForm({
   const [manageError, setManageError] = useState('');
   const [usedBy, setUsedBy] = useState<string[]>([]);
   const [busyManage, setBusyManage] = useState(false);
+
+  const [imagesMap, setImagesMap] = useState<Record<string, boolean>>(
+    () => props.modelImages ?? {},
+  );
+  const [imagesLoaded, setImagesLoaded] = useState<boolean>(
+    () => props.modelImages !== undefined,
+  );
+  const [savingImages, setSavingImages] = useState<Record<string, boolean>>({});
+  const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
+  const [imageSuccess, setImageSuccess] = useState<Record<string, boolean>>({});
+
+  const [manualImages, setManualImages] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualImageError, setManualImageError] = useState('');
+  const [manualImageSuccess, setManualImageSuccess] = useState(false);
+
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -597,7 +618,130 @@ function ProviderForm({
     };
   }, []);
 
+  useEffect(() => {
+    if (props.modelImages) {
+      setImagesMap((prev) => ({ ...prev, ...props.modelImages }));
+      setImagesLoaded(true);
+    }
+  }, [props.modelImages]);
+
   const id = view?.id;
+
+  useEffect(() => {
+    if (!props.modelImages && id) {
+      void providerRequest<{ modelImages?: Record<string, boolean> }>(
+        '/model-providers/images',
+      )
+        .then((res) => {
+          if (mounted.current) {
+            if (res?.modelImages) {
+              setImagesMap((prev) => ({ ...prev, ...res.modelImages }));
+            }
+            setImagesLoaded(true);
+          }
+        })
+        .catch(() => {
+          if (mounted.current) {
+            setImagesLoaded(true);
+          }
+        });
+    }
+  }, [id, props.modelImages]);
+
+  const getModelImageFlag = (modelId: string): boolean => {
+    if (!id || !imagesLoaded) return false;
+    const key = `${id}:${modelId}`;
+    return imagesMap[key] === true;
+  };
+
+  const handleManualIdChange = (value: string) => {
+    setManualId(value);
+    const trimmed = value.trim();
+    setManualImages(
+      id && imagesLoaded ? imagesMap[`${id}:${trimmed}`] === true : false,
+    );
+    setManualImageError('');
+    setManualImageSuccess(false);
+  };
+
+  useEffect(() => {
+    const trimmed = manualId.trim();
+    if (trimmed && id && imagesLoaded) {
+      setManualImages(imagesMap[`${id}:${trimmed}`] === true);
+    }
+  }, [imagesMap, manualId, id, imagesLoaded]);
+
+  const saveImageFlag = async (
+    modelId: string,
+    nextValue: boolean,
+    isManual = false,
+  ) => {
+    if (!id) return;
+    const key = `${id}:${modelId}`;
+    if (isManual) {
+      setManualSaving(true);
+      setManualImageError('');
+      setManualImageSuccess(false);
+    } else {
+      setImageErrors((prev) => ({ ...prev, [modelId]: '' }));
+      setImageSuccess((prev) => ({ ...prev, [modelId]: false }));
+      setSavingImages((prev) => ({ ...prev, [modelId]: true }));
+    }
+    try {
+      const res = await providerRequest<{
+        providerId?: string;
+        model?: string;
+        images?: boolean;
+      }>('/model-providers/images', 'PUT', {
+        providerId: id,
+        model: modelId,
+        images: nextValue,
+      });
+      if (!mounted.current) return;
+      if (
+        res?.providerId !== id ||
+        res.model !== modelId ||
+        typeof res.images !== 'boolean'
+      )
+        throw new Error('The image setting was not confirmed. Try again.');
+      const confirmed = res.images;
+      setImagesMap((prev) => ({ ...prev, [key]: confirmed }));
+      props.onModelImagesChange?.({ [key]: confirmed });
+      if (isManual) {
+        setManualImages(confirmed);
+        setManualImageSuccess(true);
+      } else {
+        setImageSuccess((prev) => ({ ...prev, [modelId]: true }));
+      }
+    } catch (err) {
+      if (!mounted.current) return;
+      const message =
+        err instanceof Error ? err.message : 'Could not save image setting.';
+      if (isManual) {
+        setManualImageError(message);
+      } else {
+        setImageErrors((prev) => ({ ...prev, [modelId]: message }));
+      }
+    } finally {
+      if (mounted.current) {
+        if (isManual) {
+          setManualSaving(false);
+        } else {
+          setSavingImages((prev) => ({ ...prev, [modelId]: false }));
+        }
+      }
+    }
+  };
+
+  const toggleImage = (modelId: string, nextValue: boolean) =>
+    saveImageFlag(modelId, nextValue, false);
+
+  const saveManualImage = () => {
+    const model = manualId.trim();
+    if (!model || !id) return;
+    return saveImageFlag(model, manualImages, true);
+  };
+
   const usable =
     !!view && view.enabled && (view.key.set || view.key.kind === 'none');
 
@@ -1254,6 +1398,30 @@ function ProviderForm({
                           {context && (
                             <span className="mp-chip">{context}</span>
                           )}
+                          <label className="cs-hint">
+                            <input
+                              type="checkbox"
+                              aria-label={`Image input for ${model.id}`}
+                              checked={getModelImageFlag(model.id)}
+                              disabled={
+                                !!savingImages[model.id] || !id || !imagesLoaded
+                              }
+                              onChange={(event) =>
+                                void toggleImage(model.id, event.target.checked)
+                              }
+                            />
+                            <span>Images</span>
+                          </label>
+                          {imageErrors[model.id] && (
+                            <span className="cs-hint-bad" role="alert">
+                              {imageErrors[model.id]}
+                            </span>
+                          )}
+                          {imageSuccess[model.id] && (
+                            <span className="cs-hint" role="status">
+                              Saved
+                            </span>
+                          )}
                           {isDefault ? (
                             <span className="mp-badge mp-badge-default">
                               <Star size={11} aria-hidden="true" />
@@ -1276,6 +1444,10 @@ function ProviderForm({
                     })}
                   </ul>
                 )}
+                <p className="cs-hint">
+                  Enable only for models that accept images. Off by default.
+                  Needed for Full desktop.
+                </p>
                 {shownModels.length > MODEL_ROW_LIMIT && (
                   <p className="cs-muted">
                     Showing {MODEL_ROW_LIMIT} of {shownModels.length}. Type to
@@ -1287,7 +1459,7 @@ function ProviderForm({
                 )}
               </>
             )}
-            {usable && (
+            {(usable || readOnly) && (
               <div className="mp-manual">
                 <label className="cs-label" htmlFor={`${uid}-manual`}>
                   Not in the list? Type a model id
@@ -1304,22 +1476,26 @@ function ProviderForm({
                     aria-invalid={
                       (manualTouched && !!manualProblem) || undefined
                     }
-                    onChange={(event) => setManualId(event.target.value)}
+                    onChange={(event) =>
+                      handleManualIdChange(event.target.value)
+                    }
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault();
                         setManualTouched(true);
-                        if (!manualProblem) void setDefault(manualId.trim());
+                        if (usable && !manualProblem)
+                          void setDefault(manualId.trim());
                       }
                     }}
                   />
                   <button
                     type="button"
                     className="cs-btn"
-                    disabled={!!defaultBusy}
+                    disabled={!!defaultBusy || !usable}
                     onClick={() => {
                       setManualTouched(true);
-                      if (!manualProblem) void setDefault(manualId.trim());
+                      if (usable && !manualProblem)
+                        void setDefault(manualId.trim());
                     }}
                   >
                     Set as default
@@ -1328,6 +1504,54 @@ function ProviderForm({
                 {manualTouched && manualProblem && (
                   <p className="cs-hint cs-hint-bad">{manualProblem}</p>
                 )}
+                <div className="mp-manual-row">
+                  <label className="cs-hint">
+                    <input
+                      type="checkbox"
+                      aria-label="Image input"
+                      checked={manualImages}
+                      disabled={
+                        manualSaving ||
+                        !imagesLoaded ||
+                        !manualId.trim() ||
+                        !!manualProblem ||
+                        !id
+                      }
+                      onChange={(event) =>
+                        setManualImages(event.target.checked)
+                      }
+                    />
+                    <span>Image input</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="cs-btn cs-btn-sm"
+                    disabled={
+                      manualSaving ||
+                      !imagesLoaded ||
+                      !manualId.trim() ||
+                      !!manualProblem ||
+                      !id
+                    }
+                    onClick={() => void saveManualImage()}
+                  >
+                    {manualSaving ? 'Saving…' : 'Save image setting'}
+                  </button>
+                  {manualImageError && (
+                    <span className="cs-hint-bad" role="alert">
+                      {manualImageError}
+                    </span>
+                  )}
+                  {manualImageSuccess && (
+                    <span className="cs-hint" role="status">
+                      Saved
+                    </span>
+                  )}
+                </div>
+                <p className="cs-hint">
+                  Enable only for models that accept images. Off by default.
+                  Needed for Full desktop.
+                </p>
               </div>
             )}
           </>

@@ -1,6 +1,10 @@
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  desktopSupervisorDocker,
+  desktopSupervisorIndex,
+} from './desktop-supervisor.mjs';
 
 // Each patch replaces single upstream lines and fails closed if a line is missing
 // or appears more than once, so a changed upstream file stops the build instead
@@ -89,9 +93,13 @@ if (
   // file leaves all of them untouched.
   const environment = hardenSupervisorEnvironment(await readFile(path, 'utf8'));
   const dockerPath = join(sourceDir, 'docker.ts');
-  const docker = hardenSupervisorDocker(await readFile(dockerPath, 'utf8'));
+  const docker = desktopSupervisorDocker(
+    hardenSupervisorDocker(await readFile(dockerPath, 'utf8')),
+  );
   const indexPath = join(sourceDir, 'index.ts');
-  const index = hardenSupervisorIndex(await readFile(indexPath, 'utf8'));
+  const index = desktopSupervisorIndex(
+    hardenSupervisorIndex(await readFile(indexPath, 'utf8')),
+  );
   await writeFile(path, environment);
   await writeFile(dockerPath, docker);
   await writeFile(indexPath, index);

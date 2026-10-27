@@ -27,6 +27,7 @@ export interface ModelProvidersData {
   providers: ModelProviderView[];
   presets: ModelPreset[];
   defaultModel: DefaultModel | null;
+  modelImages?: Record<string, boolean>;
 }
 
 // ---- Requests --------------------------------------------------------------------

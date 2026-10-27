@@ -1,18 +1,24 @@
 import { z } from 'zod';
+export type ComputerKind = 'browser' | 'desktop';
+
 export const computerPermissionsSchema = z
   .object({
     enabled: z.boolean(),
     browser: z.boolean(),
     files: z.boolean(),
     shell: z.boolean(),
+    desktop: z.boolean().optional(),
+    kind: z.enum(['browser', 'desktop']).optional(),
     /** Keep a replay of browser steps. Unset means on whenever Browser is on. */
     replay: z.boolean().optional(),
   })
   .strict();
 export type ComputerPermissions = z.infer<typeof computerPermissionsSchema>;
-/** Whether a Dot's browser steps are recorded for replay. */
+/** Whether a Dot's steps are recorded for replay. */
 export const replayEnabled = (permissions: ComputerPermissions) =>
-  permissions.enabled && permissions.browser && permissions.replay !== false;
+  permissions.enabled &&
+  (permissions.browser || Boolean(permissions.desktop)) &&
+  permissions.replay !== false;
 /** One browser step of a conversation as the replay keeps it. */
 export interface ReplayStep {
   id: string;
@@ -40,6 +46,8 @@ export interface ComputerAudit {
   createdAt: number;
 }
 export interface ComputerControl {
+  /** Changes on every desktop control transition, including take followed by release. */
+  revision?: number;
   holder: 'bot' | 'human';
   requested: boolean;
   transitioning: boolean;
@@ -90,6 +98,60 @@ export const defaultComputerInputLimits: ComputerInputLimits = {
   fileChars: 100_000,
   typeChars: 16_000,
 };
+export const DESKTOP_WIDTH = 1280;
+export const DESKTOP_HEIGHT = 800;
+export const DESKTOP_SCALE = 1;
+
+const desktopCoordX = z
+  .number()
+  .int()
+  .min(0)
+  .max(DESKTOP_WIDTH - 1);
+const desktopCoordY = z
+  .number()
+  .int()
+  .min(0)
+  .max(DESKTOP_HEIGHT - 1);
+const desktopPoint = z.object({ x: desktopCoordX, y: desktopCoordY }).strict();
+
+export const desktopInputSchemas = (
+  limits: Pick<ComputerInputLimits, 'typeChars'>,
+) => ({
+  desktop_screenshot: empty,
+  desktop_click: z
+    .object({
+      x: desktopCoordX,
+      y: desktopCoordY,
+      button: z.enum(['left', 'right', 'middle']).default('left'),
+      double: z.boolean().default(false),
+    })
+    .strict(),
+  desktop_drag: z
+    .object({
+      from: desktopPoint,
+      to: desktopPoint,
+    })
+    .strict(),
+  desktop_type: z
+    .object({
+      text: z.string().max(limits.typeChars),
+    })
+    .strict(),
+  desktop_key: z
+    .object({
+      keys: z.string().min(1).max(100),
+    })
+    .strict(),
+  desktop_scroll: z
+    .object({
+      x: desktopCoordX,
+      y: desktopCoordY,
+      dx: z.number().finite().min(-10000).max(10000).default(0),
+      dy: z.number().finite().min(-10000).max(10000).default(0),
+    })
+    .strict(),
+});
+
 export const computerInputSchemas = (limits: ComputerInputLimits) => ({
   navigate: z
     .object({
@@ -151,6 +213,7 @@ export const computerInputSchemas = (limits: ComputerInputLimits) => ({
   human_scroll: z
     .object({ deltaY: z.number().finite().min(-10000).max(10000) })
     .strict(),
+  ...desktopInputSchemas(limits),
 });
 export type ComputerInputs = ReturnType<typeof computerInputSchemas>;
 export const computerInputs = computerInputSchemas(defaultComputerInputLimits);

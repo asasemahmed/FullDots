@@ -114,7 +114,7 @@ describe('replay view', () => {
     );
     const none = replay({ entries: [] });
     expect(none).toContain(
-      'Scout has not used the browser in this conversation yet.',
+      'Scout has not used the computer in this conversation yet.',
     );
     expect(none).not.toContain('role="slider"');
     expect(none).toContain('Jump to live');
@@ -382,7 +382,14 @@ describe('panel tabs', () => {
   const status: ComputerStatus = {
     configured: true,
     state: 'running',
-    permissions: { enabled: true, browser: true, files: false, shell: false },
+    permissions: {
+      enabled: true,
+      browser: true,
+      files: false,
+      shell: false,
+      desktop: false,
+      kind: 'browser',
+    },
     audit: [],
     control: {
       holder: 'bot',
@@ -421,7 +428,7 @@ describe('panel tabs', () => {
 
   it('shows the replay with the live screen kept but hidden', () => {
     const html = panel({ initialView: 'replay', threadId: 'thread' });
-    expect(html).toContain('Scout has not used the browser');
+    expect(html).toContain('Scout has not used the computer');
     expect(html).toMatch(/class="cp-live"[^>]*hidden/);
     expect(panel({ initialView: 'replay' })).toContain(
       'Open a conversation with Scout',

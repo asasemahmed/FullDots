@@ -87,6 +87,12 @@ export const PERMISSION_COPY: readonly {
     description: () =>
       'Run terminal commands. They run only inside the computer’s container, never on your device.',
   },
+  {
+    key: 'desktop',
+    title: 'Full desktop',
+    description: (dot) =>
+      `Let ${dot} use Linux apps. Build the desktop image first (see the computer setup guide). Uses 4 GiB by default. Typing always asks unless approvals are off. Enable Images for the model in Settings > Models.`,
+  },
 ];
 
 export type PillTone = 'ok' | 'neutral' | 'warn' | 'bad';
@@ -150,6 +156,12 @@ const PRESENT_VERBS: Record<string, string> = {
   files_read: 'reading a file',
   files_write: 'saving a file',
   exec: 'running a command',
+  desktop_screenshot: 'looking at the screen',
+  desktop_click: 'clicking',
+  desktop_drag: 'dragging',
+  desktop_type: 'typing',
+  desktop_key: 'pressing a key',
+  desktop_scroll: 'scrolling',
 };
 /** The same events, as the activity list records them after the fact. */
 export const PAST_LABELS: Record<string, string> = {
@@ -165,6 +177,12 @@ export const PAST_LABELS: Record<string, string> = {
   files_read: 'Read a file',
   files_write: 'Saved a file',
   exec: 'Ran a command',
+  desktop_screenshot: 'Took a screenshot',
+  desktop_click: 'Clicked',
+  desktop_drag: 'Dragged',
+  desktop_type: 'Typed',
+  desktop_key: 'Pressed a key',
+  desktop_scroll: 'Scrolled',
   human_click: 'Clicked',
   human_type: 'Typed',
   human_key: 'Pressed a key',
@@ -194,6 +212,7 @@ function isHousekeeping(entry: ComputerAudit): boolean {
   return (
     entry.actor === 'owner' &&
     (entry.action === 'screenshot' ||
+      entry.action === 'desktop_screenshot' ||
       entry.action === 'read' ||
       entry.action === 'stream')
   );

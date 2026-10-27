@@ -52,6 +52,35 @@ docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.
 
 Here, the app addresses computers by their container names. Computers have no published host ports. The supervisor lives on a separate control network, and only the supervisor mounts the Docker socket. Neither the web app nor a Dot's computer receives that socket. Changing the namespace changes which containers and volumes are selected; keep it stable and unique for each deployment.
 
+## Full desktop
+
+Each Dot can use **Browser** (the default) or **Full desktop**. Full desktop adds an XFCE Linux desktop, a terminal and a text editor inside that Dot's computer. It does not control your own desktop. Browser computers keep their smaller image.
+
+Build the desktop image before selecting it. The in-app Docker setup builds the browser computer; build the extra desktop image locally with:
+
+```sh
+docker compose -f compose.computers.yml --profile build-computers build computer-image computer-desktop-image computer-supervisor
+docker compose -f compose.computers.yml up -d computer-supervisor
+```
+
+For an app in Compose, use the same three Compose files as above. For Dokploy, build `computer-desktop-image` in the `computers` profile. Builds use reviewed OpenBot commit `b6932d31a8d6e7896c15139dfc27a6c6911deb27`. `COMPUTER_DESKTOP_IMAGE` defaults to the locally built tag `opendots-computer-desktop:b6932d3-desk1`; no registry account is needed.
+
+1. Open **Settings → Models**, open the provider and enable **Images** for the exact model the Dot uses. For a model missing from the list, enter its ID and save its image setting. Only enable this for a model that accepts images. The setting starts off; FullDots does not guess from the name.
+2. Stop the Dot's computer. In its computer settings, choose **Full desktop** under **Computer kind**, enable computer access and turn on **Full desktop** permission. Changing kind while the computer runs is refused.
+3. Start the computer. Its panel shows the whole desktop. **Take control**, keyboard input and **Replay** work as before. Browser actions remain available when **Browser** permission is on.
+
+The Dot uses `desktop_screenshot`, `desktop_click`, `desktop_drag`, `desktop_type`, `desktop_key` and `desktop_scroll`. Screenshots are 1280×800 pixels at scale 1: coordinates refer directly to that image, from `(0, 0)` to `(1279, 799)`. One FFmpeg process captures the display at two frames per second. Double clicks, dragging, key combinations and Unicode paste use native desktop input.
+
+Desktop input goes through the approval gate. Its target cannot be identified as a page element, so it is treated as sensitive; rules for risky clicks also apply. **Desktop typing always asks unless the approval mode is Off**, even if a rule otherwise allows it. FullDots cannot tell whether a desktop field is a password field. Typed text is hidden in approval summaries and audit records. Unknown desktop actions are refused.
+
+Only the newest desktop screenshot is supplied to the model, as image input for the current turn. It is not saved in tool-result text or sent again in later turns. Captures are refused while you hold or request control. If control changes during capture or before the provider request, the image is discarded. After handback the Dot takes a new screenshot before continuing. The live view still shows your screen while you work; replay pictures are retained according to the replay switch.
+
+The desktop defaults to **4 GiB** of memory; Browser defaults to **2 GiB**. Leave `COMPUTER_MEMORY_BYTES` blank for these defaults. An explicit value overrides both kinds, and `COMPUTER_CPUS` still applies. The tested amd64 image was about **1.85 GB**, with about **249 MiB** used by a fresh idle desktop after restart. Chromium, watching the screen and other apps use more. These are measurements from one local run. **Arm64 was not tried.**
+
+XFCE, Chromium and GUI apps run as UID 1001. The supervisor starts the worker and restores it after a container restart. The trusted API and coding bridge keep their credentials separate from it. `/profiles/.coding` remains private, and the managed coding policies are unchanged. Only the existing API port listens; no VNC, noVNC or X TCP server is added.
+
+Workspace files and coding sign-ins survive changing kind. The desktop has a separate browser profile, so expect to sign into websites again when changing from Browser. Startup grants both computer users access to older root-owned workspace files without following symlinks. Private files an app creates with restrictive permissions keep those permissions. Paste uses the desktop clipboard; text remains there until replaced or the session ends. Do not paste secrets the Dot should not know. The image includes a terminal and Mousepad; build a custom image for other apps. Models can misread screens or click the wrong place: inspect outcomes and use takeover when needed.
+
 ## Use the computer
 
 - **Browser:** navigate and inspect the current page, including screenshots and element snapshots. Browser profiles keep cookies and logins across container restarts. The panel shows the screen live, as Chrome draws it, instead of refreshing a picture. Only one panel at a time can watch a Dot's screen; opening it elsewhere stops it here until you choose **Watch here**. If the live connection cannot be made, the panel falls back to a snapshot every few seconds and offers **Retry live view**.
@@ -65,7 +94,7 @@ Here, the app addresses computers by their container names. Computers have no pu
 
 The browser runs headed on a virtual display inside the container (`COMPUTER_BROWSER_MODE=headed`, the default). Search engines and many sites show a captcha far more often to a headless browser, which announces itself as `HeadlessChrome`. Set `COMPUTER_BROWSER_MODE=headless` only if you need to save a little memory. The supervisor replaces a computer only when its image or token changes, so a computer created before you change the mode keeps its old one: stop it, remove its container (`docker rm -f opendots-computer-<dot id>`, which keeps the named profile and workspace volumes), and start it again from the Computer panel.
 
-**CPU limit.** Each computer may use at most `COMPUTER_CPUS` CPUs (default `2`), next to the 2 GiB memory limit from `COMPUTER_MEMORY_BYTES` and a cap on processes. Use a decimal number from 0.01 to 64, for example `0.5` or `1.5`; `0` means no limit. The supervisor refuses to start on any other value and says why. If the value is higher than the number of CPUs Docker's host has, each computer gets the host's count instead and the supervisor logs a warning. The limit is set by the supervisor image, so rebuild it once to pick the feature up (`docker compose ... build computer-supervisor`). As with the browser mode, the supervisor replaces a computer only when its image or token changes, so a computer created before you set or change `COMPUTER_CPUS` keeps its old limit: stop it, remove its container (`docker rm -f opendots-computer-<dot id>`, which keeps the named profile and workspace volumes), and start it again from the Computer panel. To check a running computer, run `docker inspect --format '{{.HostConfig.NanoCpus}}' opendots-computer-<dot id>`; it prints billionths of a CPU (`2000000000` for 2), or `0` for no limit.
+**CPU limit.** Each computer may use at most `COMPUTER_CPUS` CPUs (default `2`), alongside its memory limit (2 GiB for Browser, 4 GiB for Full desktop, or the explicit `COMPUTER_MEMORY_BYTES` value) and a cap on processes. Use a decimal number from 0.01 to 64, for example `0.5` or `1.5`; `0` means no limit. The supervisor refuses to start on any other value and says why. If the value is higher than the number of CPUs Docker's host has, each computer gets the host's count instead and the supervisor logs a warning. The limit is set by the supervisor image, so rebuild it once to pick the feature up (`docker compose ... build computer-supervisor`). As with the browser mode, the supervisor replaces a computer only when its image or token changes, so a computer created before you set or change `COMPUTER_CPUS` keeps its old limit: stop it, remove its container (`docker rm -f opendots-computer-<dot id>`, which keeps the named profile and workspace volumes), and start it again from the Computer panel. To check a running computer, run `docker inspect --format '{{.HostConfig.NanoCpus}}' opendots-computer-<dot id>`; it prints billionths of a CPU (`2000000000` for 2), or `0` for no limit.
 
 Stop retains files and browser profiles. The app does not expose a destructive reset action. Stopping the supervisor does not stop its dynamically created computers; stop each Dot's computer first if you want them all offline. Compose does not own those dynamically created containers or volumes. Do not delete named workspace/profile volumes as routine cleanup.
 

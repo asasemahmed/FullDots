@@ -139,7 +139,7 @@ services:
   # The image every Dot computer runs. Built only; its container exits at once.
   computer-image:
     profiles: [computers]
-    image: opendots-computer:b6932d3-acp4
+    image: opendots-computer:b6932d3-acp5
     build:
       context: .
       dockerfile: deployment/computers/computer.Dockerfile
@@ -148,11 +148,25 @@ services:
     command: ['true']
     restart: 'no'
 
+  computer-desktop-image:
+    profiles: [computers]
+    image: ${COMPUTER_DESKTOP_IMAGE:-opendots-computer-desktop:b6932d3-desk1}
+    build:
+      context: .
+      dockerfile: deployment/computers/computer-desktop.Dockerfile
+      args:
+        COMPUTER_BASE_IMAGE: computer-base
+      additional_contexts:
+        computer-base: service:computer-image
+        openbot: https://github.com/CopilotKit/OpenBot.git#b6932d31a8d6e7896c15139dfc27a6c6911deb27
+    command: ['true']
+    restart: 'no'
+
   # Starts one container per Dot on request. It is the only service that mounts the Docker
   # socket, which gives it control of the server's Docker: see docs/DEPLOY-DOKPLOY.md.
   computer-supervisor:
     profiles: [computers]
-    image: opendots-supervisor:b6932d3-dot-auth
+    image: opendots-supervisor:b6932d3-desktop1
     build:
       context: .
       dockerfile: deployment/computers/supervisor.Dockerfile
@@ -163,10 +177,11 @@ services:
       SUPERVISOR_TOKEN: ${COMPUTER_SUPERVISOR_TOKEN:-}
       COMPUTER_TOKEN: ${COMPUTER_TOKEN:-}
       COMPUTER_NAMESPACE: ${COMPUTER_NAMESPACE:-fulldots}
-      COMPUTER_IMAGE: opendots-computer:b6932d3-acp4
+      COMPUTER_IMAGE: opendots-computer:b6932d3-acp5
+      COMPUTER_DESKTOP_IMAGE: ${COMPUTER_DESKTOP_IMAGE:-opendots-computer-desktop:b6932d3-desk1}
       COMPUTER_BROWSER_MODE: ${COMPUTER_BROWSER_MODE:-headed}
       COMPUTER_NETWORK: ${COMPUTER_NAMESPACE:-fulldots}-computers
-      COMPUTER_MEMORY_BYTES: ${COMPUTER_MEMORY_BYTES:-2147483648}
+      COMPUTER_MEMORY_BYTES: ${COMPUTER_MEMORY_BYTES:-}
       COMPUTER_CPUS: ${COMPUTER_CPUS:-2}
       COMPUTER_RUNTIME: ${COMPUTER_RUNTIME:-}
     volumes:

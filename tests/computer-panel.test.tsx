@@ -46,7 +46,14 @@ const dot: Dot = {
   memoryAllowed: true,
   createdAt: 0,
 };
-const permissions = { enabled: true, browser: true, files: true, shell: true };
+const permissions = {
+  enabled: true,
+  browser: true,
+  files: true,
+  shell: true,
+  desktop: false,
+  kind: 'browser' as const,
+};
 const control = (
   holder: 'bot' | 'human' = 'bot',
   transitioning = false,
@@ -405,8 +412,8 @@ describe('settings sheet', () => {
       expect(text).toContain(title);
     expect(text).toContain('never on your device');
     expect(text).toContain('Dot’s workspace');
-    // The four permissions, then the replay.
-    expect(switches(sheet())).toHaveLength(5);
+    // The five permissions, then the replay.
+    expect(switches(sheet())).toHaveLength(6);
   });
 
   it('reflects the saved permissions and flips a switch the moment it is pressed', () => {
@@ -416,13 +423,14 @@ describe('settings sheet', () => {
       true,
       true,
       false,
+      false,
       true,
     ]);
     expect(
       switches(sheet({ status, optimistic: { shell: true } })).map(
         (el) => el.props.checked,
       ),
-    ).toEqual([true, true, true, true, true]);
+    ).toEqual([true, true, true, true, false, true]);
   });
 
   it('keeps a replay by default with Browser, and lets the owner turn it off', () => {
@@ -448,7 +456,7 @@ describe('settings sheet', () => {
     expect(replay({ status: noBrowser }).props.checked).toBe(false);
     expect(replay({ status: noBrowser }).props.disabled).toBe(true);
     expect(textOf(sheet({ status: noBrowser }))).toContain(
-      'Turn on Browser to use it.',
+      'Turn on Browser or Full desktop to use it.',
     );
   });
 

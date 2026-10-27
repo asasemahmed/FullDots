@@ -425,8 +425,32 @@ function baseLevel(
         };
       return { level: 'none', reason: 'Enter key in a plain field' };
     }
+    case 'desktop_screenshot':
+      return { level: 'none', reason: 'desktop screenshot' };
+    case 'desktop_type':
+      return {
+        level: 'sensitive',
+        reason: 'desktop typing requires confirmation',
+      };
+    case 'desktop_click':
+      return { level: 'sensitive', reason: 'desktop pointer click' };
+    case 'desktop_drag':
+      return { level: 'sensitive', reason: 'desktop pointer drag' };
+    case 'desktop_key':
+      return { level: 'sensitive', reason: 'desktop key press' };
+    case 'desktop_scroll':
+      return { level: 'sensitive', reason: 'desktop scroll' };
+    case 'computer_scroll':
+    case 'computer_screenshot':
+    case 'computer_read':
+    case 'computer_snapshot':
+    case 'computer_navigate':
+    case 'computer_search':
+      return { level: 'none', reason: 'not a gated action' };
     default:
   }
+  if (tool.startsWith('desktop_') || tool.startsWith('computer_'))
+    return { level: 'sensitive', reason: 'unknown computer action' };
   if (isComposioTool(tool)) return composioBaseLevel(tool);
   if (tool.startsWith('mcp__')) {
     // Unknown annotations (e.g. the connector is reconnecting) fail closed.
@@ -504,6 +528,13 @@ export function categoriesOf(input: ClassifyInput): RuleCategory[] {
   const { tool, args, mcp } = input;
   const found = new Set<RuleCategory>();
   switch (tool) {
+    case 'desktop_click':
+    case 'desktop_drag':
+    case 'desktop_type':
+    case 'desktop_key':
+    case 'desktop_scroll':
+      found.add('risky_clicks');
+      break;
     case 'computer_exec': {
       const command = String(args.command ?? '');
       found.add('run_shell');
@@ -609,6 +640,28 @@ export function classify(
   if (override === 'deny')
     return { level: 'sensitive', gated: true, reason: 'denied' };
   const base = baseLevel(input, mode);
+  if (base.reason === 'unknown computer action')
+    return { ...base, gated: true, denied: true };
+  if (input.tool === 'desktop_type' && mode !== 'off') {
+    const decided = decidingRule(categoriesOf(input), rules);
+    if (decided?.rule === 'never')
+      return {
+        level: base.level,
+        gated: true,
+        denied: true,
+        category: decided.category,
+        reason: `rule: never ${RULE_LABELS[decided.category].toLowerCase()}`,
+      };
+    return {
+      level: 'sensitive',
+      gated: true,
+      category: decided?.category,
+      reason:
+        decided?.rule === 'ask'
+          ? `rule: ask before ${RULE_LABELS[decided.category].toLowerCase()}`
+          : base.reason,
+    };
+  }
   // A per-tool override is more specific than the Dot's mode, so `ask` still asks in mode `off`.
   if (override === 'ask')
     return base.level === 'none'
@@ -746,6 +799,30 @@ export function redactArgs(
   const hidden = !element || SENSITIVE.test(element.name);
   let text: string;
   switch (tool) {
+    case 'desktop_screenshot':
+      text = 'take desktop screenshot';
+      break;
+    case 'desktop_click': {
+      const btn =
+        args.button && args.button !== 'left' ? ` (${args.button} button)` : '';
+      text = `${args.double ? 'double ' : ''}click at (${args.x}, ${args.y})${btn}`;
+      break;
+    }
+    case 'desktop_drag': {
+      const from = (args.from ?? {}) as { x?: number; y?: number };
+      const to = (args.to ?? {}) as { x?: number; y?: number };
+      text = `drag from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`;
+      break;
+    }
+    case 'desktop_type':
+      text = 'type [hidden] on desktop';
+      break;
+    case 'desktop_key':
+      text = `press ${String(args.keys ?? '')} on desktop`;
+      break;
+    case 'desktop_scroll':
+      text = `scroll at (${args.x}, ${args.y}) (dx: ${args.dx ?? 0}, dy: ${args.dy ?? 0})`;
+      break;
     case 'computer_exec': {
       const timeout =
         typeof args.timeoutMs === 'number'

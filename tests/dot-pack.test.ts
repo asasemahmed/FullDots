@@ -260,6 +260,8 @@ describe('importing a Dot pack', () => {
     expect(workspace.dot(dot.id)?.composioAllowed ?? false).toBe(false);
     expect(workspace.dot(dot.id)?.composioToolkits ?? []).toEqual([]);
     expect(workspace.computers.permissions(dot.id)).toEqual({
+      kind: 'browser',
+      desktop: false,
       enabled: false,
       browser: false,
       files: false,

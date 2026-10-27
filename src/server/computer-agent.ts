@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ComputerAction } from '../shared/computer-types.js';
+import type { DesktopVision } from './computer-desktop-vision.js';
 import {
   clearEngineBlocks,
   DEFAULT_SEARCH_ENGINES,
@@ -285,6 +286,7 @@ function stringWithoutBinary(text: string): string {
 }
 
 export interface AgentComputerOptions {
+  desktopVision?: DesktopVision;
   /** How long to let a page settle after an action before reading it. Zero skips the wait. */
   settleMs?: number;
   /** The conversation the turn belongs to. Browser steps are kept for its replay when set. */
@@ -301,6 +303,7 @@ export class AgentComputer implements GateComputer {
   private readonly settleMs: number;
   private readonly threadId?: string;
   private readonly searchEngines: readonly BrowserSearchEngine[];
+  private readonly desktopVision?: DesktopVision;
 
   constructor(
     private readonly service: ComputerService,
@@ -311,6 +314,7 @@ export class AgentComputer implements GateComputer {
     this.settleMs = options.settleMs ?? 250;
     this.threadId = options.threadId;
     this.searchEngines = options.searchEngines ?? DEFAULT_SEARCH_ENGINES;
+    this.desktopVision = options.desktopVision;
   }
 
   /** `toolCallId` names the step in the conversation's replay. */
@@ -331,6 +335,33 @@ export class AgentComputer implements GateComputer {
       ? { threadId: this.threadId, toolCallId }
       : undefined;
     switch (action) {
+      case 'desktop_screenshot':
+        this.service.inputs.desktop_screenshot.parse(input);
+        return this.session(action, async (call) => {
+          if (!this.desktopVision)
+            throw new Error(
+              'Desktop image input is unavailable. Enable Images for this model in Settings > Models.',
+            );
+          return this.desktopVision.capture(async () =>
+            z
+              .object({
+                base64: z.string().max(6 * 1024 * 1024),
+                width: z.literal(1280),
+                height: z.literal(800),
+                scale: z.literal(1),
+                capturedAt: z.string(),
+              })
+              .parse(await call('desktop_screenshot')),
+          );
+        });
+      case 'desktop_click':
+      case 'desktop_drag':
+      case 'desktop_type':
+      case 'desktop_key':
+      case 'desktop_scroll': {
+        const parsed = this.service.inputs[action].parse(input);
+        return this.session(action, (call) => call(action, parsed), replay);
+      }
       case 'navigate':
       case 'click':
       case 'type':

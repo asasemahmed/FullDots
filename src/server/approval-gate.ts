@@ -209,6 +209,17 @@ export interface TurnGate {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+const knownComputerTools = new Set([
+  ...Object.keys(computerInputs)
+    .filter((name) => !name.startsWith('human_'))
+    .map((name) => (name.startsWith('desktop_') ? name : `computer_${name}`)),
+  'computer_search',
+  'computer_select',
+]);
+const unknownComputerTool = (name: string) =>
+  (name.startsWith('computer_') || name.startsWith('desktop_')) &&
+  !knownComputerTools.has(name);
+
 /**
  * Parses the arguments of computer tools with the same schemas the tools use (defaults applied), and
  * passes every other tool's arguments through as a plain object. Throws a ZodError for invalid
@@ -221,6 +232,7 @@ export function gateParse(
   inputs: ComputerInputs = computerInputs,
 ): Record<string, unknown> {
   const object = isRecord(args) ? args : {};
+  if (unknownComputerTool(toolName)) throw new Error('Unknown computer tool.');
   if (toolName === 'docker_setup') return dockerSetupInput.parse(object);
   if (toolName.startsWith('computer_')) {
     const action = toolName.slice('computer_'.length);
@@ -230,6 +242,13 @@ export function gateParse(
       return { ...searchInputSchema.parse(object) } as Record<string, unknown>;
     if (!action.startsWith('human_') && Object.hasOwn(inputs, action))
       return inputs[action as keyof ComputerInputs].parse(object) as Record<
+        string,
+        unknown
+      >;
+  }
+  if (toolName.startsWith('desktop_')) {
+    if (Object.hasOwn(inputs, toolName))
+      return inputs[toolName as keyof ComputerInputs].parse(object) as Record<
         string,
         unknown
       >;
@@ -317,6 +336,26 @@ function describeAction(
       return `press ${clip(String(args.key ?? 'a key'), 40)}${
         focus ? ` in the ${label(focus)}` : ''
       }`;
+    case 'desktop_screenshot':
+      return 'take a desktop screenshot';
+    case 'desktop_click': {
+      const btn =
+        args.button && args.button !== 'left'
+          ? ` using ${args.button} button`
+          : '';
+      return `${args.double ? 'double ' : ''}click at (${args.x}, ${args.y})${btn} on the desktop`;
+    }
+    case 'desktop_drag': {
+      const from = (args.from ?? {}) as { x?: number; y?: number };
+      const to = (args.to ?? {}) as { x?: number; y?: number };
+      return `drag from (${from.x}, ${from.y}) to (${to.x}, ${to.y}) on the desktop`;
+    }
+    case 'desktop_type':
+      return 'type on the desktop';
+    case 'desktop_key':
+      return `press ${clip(String(args.keys ?? 'a key'), 40)} on the desktop`;
+    case 'desktop_scroll':
+      return `scroll at (${args.x}, ${args.y}) on the desktop`;
     default:
       return describeComposioAction(tool) ?? `use ${tool}`;
   }
@@ -566,6 +605,8 @@ export function approvalGate(deps: GateDeps): {
     onBeforeToolCall(_ctx, { toolName, toolCallId, args }) {
       // Once the turn is paused nothing else may act: siblings of the paused call get a stored answer.
       if (gate.paused) return skip(pausedResult());
+      if (unknownComputerTool(toolName))
+        return skip({ error: 'Unknown computer tool.' });
       if (toolName === 'request_approval')
         return requestApproval(toolCallId, args);
       if (toolName === 'request_handoff') return requestHandoff(args);

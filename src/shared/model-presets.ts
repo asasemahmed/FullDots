@@ -86,6 +86,7 @@ export interface ModelInfo {
   name?: string;
   tools?: boolean;
   contextLength?: number;
+  images?: boolean;
 }
 
 const openaiList = {

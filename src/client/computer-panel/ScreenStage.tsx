@@ -8,10 +8,20 @@ export type Snapshot = {
   base64: string;
   width: number;
   height: number;
-  url: string;
-  capturedAt: number;
+  url?: string;
+  capturedAt: number | string;
+  mimeType?: string;
+  scale?: number;
+  action?: string;
 };
 export type PagePosition = { url: string; title?: string };
+
+export function formatSnapshotTime(capturedAt: number | string): string {
+  const date = new Date(capturedAt);
+  return Number.isNaN(date.getTime())
+    ? String(capturedAt)
+    : date.toLocaleTimeString();
+}
 
 /** Small, quiet labels laid over the corners of the screen. They never take clicks. */
 export function ScreenOverlay({
@@ -26,7 +36,7 @@ export function ScreenOverlay({
   page?: PagePosition;
   activity?: Activity;
   dotName: string;
-  capturedAt?: number;
+  capturedAt?: number | string;
 }) {
   const badge =
     phase === 'live'
@@ -45,8 +55,8 @@ export function ScreenOverlay({
           className={`cp-badge cp-badge-${badge.tone}`}
           role="status"
           title={
-            phase === 'snapshot' && capturedAt
-              ? `Updated ${new Date(capturedAt).toLocaleTimeString()}`
+            phase === 'snapshot' && capturedAt !== undefined
+              ? `Updated ${formatSnapshotTime(capturedAt)}`
               : undefined
           }
         >
@@ -84,6 +94,8 @@ export function ScreenOverlay({
 export function ScreenStage({
   dotId,
   dotName,
+  screenAvailable,
+  isDesktop = false,
   browser,
   human,
   typeChars,
@@ -102,8 +114,10 @@ export function ScreenStage({
 }: {
   dotId: string;
   dotName: string;
+  screenAvailable?: boolean;
+  isDesktop?: boolean;
   /** Browser permission is on. */
-  browser: boolean;
+  browser?: boolean;
   /** The owner holds control. */
   human: boolean;
   typeChars: number;
@@ -120,8 +134,9 @@ export function ScreenStage({
   onClickSnapshot: (point: { x: number; y: number }) => void;
   onOpenSettings: () => void;
 }) {
+  const allowed = screenAvailable !== undefined ? screenAvailable : !!browser;
   const liveShown =
-    browser &&
+    allowed &&
     (stream.phase === 'live' ||
       stream.phase === 'reconnecting' ||
       stream.phase === 'paused');
@@ -133,10 +148,10 @@ export function ScreenStage({
       <div
         className={`cp-stage${human ? ' is-human' : ''}`}
         data-stage={
-          !browser ? 'off' : liveShown ? 'live' : snapshot ? 'snapshot' : 'wait'
+          !allowed ? 'off' : liveShown ? 'live' : snapshot ? 'snapshot' : 'wait'
         }
       >
-        {browser && (
+        {allowed && (
           <ComputerScreen
             key={streamKey}
             dotId={dotId}
@@ -159,10 +174,14 @@ export function ScreenStage({
             }
           />
         )}
-        {!browser ? (
+        {!allowed ? (
           <div className="cp-placeholder">
             <MonitorOff size={22} aria-hidden="true" />
-            <p>The browser is turned off, so there is no screen to show.</p>
+            <p>
+              {isDesktop
+                ? 'Full desktop is turned off, so there is no screen to show.'
+                : 'The browser is turned off, so there is no screen to show.'}
+            </p>
             <button type="button" className="cp-btn" onClick={onOpenSettings}>
               Open settings
             </button>
@@ -192,13 +211,25 @@ export function ScreenStage({
               }}
             >
               <img
-                src={`data:image/png;base64,${snapshot.base64}`}
-                alt={`Browser screen for ${dotName}`}
+                src={
+                  snapshot.base64.startsWith('data:')
+                    ? snapshot.base64
+                    : `data:${snapshot.mimeType || (isDesktop ? 'image/jpeg' : 'image/png')};base64,${snapshot.base64}`
+                }
+                alt={
+                  isDesktop
+                    ? `Computer screen for ${dotName}`
+                    : `Browser screen for ${dotName}`
+                }
               />
             </button>
             <ScreenOverlay
               phase="snapshot"
-              page={{ url: snapshot.url, title: page?.title }}
+              page={
+                snapshot.url || page?.title
+                  ? { url: snapshot.url ?? '', title: page?.title }
+                  : undefined
+              }
               activity={human ? undefined : activity}
               dotName={dotName}
               capturedAt={snapshot.capturedAt}
@@ -219,7 +250,7 @@ export function ScreenStage({
           </div>
         )}
       </div>
-      {browser && (gaveUp || snapshotError) && (
+      {allowed && (gaveUp || snapshotError) && (
         <div className="cp-notice" role="status">
           <span>{over ? over.message : snapshotError}</span>
           {over && (

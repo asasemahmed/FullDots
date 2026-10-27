@@ -707,6 +707,8 @@ describe('error handling', () => {
         redact: (text) => registry.redact(text),
         models: () => Promise.reject(new Error(`boom ${PLANTED}`)),
         test: () => Promise.reject(new Error(`boom ${ENV_KEY}`)),
+        setModelImages: (pid, m, img) => registry.setModelImages(pid, m, img),
+        allModelImages: () => registry.allModelImages(),
       }),
     });
     const { id } = await create();
@@ -730,6 +732,8 @@ describe('error handling', () => {
         setDefaultModel: () => {
           throw new ModelProviderError('No model was given.', 'no-model');
         },
+        setModelImages: (pid, m, img) => registry.setModelImages(pid, m, img),
+        allModelImages: () => registry.allModelImages(),
       }),
     });
     const { id } = await create();

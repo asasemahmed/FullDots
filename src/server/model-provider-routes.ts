@@ -30,6 +30,8 @@ export interface ModelProviderRoutesDeps {
     | 'models'
     | 'test'
     | 'redact'
+    | 'setModelImages'
+    | 'allModelImages'
   >;
   store: Pick<ModelProviderStore, 'create' | 'update' | 'delete'>;
   /**
@@ -110,6 +112,19 @@ const defaultBody = z
       .min(1)
       .max(200)
       .regex(MODEL_ID, { error: 'That model id has unsupported characters.' }),
+  })
+  .strict();
+
+const imagesBody = z
+  .object({
+    providerId: z.string().min(1).max(100),
+    model: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .regex(MODEL_ID, { error: 'That model id has unsupported characters.' }),
+    images: z.boolean(),
   })
   .strict();
 
@@ -206,10 +221,31 @@ export function modelProviderRoutes(deps: ModelProviderRoutesDeps) {
         providers: registry.list(),
         presets: modelPresets,
         defaultModel: registry.defaultModel(),
+        modelImages: registry.allModelImages(),
       },
       200,
     ),
   );
+
+  app.get('/model-providers/images', (c) =>
+    send(c, { modelImages: registry.allModelImages() }, 200),
+  );
+
+  app.put('/model-providers/images', async (c) => {
+    const body = imagesBody.parse(await readBody(c));
+    if (!registry.get(body.providerId))
+      return fail(c, 400, 'That provider does not exist.');
+    registry.setModelImages(body.providerId, body.model, body.images);
+    return send(
+      c,
+      {
+        providerId: body.providerId,
+        model: body.model,
+        images: body.images,
+      },
+      200,
+    );
+  });
 
   app.post('/model-providers', async (c) => {
     const body = createBody.parse(await readBody(c));

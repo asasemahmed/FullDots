@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Dot } from '../../shared/types';
 import type {
+  ComputerKind,
   ComputerPermissions,
   ComputerStatus,
 } from '../../shared/computer-types';
@@ -47,7 +48,7 @@ export interface PanelActions {
   dismissHandoff: (id: string) => void;
   navigate: (url: string) => Promise<boolean>;
   act: Act;
-  setPermission: (key: PermissionKey, value: boolean) => void;
+  setPermission: (key: PermissionKey, value: boolean | ComputerKind) => void;
   retryStream: () => void;
   clickSnapshot: (point: { x: number; y: number }) => void;
   onPhase: (phase: StreamPhase) => void;
@@ -130,6 +131,10 @@ export function PanelView({
   const phase = panelPhase(status, loadFailed);
   const usable = isUsable(status);
   const permissions = status?.permissions;
+  const kind = permissions?.kind ?? 'browser';
+  const isDesktop = kind === 'desktop';
+  const screenAvailable =
+    usable && (isDesktop ? !!permissions?.desktop : !!permissions?.browser);
   const browser = usable && !!permissions?.browser;
   const control = status?.control;
   const human = control?.holder === 'human' && !control.transitioning;
@@ -189,7 +194,7 @@ export function PanelView({
         onClose={onClose}
       />
       <div className="cp-body" hidden={settingsOpen}>
-        {phase === 'running' && browser && human && !waiting && (
+        {phase === 'running' && screenAvailable && human && !waiting && (
           <TakeoverBanner
             dotId={dot.id}
             dotName={dot.name}
@@ -277,6 +282,8 @@ export function PanelView({
               <ScreenStage
                 dotId={dot.id}
                 dotName={dot.name}
+                screenAvailable={screenAvailable}
+                isDesktop={isDesktop}
                 browser={browser}
                 human={human}
                 typeChars={status.limits?.typeChars ?? 16_000}
@@ -293,35 +300,35 @@ export function PanelView({
                 onClickSnapshot={actions.clickSnapshot}
                 onOpenSettings={openSettings}
               />
+              {screenAvailable && (
+                <ControlBar
+                  dotName={dot.name}
+                  human={human}
+                  waiting={
+                    waiting === 'take' || waiting === 'release'
+                      ? waiting
+                      : undefined
+                  }
+                  disabled={busy}
+                  handoff={handoff}
+                  onTake={actions.take}
+                  onDismiss={
+                    handoff
+                      ? () => actions.dismissHandoff(handoff.id)
+                      : undefined
+                  }
+                />
+              )}
               {browser && (
-                <>
-                  <ControlBar
-                    dotName={dot.name}
-                    human={human}
-                    waiting={
-                      waiting === 'take' || waiting === 'release'
-                        ? waiting
-                        : undefined
-                    }
-                    disabled={busy}
-                    handoff={handoff}
-                    onTake={actions.take}
-                    onDismiss={
-                      handoff
-                        ? () => actions.dismissHandoff(handoff.id)
-                        : undefined
-                    }
-                  />
-                  <AddressBar
-                    disabled={busy || human}
-                    placeholder={
-                      human
-                        ? `Hand back to ${dot.name} to open a page`
-                        : 'Open a website'
-                    }
-                    onOpen={actions.navigate}
-                  />
-                </>
+                <AddressBar
+                  disabled={busy || human}
+                  placeholder={
+                    human
+                      ? `Hand back to ${dot.name} to open a page`
+                      : 'Open a website'
+                  }
+                  onOpen={actions.navigate}
+                />
               )}
             </>
           ) : (
@@ -368,7 +375,7 @@ export function PanelView({
               ),
               keyboard: (
                 <KeyboardTool
-                  human={human && browser}
+                  human={human && screenAvailable}
                   busy={busy}
                   dims={frameSize ?? snapshot}
                   typeChars={status.limits?.typeChars ?? 16_000}

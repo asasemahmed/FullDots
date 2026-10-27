@@ -6,6 +6,7 @@ import {
   type ComputerInputLimits,
   type ComputerInputs,
   computerPermissionsSchema,
+  type ComputerPermissions,
   replayEnabled,
   type ComputerAction,
   type ComputerControl,
@@ -35,6 +36,7 @@ const stateSchema = z.object({
   url: z.string().optional(),
 });
 const controlSchema = z.object({
+  revision: z.number().int().nonnegative().optional(),
   holder: z.enum(['bot', 'human']),
   requested: z.boolean(),
   transitioning: z.boolean(),
@@ -67,6 +69,11 @@ const REPLAY_ACTIONS = new Set<string>([
   'select',
   'key',
   'scroll',
+  'desktop_click',
+  'desktop_drag',
+  'desktop_type',
+  'desktop_key',
+  'desktop_scroll',
 ]);
 /** A live-screen frame at most this old stands in for a screenshot. */
 const LIVE_FRAME_MS = 1000;
@@ -96,12 +103,18 @@ export type ComputerSessionCall = (
   action: ComputerAction,
   input?: unknown,
 ) => Promise<unknown>;
-const permissionKind = (action: string) =>
+const permissionKind = (
+  action: string,
+  desktop = false,
+): 'browser' | 'desktop' | 'files' | 'shell' =>
   action === 'exec'
     ? 'shell'
     : action.startsWith('files_')
       ? 'files'
-      : 'browser';
+      : action.startsWith('desktop_') ||
+          (desktop && action.startsWith('human_'))
+        ? 'desktop'
+        : 'browser';
 /** Owner actions that can safely be repeated after a fresh snapshot. */
 const OWNER_REFRESHABLE = new Set<ComputerAction>([
   'navigate',
@@ -109,6 +122,9 @@ const OWNER_REFRESHABLE = new Set<ComputerAction>([
   'scroll',
   'read',
   'screenshot',
+  'desktop_screenshot',
+  'desktop_key',
+  'desktop_scroll',
 ]);
 export class ComputerService {
   private readonly inputLimits: ComputerInputLimits;
@@ -127,6 +143,12 @@ export class ComputerService {
    * a workspace that exposes its own `handoffs` store is used when none was attached.
    */
   private handoffs?: Pick<HandoffStore, 'waitingFor'>;
+  private models?: {
+    hasModelImages: (
+      providerId?: string | null,
+      model?: string | null,
+    ) => boolean;
+  };
   readonly inputs: ComputerInputs;
   readonly streamInput: ReturnType<typeof computerStreamInputSchema>;
   constructor(
@@ -151,6 +173,35 @@ export class ComputerService {
   setHandoffs(store: Pick<HandoffStore, 'waitingFor'> | undefined) {
     this.handoffs = store;
   }
+  setModels(
+    models:
+      | {
+          hasModelImages: (
+            providerId?: string | null,
+            model?: string | null,
+          ) => boolean;
+        }
+      | undefined,
+  ) {
+    this.models = models;
+  }
+  hasModelImagesForDot(id: string): boolean {
+    const dot = this.workspace.dot(id);
+    return (
+      this.models?.hasModelImages(dot?.modelProviderId, dot?.model) ?? false
+    );
+  }
+  policy(id: string): ComputerPermissions {
+    return this.workspace.computers.permissions(id);
+  }
+  async desktopControl(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<ComputerControl> {
+    this.allowed(id, 'desktop', 'agent');
+    const url = await this.running(id, signal);
+    return this.readControl(url, id, signal);
+  }
   /** The largest live-screen input message worth reading: a paste, with JSON escaping. */
   get streamInputBytes() {
     return Math.max(64 * 1024, this.inputLimits.typeChars * 6 + 1024);
@@ -173,15 +224,38 @@ export class ComputerService {
   }
   private allowed(
     id: string,
-    kind: 'browser' | 'files' | 'shell' | undefined,
+    kind: 'browser' | 'desktop' | 'files' | 'shell' | undefined,
     actor: 'agent' | 'owner',
   ) {
     this.requireDot(id);
     if (!this.configured)
       throw new ComputerError(503, 'Computer service is not configured.');
     const policy = this.workspace.computers.permissions(id);
-    if (!policy.enabled || (kind && !policy[kind]))
+    const computerKind = policy.kind ?? 'browser';
+    if (!policy.enabled)
       throw new ComputerError(403, 'Computer permission is disabled.');
+    if (kind === 'desktop') {
+      if (computerKind !== 'desktop')
+        throw new ComputerError(
+          403,
+          'Desktop computer is not enabled for this Dot.',
+        );
+      if (!policy.desktop)
+        throw new ComputerError(403, 'Desktop permission is disabled.');
+      if (actor === 'agent') {
+        const hasImages = this.hasModelImagesForDot(id);
+        if (!hasImages)
+          throw new ComputerError(
+            403,
+            'Desktop computer requires a model with vision enabled. Turn on Images for your model in Settings → Models.',
+          );
+      }
+    } else if (kind === 'browser') {
+      if (!policy.browser)
+        throw new ComputerError(403, 'Computer permission is disabled.');
+    } else if (kind && !policy[kind]) {
+      throw new ComputerError(403, 'Computer permission is disabled.');
+    }
     if (actor === 'agent' && this.paused())
       throw new ComputerError(403, 'Agents are paused.');
     if (actor === 'agent' && this.workspace.dot(id)?.paused)
@@ -193,6 +267,7 @@ export class ComputerService {
     body: unknown | undefined,
     signal?: AbortSignal,
     dotId?: string,
+    actor?: 'owner' | 'agent',
   ): Promise<unknown> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.deadlineMs);
@@ -206,6 +281,7 @@ export class ComputerService {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
           ...(dotId ? { 'x-openbot-bot-id': dotId } : {}),
+          ...(actor ? { 'x-fulldots-computer-actor': actor } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         redirect: 'error',
@@ -401,6 +477,17 @@ export class ComputerService {
   }
   async permissions(id: string, input: unknown) {
     const patch = computerPermissionsSchema.partial().parse(input);
+    if (patch.kind !== undefined) {
+      const current = this.workspace.computers.permissions(id);
+      if (patch.kind !== (current.kind ?? 'browser')) {
+        const state = await this.existing(id);
+        if (state && state.status === 'running')
+          throw new ComputerError(
+            409,
+            'Stop this Dot’s computer before changing its kind.',
+          );
+      }
+    }
     await this.audited(id, 'permissions', 'owner', async () =>
       this.workspace.computers.patch(id, patch),
     );
@@ -409,7 +496,13 @@ export class ComputerService {
   async start(id: string) {
     await this.audited(id, 'start', 'owner', async () => {
       this.allowed(id, undefined, 'owner');
-      this.endpoint(id, await this.supervisor(`/computers/${id}/ensure`, {}));
+      const policy = this.workspace.computers.permissions(id);
+      this.endpoint(
+        id,
+        await this.supervisor(`/computers/${id}/ensure`, {
+          kind: policy.kind ?? 'browser',
+        }),
+      );
     });
     return this.status(id);
   }
@@ -425,9 +518,11 @@ export class ComputerService {
     await this.audited(id, verb, 'owner', async () => {
       if (!this.configured)
         throw new ComputerError(503, 'Computer service is not configured.');
-      if (verb === 'take') this.allowed(id, 'browser', 'owner');
+      const policy = this.workspace.computers.permissions(id);
+      const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
+      if (verb === 'take') this.allowed(id, screenKind, 'owner');
       const url = await this.running(id);
-      if (verb === 'take') this.allowed(id, 'browser', 'owner');
+      if (verb === 'take') this.allowed(id, screenKind, 'owner');
       let control: ComputerControl = controlSchema.parse(
         await this.json(
           `${url}/control`,
@@ -473,12 +568,16 @@ export class ComputerService {
     });
     return this.status(id);
   }
-  private readControl(url: string, id: string): Promise<ComputerControl> {
+  private readControl(
+    url: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<ComputerControl> {
     return this.json(
       `${url}/control`,
       this.token(id),
       undefined,
-      undefined,
+      signal,
       id,
     ).then((raw) => controlSchema.parse(raw));
   }
@@ -493,9 +592,11 @@ export class ComputerService {
     actor: 'agent' | 'owner' = 'agent',
   ): Promise<ComputerControl> {
     return this.audited(id, 'request_control', actor, async () => {
-      this.allowed(id, 'browser', actor);
+      const policy = this.workspace.computers.permissions(id);
+      const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
+      this.allowed(id, screenKind, actor);
       const url = await this.running(id);
-      this.allowed(id, 'browser', actor);
+      this.allowed(id, screenKind, actor);
       return controlSchema.parse(
         await this.json(
           `${url}/control/request`,
@@ -601,7 +702,8 @@ export class ComputerService {
     return this.audited(id, label, actor, async () => {
       if (actor === 'agent' && label.startsWith('human_'))
         throw new ComputerError(403, 'Human controls are owner-only.');
-      const kind = permissionKind(label);
+      const desktop = this.policy(id).kind === 'desktop';
+      const kind = permissionKind(label, desktop);
       this.allowed(id, kind, actor);
       const cancellation = new AbortController();
       const activeSignal = signal
@@ -619,7 +721,7 @@ export class ComputerService {
         const call: ComputerSessionCall = async (action, input) => {
           if (!Object.hasOwn(this.inputs, action))
             throw new ComputerError(400, 'Unknown computer action.');
-          if (permissionKind(action) !== kind)
+          if (permissionKind(action, desktop) !== kind)
             throw new ComputerError(
               403,
               'That call needs a different permission.',
@@ -630,13 +732,17 @@ export class ComputerService {
           activeSignal.throwIfAborted();
           const path = action
             .replace(/^files_/, 'files/')
-            .replace(/^human_/, 'human/');
+            .replace(/^human_/, 'human/')
+            .replace(/^desktop_/, 'desktop/');
           const result = await this.json(
             `${url}/${path}`,
             this.token(id),
-            ['read', 'screenshot'].includes(action) ? undefined : parsed,
+            ['read', 'screenshot', 'desktop_screenshot'].includes(action)
+              ? undefined
+              : parsed,
             activeSignal,
             id,
+            actor,
           );
           this.allowed(id, kind, actor);
           if (action === 'exec' && result && typeof result === 'object') {
@@ -706,18 +812,23 @@ export class ComputerService {
       );
       if (live || !call) return;
       const capture = (async () => {
-        const shot = await call('screenshot');
+        const policy = this.workspace.computers.permissions(id);
+        const shotAction =
+          policy.kind === 'desktop' ? 'desktop_screenshot' : 'screenshot';
+        const shot = await call(shotAction as ComputerAction);
         const base64 =
           shot && typeof shot === 'object'
             ? (shot as { base64?: unknown }).base64
             : undefined;
         if (typeof base64 !== 'string') return;
         await yieldToEvents();
-        const jpeg = keyframeFromPng(
-          Buffer.from(base64, 'base64'),
-          REPLAY_FRAME_WIDTH,
-          REPLAY_FRAME_QUALITY,
-        );
+        const bytes = Buffer.from(base64, 'base64');
+        const jpeg =
+          shotAction === 'desktop_screenshot' &&
+          bytes[0] === 0xff &&
+          bytes[1] === 0xd8
+            ? bytes
+            : keyframeFromPng(bytes, REPLAY_FRAME_WIDTH, REPLAY_FRAME_QUALITY);
         this.workspace.frames.attach(stepId, jpeg);
       })().catch((error: unknown) => {
         // Names the failure only: messages from the computer are already generic.
@@ -747,7 +858,9 @@ export class ComputerService {
    * and only an authenticated request can mint it.
    */
   streamTicket(id: string): ComputerStreamTicket {
-    this.allowed(id, 'browser', 'owner');
+    const policy = this.workspace.computers.permissions(id);
+    const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
+    this.allowed(id, screenKind, 'owner');
     const now = Date.now();
     for (const [key, entry] of this.streamTickets)
       if (entry.expires <= now) this.streamTickets.delete(key);
@@ -772,8 +885,10 @@ export class ComputerService {
   }
   /** Whether the owner may still watch this Dot's screen. Asked repeatedly while a screen is open. */
   streamAllowed(id: string): boolean {
+    const policy = this.workspace.computers.permissions(id);
+    const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
     try {
-      this.allowed(id, 'browser', 'owner');
+      this.allowed(id, screenKind, 'owner');
       return true;
     } catch {
       return false;
@@ -812,9 +927,11 @@ export class ComputerService {
     signal?: AbortSignal,
   ): Promise<ComputerStreamTarget> {
     return this.audited(id, 'stream', 'owner', async () => {
-      this.allowed(id, 'browser', 'owner');
+      const policy = this.workspace.computers.permissions(id);
+      const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
+      this.allowed(id, screenKind, 'owner');
       const origin = await this.running(id, signal);
-      this.allowed(id, 'browser', 'owner');
+      this.allowed(id, screenKind, 'owner');
       signal?.throwIfAborted();
       const token = this.token(id);
       const secrets = [

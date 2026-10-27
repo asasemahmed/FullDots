@@ -2,6 +2,7 @@ import type { KeyboardEvent, Ref } from 'react';
 import { ArrowLeft, Check, ExternalLink } from 'lucide-react';
 import type { Dot } from '../../shared/types';
 import type {
+  ComputerKind,
   ComputerPermissions,
   ComputerStatus,
 } from '../../shared/computer-types';
@@ -99,12 +100,16 @@ export function SettingsSheet({
   hidden: boolean;
   sheetRef?: Ref<HTMLDivElement>;
   onSelectDot?: (id: string) => void;
-  onSetPermission: (key: PermissionKey, value: boolean) => void;
+  onSetPermission: (key: PermissionKey, value: boolean | ComputerKind) => void;
   onStart: () => void;
   onStop: () => void;
   onClose: () => void;
 }) {
   const running = status.state === 'running';
+  const currentKind: ComputerKind =
+    optimistic.kind ?? status.permissions.kind ?? 'browser';
+  const currentEnabled =
+    optimistic.enabled ?? status.permissions.enabled ?? false;
   return (
     <div
       id={id}
@@ -148,6 +153,38 @@ export function SettingsSheet({
           </select>
         </label>
       )}
+      <div className="cp-field">
+        <label htmlFor={`${id}-kind`}>Computer kind</label>
+        <select
+          id={`${id}-kind`}
+          aria-label="Computer kind"
+          aria-describedby={running ? `${id}-kind-help` : undefined}
+          value={currentKind}
+          disabled={busy || !status.configured || running}
+          onChange={(event) =>
+            onSetPermission('kind', event.target.value as ComputerKind)
+          }
+        >
+          <option value="browser">Browser</option>
+          <option value="desktop">Full desktop</option>
+        </select>
+        <span className={`cp-save cp-save-${notes.kind ?? 'none'}`}>
+          <span role="status">
+            {notes.kind === 'saving' && 'Saving…'}
+            {notes.kind === 'saved' && (
+              <>
+                <Check size={12} aria-hidden="true" /> Saved
+              </>
+            )}
+            {notes.kind === 'error' && 'Could not save. Try again.'}
+          </span>
+        </span>
+        {running && (
+          <p id={`${id}-kind-help`} className="cp-hint">
+            Stop the computer before changing its kind.
+          </p>
+        )}
+      </div>
       {!status.configured && (
         <p className="cp-callout">
           No computer service is connected yet, so nothing here can be changed.{' '}
@@ -165,8 +202,15 @@ export function SettingsSheet({
             title,
             help: description(dot.name),
             note: notes[key],
-            checked: !!(optimistic[key] ?? status.permissions[key]),
-            disabled: !status.configured || busy,
+            checked:
+              key === 'desktop'
+                ? !!(optimistic.desktop ?? status.permissions.desktop)
+                : !!(optimistic[key] ?? status.permissions[key]),
+            disabled:
+              !status.configured ||
+              busy ||
+              (key === 'desktop' &&
+                (currentKind !== 'desktop' || !currentEnabled)),
             onChange: (value) => onSetPermission(key, value),
           }),
         )}
@@ -176,14 +220,21 @@ export function SettingsSheet({
         {settingSwitch({
           id: `${id}-replay`,
           title: 'Keep a replay',
-          help: `Save a small picture of the screen after each browser step ${dot.name} takes, so you can step back through it. The oldest go first, and a conversation’s pictures go when you delete it.${
-            status.permissions.browser ? '' : ' Turn on Browser to use it.'
+          help: `Save a small picture of the screen after each computer step ${dot.name} takes, so you can step back through it. The oldest go first, and a conversation’s pictures go when you delete it.${
+            status.permissions.browser || Boolean(status.permissions.desktop)
+              ? ''
+              : ' Turn on Browser or Full desktop to use it.'
           }`,
           note: notes.replay,
           checked:
             optimistic.replay ??
-            (status.permissions.browser && status.permissions.replay !== false),
-          disabled: !status.configured || busy || !status.permissions.browser,
+            ((status.permissions.browser ||
+              Boolean(status.permissions.desktop)) &&
+              status.permissions.replay !== false),
+          disabled:
+            !status.configured ||
+            busy ||
+            (!status.permissions.browser && !status.permissions.desktop),
           onChange: (value) => onSetPermission('replay', value),
         })}
       </ul>

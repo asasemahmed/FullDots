@@ -129,7 +129,7 @@ export function ReplayView({
             : loading
               ? 'Loading the steps…'
               : error ||
-                `${dotName} has not used the browser in this conversation yet.`}
+                `${dotName} has not used the computer in this conversation yet.`}
         </p>
       </section>
     );

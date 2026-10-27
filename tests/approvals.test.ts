@@ -256,6 +256,60 @@ const resultOf = (decision: unknown): Json => {
 };
 const rm = { command: 'rm -rf build' };
 
+describe('desktop approval middleware', () => {
+  const actions = [
+    ['desktop_click', { x: 10, y: 20 }],
+    ['desktop_drag', { from: { x: 10, y: 20 }, to: { x: 30, y: 40 } }],
+    ['desktop_type', { text: 'private desktop fixture' }],
+    ['desktop_key', { keys: 'Control_L+s' }],
+    ['desktop_scroll', { x: 10, y: 20, dx: 0, dy: 400 }],
+  ] as const;
+  for (const [tool, args] of actions)
+    it(`requires a single-use exact approval for ${tool}`, () => {
+      const first = rig();
+      const pending = resultOf(first.before(tool, args));
+      expect(pending.status).toBe('pending_approval');
+      const id = String(pending.approvalId);
+      const stored = first.svc.approvals.get(id)!;
+      expect(stored.tool).toBe(tool);
+      expect(stored.summary).not.toContain('private desktop fixture');
+      expect(stored.argsRedacted).not.toContain('private desktop fixture');
+      first.svc.service.decide(id, 'approve');
+      const resumed = rig({ svc: first.svc, resume: id });
+      expect(resumed.before(tool, args)).toBeUndefined();
+      expect(resultOf(resumed.before(tool, args)).status).toBe(
+        'pending_approval',
+      );
+    });
+  it('does not consume approval for different desktop coordinates', () => {
+    const first = rig();
+    const id = String(
+      resultOf(first.before('desktop_click', { x: 10, y: 20 })).approvalId,
+    );
+    first.svc.service.decide(id, 'approve');
+    const resumed = rig({ svc: first.svc, resume: id });
+    expect(
+      resultOf(resumed.before('desktop_click', { x: 11, y: 20 })).status,
+    ).toBe('pending_approval');
+    expect(first.svc.approvals.get(id)?.consumedAt).toBeNull();
+  });
+  it('allows screenshot reads and off-mode typing, and refuses unknown or human-only tool names in every mode', () => {
+    expect(rig().before('desktop_screenshot', {})).toBeUndefined();
+    expect(
+      rig({ mode: 'off' }).before('desktop_type', { text: 'fixture' }),
+    ).toBeUndefined();
+    for (const mode of ['sensitive', 'writes', 'off'] as const)
+      for (const tool of [
+        'desktop_unknown',
+        'computer_unknown',
+        'computer_human_click',
+      ])
+        expect(resultOf(rig({ mode }).before(tool, {})).error).toBe(
+          'Unknown computer tool.',
+        );
+  });
+});
+
 // ---------------------------------------------------------------------------------------------
 // ApprovalService
 // ---------------------------------------------------------------------------------------------
@@ -1159,8 +1213,10 @@ describe('gateParse', () => {
     });
     expect(gateParse('mcp__x__y', undefined)).toEqual({});
     expect(gateParse('mcp__x__y', [1])).toEqual({});
-    // Owner-only actions are not agent tools and are not parsed here.
-    expect(gateParse('computer_human_click', { x: 'a' })).toEqual({ x: 'a' });
+    // Owner-only actions must never become a model tool, even in off mode.
+    expect(() => gateParse('computer_human_click', { x: 'a' })).toThrow(
+      'Unknown computer tool',
+    );
   });
 });
 

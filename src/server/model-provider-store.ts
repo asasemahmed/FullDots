@@ -24,6 +24,7 @@ export const KEY_UNREADABLE_ERROR =
   'The stored API key could not be decrypted. Enter it again.';
 
 const DEFAULT_MODEL_KEY = 'defaultModel';
+const MODEL_IMAGES_KEY = 'modelImages';
 const EXTRA_VALUE_MAX = 200;
 
 /** Provider-specific values (today only the Anthropic workspace id). */
@@ -278,6 +279,48 @@ export class ModelProviderStore {
         DEFAULT_MODEL_KEY,
         JSON.stringify({ providerId: value.providerId, model: value.model }),
       );
+  }
+
+  getAllModelImages(): Record<string, boolean> {
+    const row = this.db
+      .prepare('SELECT value FROM model_settings WHERE key=?')
+      .get(MODEL_IMAGES_KEY) as Row | undefined;
+    if (!row) return {};
+    try {
+      const parsed = JSON.parse(String(row.value));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        return {};
+      const result: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'boolean') {
+          result[k] = v;
+        }
+      }
+      return result;
+    } catch {
+      return {};
+    }
+  }
+
+  getModelImages(providerId: string, model: string): boolean {
+    const all = this.getAllModelImages();
+    return all[`${providerId}:${model}`] === true;
+  }
+
+  setModelImages(providerId: string, model: string, images: boolean): void {
+    const all = this.getAllModelImages();
+    const key = `${providerId}:${model}`;
+    if (images) {
+      all[key] = true;
+    } else {
+      delete all[key];
+    }
+    this.db
+      .prepare(
+        `INSERT INTO model_settings(key, value) VALUES (?,?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      )
+      .run(MODEL_IMAGES_KEY, JSON.stringify(all));
   }
 
   private row(id: string): Row | undefined {
