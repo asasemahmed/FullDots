@@ -433,6 +433,7 @@ export function approvalGate(deps: GateDeps): {
     argsHash: string | null;
     summary: string;
     argsRedacted: string;
+    argsPreview?: string;
   }) {
     const approval = deps.approvals.request({
       threadId: deps.threadId,
@@ -576,6 +577,9 @@ export function approvalGate(deps: GateDeps): {
       argsHash: hash,
       summary,
       argsRedacted: redacted,
+      ...(intent.tool === 'desktop_type'
+        ? { argsPreview: String(parsed.text) }
+        : {}),
     });
   }
 
@@ -668,6 +672,9 @@ export function approvalGate(deps: GateDeps): {
         argsHash: hash,
         summary: `${deps.dotName} wants to ${describeAction(toolName, parsed, element, focus)}`,
         argsRedacted: redacted,
+        ...(toolName === 'desktop_type'
+          ? { argsPreview: String(parsed.text) }
+          : {}),
       });
     },
     async onAfterToolCall(_ctx, info) {

@@ -540,7 +540,9 @@ export class ChannelService {
         }
         this.enqueueText(
           thread,
-          `Approval needed: ${approval.summary}\nTool: ${approval.tool}\nArguments: ${approval.argsRedacted}`,
+          approval.tool === 'desktop_type'
+            ? `Approval needed: type ${this.platform.workspace.approvals.desktopTypeCharacters(approval.id) ?? 'an unknown number of'} characters on the desktop. Open FullDots to see the text.`
+            : `Approval needed: ${approval.summary}\nTool: ${approval.tool}\nArguments: ${approval.argsRedacted}`,
           `approval:${approval.id}:details`,
         );
         this.store.enqueue(

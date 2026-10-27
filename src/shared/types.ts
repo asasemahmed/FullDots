@@ -448,6 +448,8 @@ export interface Approval {
   summary: string;
   /** "Exact action": JSON or shell command, truncated, secrets masked. */
   argsRedacted: string;
+  /** Pending desktop text, exposed only by the owner's approval routes. */
+  argsPreview?: string | null;
   status: ApprovalStatus;
   note: string | null;
   createdAt: number;

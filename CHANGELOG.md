@@ -32,6 +32,8 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- **Review desktop typing before approving.** Pending approvals show the proposed text in the app, with its character count and escaped control characters. The removable preview stays out of channels, audit records and replay. Desktop settings now explain that Full desktop includes a terminal even with Terminal off, and connector tabs reference only their rendered panel.
+
 - **A remote agent name is checked at the address it really points to.** A public name that resolves to this machine, a private network, or a cloud metadata address is refused, including when the name changes its answer before the connection. A host listed in `AGENT_ENDPOINT_ALLOWED_HOSTS` may still point at a private address. Metadata addresses stay refused. See [`docs/AGENTS.md`](docs/AGENTS.md#which-addresses-are-allowed).
 - **Codex can no longer read its private coding files.** In the read-only preset, sandboxed file reads and shell commands now refuse `/profiles/.coding`, including the sign-in file. The rule names that directory. A glob deny is not used, because denying `/proc` that way makes every sandboxed command fail. The sandbox already has its own process namespace. See [`docs/COMPUTERS.md`](docs/COMPUTERS.md#choose-claude-code-or-codex).
 - Settings > Connectors: the Connectors and Discover switch is now a set of tabs that screen readers announce and the arrow keys move between.

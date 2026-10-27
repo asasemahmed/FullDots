@@ -23,7 +23,9 @@ export interface ApprovalFilter {
 const DEFAULT_LIMIT = 100;
 
 function toApproval(row: Record<string, unknown>): Approval {
-  return { ...row } as unknown as Approval;
+  const approval = { ...row };
+  delete approval.argsPreview;
+  return approval as unknown as Approval;
 }
 
 export class ApprovalStore {
@@ -37,6 +39,14 @@ export class ApprovalStore {
       createdAt INTEGER NOT NULL, expiresAt INTEGER NOT NULL, decidedAt INTEGER, consumedAt INTEGER);
       CREATE UNIQUE INDEX IF NOT EXISTS approvals_call ON approvals(threadId, toolCallId);
       CREATE INDEX IF NOT EXISTS approvals_status ON approvals(status, createdAt);`);
+    if (
+      !db
+        .prepare('PRAGMA table_info(approvals)')
+        .all()
+        .some((row) => row.name === 'argsPreview')
+    )
+      db.exec('ALTER TABLE approvals ADD COLUMN argsPreview TEXT');
+    this.clearExpiredPreviews();
   }
 
   /** Idempotent on (threadId, toolCallId): a repeat call returns the stored row. */
@@ -62,7 +72,7 @@ export class ApprovalStore {
     };
     this.db
       .prepare(
-        'INSERT INTO approvals(id,threadId,dotId,toolCallId,tool,argsHash,summary,argsRedacted,status,note,createdAt,expiresAt,decidedAt,consumedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO approvals(id,threadId,dotId,toolCallId,tool,argsHash,summary,argsRedacted,status,note,createdAt,expiresAt,decidedAt,consumedAt,argsPreview) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       )
       .run(
         approval.id,
@@ -79,11 +89,15 @@ export class ApprovalStore {
         approval.expiresAt,
         approval.decidedAt,
         approval.consumedAt,
+        input.tool === 'desktop_type' && typeof input.argsPreview === 'string'
+          ? input.argsPreview
+          : null,
       );
     return approval;
   }
 
   byToolCall(threadId: string, toolCallId: string): Approval | undefined {
+    this.clearExpiredPreviews();
     const row = this.db
       .prepare('SELECT * FROM approvals WHERE threadId=? AND toolCallId=?')
       .get(threadId, toolCallId);
@@ -91,12 +105,14 @@ export class ApprovalStore {
   }
 
   get(id: string): Approval | undefined {
+    this.clearExpiredPreviews();
     const row = this.db.prepare('SELECT * FROM approvals WHERE id=?').get(id);
     return row ? toApproval(row) : undefined;
   }
 
   /** Newest first. */
   list(filter: ApprovalFilter = {}): Approval[] {
+    this.clearExpiredPreviews();
     const where: string[] = [];
     const params: (string | number)[] = [];
     if (filter.status) {
@@ -129,12 +145,12 @@ export class ApprovalStore {
     const now = this.now();
     this.db
       .prepare(
-        "UPDATE approvals SET status='expired' WHERE id=? AND status='pending' AND expiresAt<=?",
+        "UPDATE approvals SET status='expired', argsPreview=NULL WHERE id=? AND status='pending' AND expiresAt<=?",
       )
       .run(id, now);
     const row = this.db
       .prepare(
-        "UPDATE approvals SET status=?, note=?, decidedAt=? WHERE id=? AND status='pending' RETURNING *",
+        "UPDATE approvals SET status=?, note=?, decidedAt=?, argsPreview=NULL WHERE id=? AND status='pending' RETURNING *",
       )
       .get(
         decision === 'approve' ? 'approved' : 'denied',
@@ -159,7 +175,7 @@ export class ApprovalStore {
     const now = this.now();
     const row = this.db
       .prepare(
-        `UPDATE approvals SET status='consumed', consumedAt=? WHERE id=(SELECT id FROM approvals WHERE threadId=? AND argsHash=? AND status='approved' AND expiresAt>? AND (? IS NULL OR id=?) ORDER BY decidedAt, createdAt, rowid LIMIT 1) RETURNING *`,
+        `UPDATE approvals SET status='consumed', consumedAt=?, argsPreview=NULL WHERE id=(SELECT id FROM approvals WHERE threadId=? AND argsHash=? AND status='approved' AND expiresAt>? AND (? IS NULL OR id=?) ORDER BY decidedAt, createdAt, rowid LIMIT 1) RETURNING *`,
       )
       .get(
         now,
@@ -176,7 +192,7 @@ export class ApprovalStore {
   lapse(id: string): boolean {
     const result = this.db
       .prepare(
-        "UPDATE approvals SET status='expired' WHERE id=? AND status='approved'",
+        "UPDATE approvals SET status='expired', argsPreview=NULL WHERE id=? AND status='approved'",
       )
       .run(id);
     return Number(result.changes) > 0;
@@ -186,7 +202,7 @@ export class ApprovalStore {
   expire(now: number = this.now()): number {
     const result = this.db
       .prepare(
-        "UPDATE approvals SET status='expired' WHERE status IN ('pending', 'approved') AND expiresAt<=?",
+        "UPDATE approvals SET status='expired', argsPreview=NULL WHERE status IN ('pending', 'approved') AND expiresAt<=?",
       )
       .run(now);
     return Number(result.changes);
@@ -200,5 +216,46 @@ export class ApprovalStore {
       )
       .all(this.now())
       .map((row) => String(row.threadId));
+  }
+
+  /** Only the owner approval routes may add the removable text to a response. */
+  forOwner(approval: Approval): Approval {
+    this.clearExpiredPreviews();
+    const row = this.db
+      .prepare(
+        'SELECT argsPreview FROM approvals WHERE id=? AND tool=? AND status=? AND expiresAt>?',
+      )
+      .get(approval.id, 'desktop_type', 'pending', this.now());
+    return approval.tool === 'desktop_type'
+      ? {
+          ...approval,
+          argsPreview:
+            approval.status === 'pending' &&
+            typeof row?.argsPreview === 'string'
+              ? row.argsPreview
+              : null,
+        }
+      : approval;
+  }
+
+  /** Channels receive a count, never the proposed text. */
+  desktopTypeCharacters(id: string): number | undefined {
+    this.clearExpiredPreviews();
+    const row = this.db
+      .prepare(
+        'SELECT argsPreview FROM approvals WHERE id=? AND tool=? AND status=? AND expiresAt>?',
+      )
+      .get(id, 'desktop_type', 'pending', this.now());
+    return typeof row?.argsPreview === 'string'
+      ? row.argsPreview.length
+      : undefined;
+  }
+
+  private clearExpiredPreviews() {
+    this.db
+      .prepare(
+        "UPDATE approvals SET argsPreview=NULL WHERE argsPreview IS NOT NULL AND (status<>'pending' OR expiresAt<=?)",
+      )
+      .run(this.now());
   }
 }

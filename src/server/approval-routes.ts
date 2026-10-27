@@ -68,13 +68,17 @@ export function approvalRoutes(deps: ApprovalRoutesDeps) {
     const query = approvalQuery.safeParse(c.req.query());
     if (!query.success)
       return c.json({ error: invalidMessage(query.error) }, 400);
-    return c.json({ approvals: approvalStore.list(query.data) });
+    return c.json({
+      approvals: approvalStore
+        .list(query.data)
+        .map((approval) => approvalStore.forOwner(approval)),
+    });
   });
 
   app.get('/approvals/:id', (c) => {
     const approval = approvalStore.get(c.req.param('id'));
     if (!approval) return c.json({ error: 'Approval not found.' }, 404);
-    return c.json(approval);
+    return c.json(approvalStore.forOwner(approval));
   });
 
   app.post('/approvals/:id', async (c) => {

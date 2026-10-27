@@ -81,6 +81,36 @@ type Json = Record<string, any>;
 const DOT_NAME = 'Scout';
 const NOTE = 'Not now, please.';
 
+it('keeps desktop typing approval bound to the full text and its preview out of the tool result', async () => {
+  const first = rig();
+  const waiting = await first.before('desktop_type', { text: 'abc' });
+  const [row] = first.svc.approvals.list();
+  expect(first.svc.approvals.forOwner(row).argsPreview).toBe('abc');
+  expect(JSON.stringify(waiting)).not.toContain('abc');
+  first.svc.service.decide(row.id, 'approve');
+  const changed = rig({ svc: first.svc, resume: row.id });
+  expect(await changed.before('desktop_type', { text: 'abd' })).toMatchObject({
+    type: 'skip',
+  });
+  expect(first.svc.approvals.get(row.id)?.status).toBe('approved');
+  const exact = rig({ svc: first.svc, resume: row.id });
+  expect(await exact.before('desktop_type', { text: 'abc' })).toBeUndefined();
+  expect(first.svc.approvals.get(row.id)?.status).toBe('consumed');
+});
+
+it('stores the pending preview for an explicit desktop typing intent without changing its redacted details', async () => {
+  const f = rig();
+  const text = 'printf fixture\n\techo ready';
+  const result = await f.before('request_approval', {
+    summary: 'Type into the focused app',
+    intent: { tool: 'desktop_type', args: { text } },
+  });
+  const [row] = f.svc.approvals.list();
+  expect(f.svc.approvals.forOwner(row).argsPreview).toBe(text);
+  expect(row.argsRedacted).toBe('type [hidden] on desktop');
+  expect(JSON.stringify(result)).not.toContain('printf');
+});
+
 // ---------------------------------------------------------------------------------------------
 // Shared building blocks
 // ---------------------------------------------------------------------------------------------

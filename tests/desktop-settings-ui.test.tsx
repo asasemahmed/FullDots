@@ -66,6 +66,68 @@ it('defaults the kind selector to browser and refuses changing it while running'
   ).toContain('disabled');
   expect(running).toContain('Stop the computer before changing its kind.');
 });
+it('shows desktop terminal note only when currentKind is desktop or desktop permission is on', () => {
+  const noteText =
+    'Full desktop includes a terminal. The Dot can run commands in its own computer through it, even with Terminal off. Every key press and typed text still asks you first.';
+
+  const browserOff = sheet({
+    ...status,
+    permissions: { ...status.permissions, kind: 'browser', desktop: false },
+  });
+  expect(browserOff).not.toContain(noteText);
+
+  const desktopKind = sheet({
+    ...status,
+    permissions: { ...status.permissions, kind: 'desktop', desktop: false },
+  });
+  expect(desktopKind).toContain(noteText);
+
+  const desktopPermOn = sheet({
+    ...status,
+    permissions: { ...status.permissions, kind: 'browser', desktop: true },
+  });
+  expect(desktopPermOn).toContain(noteText);
+
+  const optimisticOn = renderToStaticMarkup(
+    <SettingsSheet
+      id="desktop-settings"
+      dot={dot}
+      status={{
+        ...status,
+        permissions: { ...status.permissions, kind: 'browser', desktop: false },
+      }}
+      optimistic={{ desktop: true }}
+      notes={{}}
+      busy={false}
+      hidden={false}
+      onSetPermission={noop}
+      onStart={noop}
+      onStop={noop}
+      onClose={noop}
+    />,
+  );
+  expect(optimisticOn).toContain(noteText);
+
+  const optimisticOff = renderToStaticMarkup(
+    <SettingsSheet
+      id="desktop-settings"
+      dot={dot}
+      status={{
+        ...status,
+        permissions: { ...status.permissions, kind: 'browser', desktop: true },
+      }}
+      optimistic={{ desktop: false }}
+      notes={{}}
+      busy={false}
+      hidden={false}
+      onSetPermission={noop}
+      onStart={noop}
+      onStop={noop}
+      onClose={noop}
+    />,
+  );
+  expect(optimisticOff).not.toContain(noteText);
+});
 it('shows a live desktop independently of browser permission and accepts ISO fallback timestamps', () => {
   const html = renderToStaticMarkup(
     <ScreenStage
