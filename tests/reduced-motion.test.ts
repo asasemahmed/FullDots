@@ -30,3 +30,33 @@ describe('reduced motion', () => {
     },
   );
 });
+
+describe('reduced motion everywhere', () => {
+  const read = (file: string) => readFileSync(join(CLIENT, file), 'utf8');
+
+  it('turns off every CSS animation and transition from the stylesheet every page loads', () => {
+    expect(read('main.tsx')).toContain("import './style.css';");
+    const block = read('style.css').match(
+      /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{\s*\*,\s*\*:before,\s*\*:after\s*\{([^}]*)\}/,
+    );
+    expect(block?.[1]).toContain('animation: none !important');
+    expect(block?.[1]).toContain('transition: none !important');
+  });
+
+  it('leaves the Dot character to its script, which checks the setting', () => {
+    // dot-character.css only sizes the penguin; penguin/live.ts draws it at rest under reduce
+    // (tests/penguin-motion.test.ts).
+    expect(read('dot-character.css')).not.toMatch(/@keyframes|animation:/);
+    expect(read('penguin/live.ts')).toContain(
+      "'(prefers-reduced-motion: reduce)'",
+    );
+  });
+
+  it('scrolls without smooth motion under reduce', () => {
+    for (const file of [
+      'inbox/InboxView.tsx',
+      'message-actions/useMessageActions.tsx',
+    ])
+      expect(read(file)).toContain("behavior: still ? 'auto' : 'smooth'");
+  });
+});

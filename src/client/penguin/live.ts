@@ -1,6 +1,7 @@
 // One animation loop for every penguin on the page. A character draws only while it is on screen
 // and the tab is visible, small ones at the frame rate their state needs, and a change of state
-// blends from the frame that is showing. With reduced motion each state is drawn once, at rest.
+// blends from the frame that is showing. With reduced motion each state is drawn once, at rest, and
+// turning reduced motion on while the page is open stops the loop and settles every penguin.
 import {
   PENGUIN_STATES,
   easeOutQuint,
@@ -28,9 +29,21 @@ const live = new Set<LiveDot>();
 let frame = 0;
 let pointer: [number, number] | null = null;
 
+const REDUCED = '(prefers-reduced-motion: reduce)';
 const reducedMotion = () =>
-  typeof matchMedia === 'function' &&
-  matchMedia('(prefers-reduced-motion: reduce)').matches;
+  typeof matchMedia === 'function' && matchMedia(REDUCED).matches;
+
+let motionWatched = false;
+function watchMotion() {
+  if (motionWatched || typeof matchMedia !== 'function') return;
+  motionWatched = true;
+  matchMedia(REDUCED).addEventListener?.('change', () => {
+    if (!reducedMotion()) return start();
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    for (const dot of live) dot.settle();
+  });
+}
 
 let observer: IntersectionObserver | undefined;
 function watch(dot: LiveDot) {
@@ -82,6 +95,7 @@ export class LiveDot {
     if (live.size === 0) addEventListener('pointermove', onPointer);
     live.add(this);
     watch(this);
+    watchMotion();
     start();
   }
 
@@ -95,8 +109,15 @@ export class LiveDot {
       this.t0 = now;
     }
     this.lastDraw = 0;
-    if (reducedMotion()) this.draw(restPose(options.state));
+    if (reducedMotion()) this.settle();
     else start();
+  }
+
+  /** Draws the state at rest and drops any blend in progress (reduced motion). */
+  settle() {
+    this.from = null;
+    this.last = restPose(this.options.state);
+    this.draw(this.last);
   }
 
   destroy() {
