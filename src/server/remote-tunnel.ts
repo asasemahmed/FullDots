@@ -1,14 +1,14 @@
-// One ssh process per server, kept open while the server is in use. It carries:
-// - a dynamic (SOCKS) forward bound to 127.0.0.1 on this machine, which FullDots alone dials: each
-//   computer and the supervisor gets its own local port here, and each port opens exactly one fixed
-//   address on the server's loopback, so a port maps to one Dot's container and nothing else;
-// - a small read-only helper on the server's shell (stdin/stdout) that reports Docker, image and
-//   container facts for the safety checks. It reads one fixed verb and one checked name per line.
-// No forward is added or removed while ssh runs, so a computer starting never restarts the tunnel
-// and works the same with Windows OpenSSH, which has no connection sharing.
-import { createServer, connect, type Server, type Socket } from 'node:net';
+// One ssh process per server, kept open while the server is in use. It forwards no port at all
+// (ClearAllForwardings): its only channel runs the relay in remote-relay.ts, and every TCP
+// connection to the server travels as frames on that channel. FullDots opens one loopback port
+// on this machine per owner (the supervisor, or one Dot); each leads to one fixed port on the
+// server's loopback, which the relay checks against the server's Docker before every connection.
+// Nothing is added while ssh runs, so a computer starting never restarts the tunnel, and it works
+// the same with Windows OpenSSH, which has no connection sharing.
+import { createServer, type Server, type Socket } from 'node:net';
 import {
   classifySsh,
+  configuredForwards,
   remoteCommand,
   requireAlias,
   sshArgs,
@@ -20,42 +20,20 @@ import {
   type SshSettings,
   type SshSpawner,
 } from './remote-ssh.js';
+import {
+  FRAME,
+  FrameReader,
+  RELAY_CHUNK,
+  RELAY_FAIL,
+  RELAY_READY,
+  frame,
+  relayCommand,
+} from './remote-relay.js';
 
-/** Names and tags the helper accepts. Checked here and again on the server. */
-const SAFE_WORD = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/;
-const READY = 'FULLDOTS-READY';
-const DONE = 'FULLDOTS-DONE';
-
-/**
- * The helper that runs on the server for as long as the tunnel is open. It prints READY once ssh
- * is logged in, then answers one request per line. Container facts leave out the environment,
- * which holds the computer's credential.
- */
-const INSPECT_FORMAT =
-  '{"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},"running":{{json .State.Running}},' +
-  '"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}},' +
-  '"capDrop":{{json .HostConfig.CapDrop}},"securityOpt":{{json .HostConfig.SecurityOpt}},' +
-  '"memory":{{json .HostConfig.Memory}},"pidsLimit":{{json .HostConfig.PidsLimit}},' +
-  '"privileged":{{json .HostConfig.Privileged}},"networkMode":{{json .HostConfig.NetworkMode}},' +
-  '"portBindings":{{json .HostConfig.PortBindings}},"ports":{{json .NetworkSettings.Ports}}}';
-
-export const HELPER_SCRIPT = [
-  `F='${INSPECT_FORMAT}'`,
-  `echo ${READY}`,
-  'while read -r verb arg; do',
-  '  case "$arg" in ""|-*|*[!A-Za-z0-9_.:/-]*) verb=bad ;; esac',
-  '  case "$verb" in',
-  `    docker) out=$(docker version --format '{{.Server.Version}}' 2>&1); code=$?; printf '%s' "$out" | head -c 400 | tr '\n' ' '; echo; echo "EXIT $code" ;;`,
-  `    image) docker image inspect --format '{{.Id}}' -- "$arg" 2>/dev/null || echo MISSING ;;`,
-  '    inspect) docker inspect --type container --format "$F" -- "$arg" 2>/dev/null || echo MISSING ;;',
-  '    *) echo BAD ;;',
-  '  esac',
-  `  echo ${DONE}`,
-  'done',
-].join('\n');
-
-/** Problems that retrying cannot fix: the next use tries again, nothing retries on its own. */
-const LASTING = new Set<SshProblem>([
+/** Problems that retrying cannot fix. Retried only on an explicit check or after the longest backoff. */
+export const LASTING = new Set<SshProblem>([
+  'ssh_missing',
+  'forwards_set',
   'host_key_unknown',
   'host_key_changed',
   'refused',
@@ -67,19 +45,19 @@ export type TunnelState = 'idle' | 'starting' | 'up' | 'down' | 'stopped';
 export interface TunnelOptions {
   settings?: SshSettings;
   spawn?: SshSpawner;
-  /** `ssh -G` output for the alias, used to fill in timeouts the alias leaves unset. */
+  /** `ssh -G` output for the alias, used for timeouts and to refuse aliases that forward ports. */
   effectiveConfig?: (alias: string) => Promise<string>;
-  /** A free port on 127.0.0.1 for ssh's SOCKS listener. */
-  freePort?: () => Promise<number>;
-  /** Opens a TCP connection on this machine. A seam for tests. */
-  dial?: (port: number) => Socket;
   /** First restart delay; doubles up to `maxBackoffMs`. */
   backoffMs?: number;
   maxBackoffMs?: number;
   /** How long a caller waits for a tunnel that is starting or restarting. */
   readyMs?: number;
-  /** How long one helper request may take before the tunnel is considered broken. */
+  /** How long one relay request or connection may take before the tunnel is considered broken. */
   requestMs?: number;
+  /** What the relay checks containers against on the server. */
+  namespace?: string;
+  supervisorImage?: string;
+  now?: () => number;
   log?: (message: string) => void;
 }
 
@@ -100,32 +78,46 @@ interface Bridge {
   remotePort: number;
 }
 
-const freeLoopbackPort = () =>
-  new Promise<number>((resolve, reject) => {
-    const probe = createServer();
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
-      const address = probe.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      probe.close(() => resolve(port));
-    });
-  });
+interface Stream {
+  socket: Socket;
+  opened: boolean;
+}
 
-export function effectiveSshConfig(settings: SshSettings, spawn: SshSpawner) {
+/** `ssh -G` (prints the effective config, connects nowhere), killed if it hangs. */
+export function effectiveSshConfig(
+  settings: SshSettings,
+  spawn: SshSpawner,
+  timeoutMs = 5000,
+) {
   return (alias: string) =>
     new Promise<string>((resolve) => {
       let out = '';
-      const child = spawn(settings.command ?? 'ssh', [
-        ...(settings.configFile ? ['-F', settings.configFile] : []),
-        '-G',
-        '--',
-        requireAlias(alias),
-      ]);
+      let child: SshChild;
+      try {
+        child = spawn(settings.command ?? 'ssh', [
+          ...(settings.configFile ? ['-F', settings.configFile] : []),
+          '-G',
+          '--',
+          requireAlias(alias),
+        ]);
+      } catch {
+        resolve('');
+        return;
+      }
+      const timer = setTimeout(() => {
+        child.kill();
+        resolve(out);
+      }, timeoutMs);
+      timer.unref();
       child.stdout?.on('data', (chunk: Buffer) => {
         out += chunk.toString('utf8');
       });
-      child.on('error', () => resolve(''));
-      child.once('exit', () => resolve(out));
+      const done = () => {
+        clearTimeout(timer);
+        resolve(out);
+      };
+      child.on('error', done);
+      child.once('close', done);
     });
 }
 
@@ -135,17 +127,23 @@ export class RemoteTunnel {
   /** What the last failed start reported. */
   problem?: SshProblem;
   private child?: SshChild;
-  private socksPort?: number;
   private wanted = false;
   private attempts = 0;
   private upSince = 0;
+  private lastAttempt = 0;
   private restartTimer?: NodeJS.Timeout;
   private waiters: { resolve: () => void; reject: (e: Error) => void }[] = [];
   private stderr = '';
-  private stdoutBuffer = '';
-  private lines: string[] = [];
-  private lineWaiter?: () => void;
-  private queue: Promise<unknown> = Promise.resolve();
+  private text = '';
+  private failLine = '';
+  private spawnFailed = false;
+  private framed = false;
+  private reader = new FrameReader();
+  private nextId = 1;
+  private readonly streams = new Map<number, Stream>();
+  private readonly opening = new Map<number, (error?: string) => void>();
+  private readonly pending = new Map<number, (answer: unknown) => void>();
+  private stdinBlocked = false;
   private readonly bridges = new Map<string, Bridge>();
   private readonly byPort = new Map<number, Bridge>();
   private readonly spawn: SshSpawner;
@@ -165,20 +163,42 @@ export class RemoteTunnel {
     return this.child?.pid;
   }
 
+  /** How many restarts in a row since the tunnel last stayed up. */
+  get restarts() {
+    return this.attempts;
+  }
+
+  private now() {
+    return (this.options.now ?? Date.now)();
+  }
+
   private timer(fn: () => void, ms: number): NodeJS.Timeout {
     const handle = setTimeout(fn, ms);
     handle.unref();
     return handle;
   }
 
-  /** Resolves once ssh is logged in and the forward is listening, or rejects with the reason. */
-  async ready(): Promise<void> {
+  /**
+   * Resolves once ssh is logged in and the relay answers, or rejects with the reason. A problem
+   * retrying cannot fix is reported at once without starting ssh again, unless `force` (an
+   * explicit check by the owner) or the longest backoff has passed.
+   */
+  async ready(options: { force?: boolean } = {}): Promise<void> {
     if (this.state === 'stopped')
       throw new TunnelError('tunnel_down', 'The tunnel was stopped.');
     this.wanted = true;
     if (this.state === 'up') return;
-    if (this.state === 'idle' || (this.state === 'down' && !this.restartTimer))
+    if (this.state === 'idle') void this.launch();
+    else if (this.state === 'down' && !this.restartTimer) {
+      if (
+        this.problem &&
+        LASTING.has(this.problem) &&
+        !options.force &&
+        this.now() - this.lastAttempt < (this.options.maxBackoffMs ?? 30_000)
+      )
+        throw this.failure();
       void this.launch();
+    }
     const waitMs = this.options.readyMs ?? 12_000;
     await new Promise<void>((resolve, reject) => {
       const entry = { resolve, reject };
@@ -203,8 +223,7 @@ export class RemoteTunnel {
   }
 
   private settle(error?: Error) {
-    const waiters = this.waiters.splice(0);
-    for (const waiter of waiters)
+    for (const waiter of this.waiters.splice(0))
       if (error) waiter.reject(error);
       else waiter.resolve();
   }
@@ -212,100 +231,214 @@ export class RemoteTunnel {
   private async launch() {
     if (this.child || this.state === 'stopped') return;
     this.state = 'starting';
+    this.lastAttempt = this.now();
     this.stderr = '';
-    this.stdoutBuffer = '';
-    this.lines = [];
+    this.text = '';
+    this.failLine = '';
+    this.spawnFailed = false;
+    this.framed = false;
+    this.reader = new FrameReader();
+    const effective = await (
+      this.options.effectiveConfig ??
+      effectiveSshConfig(this.settings, this.spawn)
+    )(this.alias).catch(() => '');
+    // Stopped while ssh -G ran: a stopped tunnel never comes back.
+    if ((this.state as TunnelState) === 'stopped') return;
+    if (!this.wanted) {
+      this.state = 'idle';
+      return;
+    }
+    if (configuredForwards(effective).length) {
+      this.fail('forwards_set');
+      return;
+    }
     let child: SshChild;
     try {
-      const effective = await (
-        this.options.effectiveConfig ??
-        effectiveSshConfig(this.settings, this.spawn)
-      )(this.alias);
-      const port = await (this.options.freePort ?? freeLoopbackPort)();
-      if (!this.wanted) {
-        this.state = 'idle';
-        return;
-      }
-      this.socksPort = port;
       child = this.spawn(
         this.settings.command ?? 'ssh',
         sshArgs(this.alias, this.settings, {
           timeouts: timeoutOptions(effective),
-          extra: [
-            '-T',
-            '-o',
-            'ExitOnForwardFailure=yes',
-            '-D',
-            `127.0.0.1:${port}`,
-          ],
-          remote: remoteCommand(['sh', '-c', HELPER_SCRIPT]),
+          extra: ['-T'],
+          remote: remoteCommand([
+            'sh',
+            '-c',
+            relayCommand({
+              namespace: this.options.namespace ?? 'opendots',
+              supervisorImage:
+                this.options.supervisorImage ??
+                'opendots-supervisor:b6932d3-desktop1',
+            }),
+          ]),
         }),
       );
     } catch {
-      this.exited();
+      this.fail('ssh_missing');
       return;
     }
     this.child = child;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (this.child === child) this.exited();
+    };
     child.stderr?.on('data', (chunk: Buffer) => {
       this.stderr = (this.stderr + chunk.toString('utf8')).slice(-4000);
     });
     child.stdout?.on('data', (chunk: Buffer) => this.read(chunk));
-    child.on('error', () => undefined);
     child.stdin?.on('error', () => undefined);
-    child.once('exit', () => {
-      if (this.child === child) this.exited();
+    child.stdin?.on('drain', () => this.unblock());
+    // A program that cannot be started emits 'error' and may never emit 'exit'.
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT' || error.code === 'EACCES' || !child.pid)
+        this.spawnFailed = true;
+      finish();
     });
+    child.once('exit', finish);
+    child.once('close', finish);
+  }
+
+  /** A start that failed before ssh ran. */
+  private fail(problem: SshProblem) {
+    this.problem = problem;
+    this.state = 'down';
+    this.options.log?.(`Tunnel to ${this.alias} did not start (${problem}).`);
+    this.settle(this.failure());
   }
 
   private read(chunk: Buffer) {
-    this.stdoutBuffer += chunk.toString('utf8');
-    let newline: number;
-    while ((newline = this.stdoutBuffer.indexOf('\n')) >= 0) {
-      const line = this.stdoutBuffer.slice(0, newline).replace(/\r$/, '');
-      this.stdoutBuffer = this.stdoutBuffer.slice(newline + 1);
-      if (this.state === 'starting' && line === READY) {
+    if (this.framed) return this.frames(chunk);
+    this.text += chunk.toString('latin1');
+    for (;;) {
+      const newline = this.text.indexOf('\n');
+      if (newline < 0) break;
+      const line = this.text.slice(0, newline).replace(/\r$/, '');
+      this.text = this.text.slice(newline + 1);
+      if (line === RELAY_READY) {
+        this.framed = true;
         this.state = 'up';
         this.problem = undefined;
-        this.upSince = Date.now();
+        this.upSince = this.now();
         this.settle();
-        continue;
+        const rest = Buffer.from(this.text, 'latin1');
+        this.text = '';
+        if (rest.length) this.frames(rest);
+        return;
       }
-      this.lines.push(line);
-      this.lineWaiter?.();
+      if (line.startsWith(RELAY_FAIL)) this.failLine = line.slice(0, 400);
     }
-    if (this.stdoutBuffer.length > 1_000_000) this.child?.kill();
+    if (this.text.length > 100_000) this.child?.kill();
+  }
+
+  private frames(chunk: Buffer) {
+    try {
+      this.reader.push(chunk, (type, id, payload) =>
+        this.onFrame(type, id, payload),
+      );
+    } catch {
+      this.child?.kill();
+    }
+  }
+
+  private onFrame(type: number, id: number, payload: Buffer) {
+    const stream = this.streams.get(id);
+    switch (type) {
+      case FRAME.OPENED:
+        if (stream) stream.opened = true;
+        this.opening.get(id)?.();
+        return;
+      case FRAME.FAIL:
+        this.opening.get(id)?.(payload.toString('utf8').slice(0, 200));
+        return;
+      case FRAME.DATA:
+        if (stream && !stream.socket.write(payload)) {
+          this.send(FRAME.PAUSE, id);
+          stream.socket.once('drain', () => this.send(FRAME.RESUME, id));
+        }
+        return;
+      case FRAME.CLOSE:
+        if (stream) {
+          this.streams.delete(id);
+          stream.socket.end();
+        }
+        return;
+      case FRAME.PAUSE:
+        stream?.socket.pause();
+        return;
+      case FRAME.RESUME:
+        if (stream && !this.stdinBlocked) stream.socket.resume();
+        return;
+      case FRAME.RES: {
+        const resolve = this.pending.get(id);
+        if (!resolve) return;
+        this.pending.delete(id);
+        try {
+          resolve(JSON.parse(payload.toString('utf8')));
+        } catch {
+          resolve({ error: 'bad answer' });
+        }
+        return;
+      }
+    }
+  }
+
+  private send(type: number, id: number, payload?: Buffer | string) {
+    const stdin = this.child?.stdin;
+    if (!stdin || this.state !== 'up') return false;
+    const ok = stdin.write(frame(type, id, payload));
+    if (!ok && !this.stdinBlocked) {
+      this.stdinBlocked = true;
+      for (const stream of this.streams.values())
+        if (stream.opened) stream.socket.pause();
+    }
+    return ok;
+  }
+
+  private unblock() {
+    if (!this.stdinBlocked) return;
+    this.stdinBlocked = false;
+    for (const stream of this.streams.values())
+      if (stream.opened) stream.socket.resume();
   }
 
   private exited() {
     const wasUp = this.state === 'up';
     this.child = undefined;
-    this.lineWaiter?.();
+    for (const stream of this.streams.values()) stream.socket.destroy();
+    this.streams.clear();
+    for (const open of this.opening.values()) open('tunnel closed');
+    this.opening.clear();
+    for (const resolve of this.pending.values())
+      resolve({ error: 'tunnel closed' });
+    this.pending.clear();
+    this.stdinBlocked = false;
     if (this.state === 'stopped') return;
-    // Only the kind of failure is kept, never what ssh printed.
+    // Only the kind of failure is kept, never what ssh or the server printed.
     this.problem = wasUp
       ? 'unreachable'
-      : /address already in use|cannot listen|could not request local forwarding/i.test(
-            this.stderr,
-          )
-        ? 'failed'
-        : classifySsh(this.stderr);
+      : this.spawnFailed
+        ? 'ssh_missing'
+        : this.failLine.startsWith(`${RELAY_FAIL} image`)
+          ? 'image_missing'
+          : this.failLine.startsWith(`${RELAY_FAIL} docker`)
+            ? (() => {
+                const problem = classifySsh(this.failLine);
+                return ['docker_missing', 'docker_denied'].includes(problem)
+                  ? problem
+                  : 'docker_down';
+              })()
+            : classifySsh(this.stderr);
     this.state = 'down';
-    if (wasUp && Date.now() - this.upSince > 30_000) this.attempts = 0;
-    const portTaken =
-      !wasUp &&
-      /address already in use|cannot listen/i.test(this.stderr) &&
-      this.attempts < 3;
+    if (wasUp && this.now() - this.upSince > 30_000) this.attempts = 0;
     this.options.log?.(
       `Tunnel to ${this.alias} ${wasUp ? 'dropped' : 'did not start'} (${this.problem}).`,
     );
-    if (!wasUp && !portTaken) this.settle(this.failure());
+    if (!wasUp) this.settle(this.failure());
     if (!this.wanted || (!wasUp && LASTING.has(this.problem))) return;
-    const delay = portTaken
-      ? 0
-      : Math.min(
-          this.options.maxBackoffMs ?? 30_000,
-          (this.options.backoffMs ?? 1000) * 2 ** this.attempts,
-        );
+    const delay = Math.min(
+      this.options.maxBackoffMs ?? 30_000,
+      (this.options.backoffMs ?? 1000) * 2 ** this.attempts,
+    );
     this.attempts++;
     this.restartTimer = this.timer(() => {
       this.restartTimer = undefined;
@@ -313,52 +446,35 @@ export class RemoteTunnel {
     }, delay);
   }
 
-  /** The delay before the next restart, for tests and status. */
-  get restarts() {
-    return this.attempts;
-  }
-
-  /** One request to the helper on the server. Requests run one at a time. */
-  request(verb: 'docker' | 'image' | 'inspect', arg = '-'): Promise<string[]> {
-    if (verb !== 'docker' && !SAFE_WORD.test(arg))
-      return Promise.reject(new Error('Unsafe name.'));
-    const run = async () => {
-      await this.ready();
-      const child = this.child;
-      if (!child?.stdin) throw this.failure();
-      this.lines = [];
-      child.stdin.write(`${verb} ${verb === 'docker' ? 'x' : arg}\n`);
-      const deadline = Date.now() + (this.options.requestMs ?? 10_000);
-      const out: string[] = [];
-      for (;;) {
-        while (this.lines.length) {
-          const line = this.lines.shift()!;
-          if (line === DONE) return out;
-          out.push(line);
-        }
-        if (this.child !== child) throw this.failure();
-        const left = deadline - Date.now();
-        if (left <= 0) {
-          // A helper that stops answering means a broken connection: start over.
-          child.kill();
-          throw new TunnelError(
+  /** One question for the relay on the server ("inspect" a container, an "image" id). */
+  async request(verb: 'inspect' | 'image', arg: string): Promise<unknown> {
+    await this.ready();
+    const id = this.nextId++;
+    const answer = new Promise<unknown>((resolve, reject) => {
+      const timer = this.timer(() => {
+        if (!this.pending.delete(id)) return;
+        // A relay that stops answering means a broken connection: start over.
+        this.child?.kill();
+        reject(
+          new TunnelError(
             'unreachable',
             `${this.alias} stopped answering over ssh. FullDots keeps trying to reconnect.`,
-          );
-        }
-        await new Promise<void>((resolve) => {
-          const timer = this.timer(resolve, Math.min(left, 250));
-          this.lineWaiter = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-        });
-        this.lineWaiter = undefined;
-      }
-    };
-    const result = this.queue.then(run, run);
-    this.queue = result.catch(() => undefined);
-    return result;
+          ),
+        );
+      }, this.options.requestMs ?? 10_000);
+      this.pending.set(id, (value) => {
+        clearTimeout(timer);
+        const error =
+          value && typeof value === 'object'
+            ? (value as { error?: unknown }).error
+            : undefined;
+        if (error === 'tunnel closed') reject(this.failure());
+        else resolve(value);
+      });
+    });
+    if (!this.send(FRAME.REQ, id, JSON.stringify({ verb, arg })) && !this.child)
+      this.pending.get(id)?.({ error: 'tunnel closed' });
+    return answer;
   }
 
   /**
@@ -373,7 +489,9 @@ export class RemoteTunnel {
     if (existing) return existing.port;
     for (const [other, bridge] of this.bridges)
       if (bridge.owner === owner) this.close(other, bridge);
-    const server = createServer((client) => this.relay(client, remotePort));
+    const server = createServer((client) =>
+      this.relay(client, owner, remotePort),
+    );
     server.on('error', () => undefined);
     const port = await new Promise<number>((resolve, reject) => {
       server.once('error', reject);
@@ -406,70 +524,48 @@ export class RemoteTunnel {
     bridge.server.close();
   }
 
-  /** Opens one connection through ssh's SOCKS forward to a fixed loopback port on the server. */
-  private relay(client: Socket, remotePort: number) {
+  /** One local connection, carried to the relay as a stream it checks before it connects. */
+  private relay(client: Socket, owner: string, remotePort: number) {
     client.on('error', () => undefined);
     client.pause();
-    if (this.state !== 'up' || !this.socksPort) {
+    if (this.state !== 'up') {
       // Fail at once: a caller must not wait on a tunnel that is down.
       client.destroy();
-      if (this.wanted && this.state === 'down' && !this.restartTimer)
+      if (
+        this.wanted &&
+        this.state === 'down' &&
+        !this.restartTimer &&
+        !(this.problem && LASTING.has(this.problem))
+      )
         void this.launch();
       return;
     }
-    const upstream = (
-      this.options.dial ?? ((port) => connect(port, '127.0.0.1'))
-    )(this.socksPort);
-    upstream.setNoDelay(true);
-    client.setNoDelay(true);
-    let stage: 'greeting' | 'connect' | 'open' = 'greeting';
-    let buffer = Buffer.alloc(0);
-    const fail = () => {
-      upstream.destroy();
-      client.destroy();
-    };
-    const handshake = this.timer(fail, 10_000);
-    upstream.on('error', fail);
-    client.on('close', () => upstream.destroy());
-    upstream.on('close', () => client.destroy());
-    upstream.on('connect', () => upstream.write(Buffer.from([5, 1, 0])));
-    const onData = (chunk: Buffer) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (stage === 'greeting') {
-        if (buffer.length < 2) return;
-        if (buffer[0] !== 5 || buffer[1] !== 0) return fail();
-        buffer = buffer.subarray(2);
-        stage = 'connect';
-        upstream.write(
-          Buffer.from([
-            5,
-            1,
-            0,
-            1,
-            127,
-            0,
-            0,
-            1,
-            remotePort >> 8,
-            remotePort & 255,
-          ]),
-        );
+    const id = this.nextId++;
+    const stream: Stream = { socket: client, opened: false };
+    this.streams.set(id, stream);
+    const timer = this.timer(() => {
+      this.opening.get(id)?.('timed out');
+    }, this.options.requestMs ?? 10_000);
+    this.opening.set(id, (error) => {
+      clearTimeout(timer);
+      this.opening.delete(id);
+      if (error) {
+        this.streams.delete(id);
+        client.destroy();
+        return;
       }
-      if (stage === 'connect') {
-        if (buffer.length < 10) return;
-        if (buffer[0] !== 5 || buffer[1] !== 0 || buffer[3] !== 1)
-          return fail();
-        const rest = buffer.subarray(10);
-        stage = 'open';
-        clearTimeout(handshake);
-        upstream.off('data', onData);
-        if (rest.length) client.write(rest);
-        upstream.pipe(client);
-        client.pipe(upstream);
-        client.resume();
-      }
-    };
-    upstream.on('data', onData);
+      client.on('data', (data: Buffer) => {
+        for (let at = 0; at < data.length; at += RELAY_CHUNK)
+          this.send(FRAME.DATA, id, data.subarray(at, at + RELAY_CHUNK));
+      });
+      if (!this.stdinBlocked) client.resume();
+    });
+    client.on('close', () => {
+      if (!this.streams.delete(id)) return;
+      this.opening.get(id)?.('closed');
+      this.send(FRAME.CLOSE, id);
+    });
+    this.send(FRAME.OPEN, id, JSON.stringify({ port: remotePort, owner }));
   }
 
   /** Ends the tunnel for good: kills only the ssh process this tunnel started and closes its ports. */
@@ -483,6 +579,7 @@ export class RemoteTunnel {
     this.child = undefined;
     child?.stdin?.end();
     child?.kill();
+    this.exited();
     this.settle(new TunnelError('tunnel_down', 'The tunnel was stopped.'));
   }
 }

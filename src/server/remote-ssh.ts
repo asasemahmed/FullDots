@@ -19,13 +19,41 @@ export function requireAlias(alias: unknown): string {
   return alias;
 }
 
-/** Always on: ssh must never ask a question or trust a host key it has not seen. */
+/**
+ * Always on, whatever the alias says (ssh keeps the first value it sees, and these come first):
+ * never ask a question or trust an unseen host key; never share or reuse a connection; never
+ * forward the agent, X11 or any port; never run a local command.
+ */
 export const FIXED_OPTIONS = [
   '-o',
   'BatchMode=yes',
   '-o',
   'StrictHostKeyChecking=yes',
+  '-o',
+  'ControlMaster=no',
+  '-o',
+  'ControlPath=none',
+  '-a',
+  '-x',
+  '-o',
+  'ForwardAgent=no',
+  '-o',
+  'ForwardX11=no',
+  '-o',
+  'PermitLocalCommand=no',
+  '-o',
+  'ClearAllForwardings=yes',
 ] as const;
+
+/** Port forwards an alias sets in its own config, from `ssh -G` output. FullDots refuses them. */
+export function configuredForwards(effective: string): string[] {
+  return effective
+    .split(/\r?\n/)
+    .map((line) => line.trim().toLowerCase().split(' ')[0] ?? '')
+    .filter((name) =>
+      ['localforward', 'remoteforward', 'dynamicforward'].includes(name),
+    );
+}
 
 /** Used only where the owner's alias leaves the value at ssh's own default. */
 export const DEFAULT_TIMEOUTS = {
@@ -113,6 +141,9 @@ export function timeoutOptions(effective: string): string[] {
 
 /** Why an ssh call failed, from what ssh printed. Never carries the output itself. */
 export type SshProblem =
+  | 'ssh_missing'
+  | 'forwards_set'
+  | 'image_missing'
   | 'host_key_unknown'
   | 'host_key_changed'
   | 'refused'
@@ -165,6 +196,12 @@ export function classifySsh(stderr: string): SshProblem {
 /** What to tell the owner for each problem: what was found, then the step that fixes it. */
 export function sshProblemMessage(problem: SshProblem, alias: string): string {
   switch (problem) {
+    case 'ssh_missing':
+      return 'FullDots could not start ssh. Install OpenSSH, or set COMPUTER_SSH_COMMAND to the ssh program, then check again.';
+    case 'forwards_set':
+      return `Your ssh config forwards ports for ${alias} (LocalForward, RemoteForward or DynamicForward). FullDots refuses such an alias. Add a separate Host without forwards for FullDots.`;
+    case 'image_missing':
+      return `The computer images are not on ${alias} yet. Run Build the images in Settings → Computers → Set up this server.`;
     case 'host_key_unknown':
       return `ssh does not know the host key of ${alias}. Run \`ssh ${alias} true\` once in a terminal and check the key, then try again. FullDots never accepts a host key on its own.`;
     case 'host_key_changed':

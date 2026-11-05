@@ -39,6 +39,8 @@ export interface RemoteSetupPlan {
   note: string;
   /** The exact commands, as the owner would type them. */
   commands: string[];
+  /** True when this FullDots cannot run the step (building needs a checkout). */
+  unavailable?: boolean;
 }
 
 export interface RemoteSetupJob {
@@ -54,6 +56,8 @@ export interface RemoteSetupJob {
 export interface RemoteComputersStatus {
   /** False when FullDots cannot run ssh for the owner here (in a container, or bound to the network). */
   enabled: boolean;
+  /** Whether this FullDots can send the Dockerfiles to build the images. */
+  canBuild: boolean;
   where: ComputerWhere;
   alias?: string;
   /** Every alias in use: the default and those Dots use on their own. */

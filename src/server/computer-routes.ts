@@ -6,7 +6,8 @@ import {
   REMOTE_SETUP_STEPS,
   type RemoteComputersStatus,
 } from '../shared/remote-computer-types.js';
-import { validAlias } from './remote-ssh.js';
+import { remoteCommand, validAlias } from './remote-ssh.js';
+import { supervisorEnv, supervisorRunWords } from './remote-setup.js';
 
 const aliasField = z.string().max(100).refine(validAlias, 'Invalid ssh alias.');
 import { ComputerError } from './computer-errors.js';
@@ -43,6 +44,15 @@ export function computerRoutes(
     console.error(error instanceof Error ? error.name : 'Error');
     return c.json({ error: 'The computer service failed.' }, 503);
   });
+  const requireRemote = () => {
+    const remote = computers.remoteComputers;
+    if (!remote)
+      throw new ComputerError(
+        503,
+        'Computers on your server are not available here.',
+      );
+    return remote;
+  };
   // Where computers run, and "Set up this server". See docs/REMOTE-COMPUTERS.md.
   app.get('/computers/remote', (c) => {
     const remote = computers.remoteComputers;
@@ -51,6 +61,7 @@ export function computerRoutes(
     const job = setup?.lastJob();
     const status: RemoteComputersStatus = {
       enabled: !!remote && !!setup?.enabled,
+      canBuild: !!remote && !!setup?.canBuild,
       where: defaults.where,
       ...(defaults.alias ? { alias: defaults.alias } : {}),
       servers: remote?.open() ?? [],
@@ -68,22 +79,86 @@ export function computerRoutes(
       .parse(await c.req.json());
     return c.json(await computers.setDefaults(body.where, body.alias));
   });
-  app.get('/computers/remote/check', async (c) => {
-    const alias = aliasField.parse(c.req.query('alias'));
-    const remote = computers.remoteComputers;
-    if (!remote)
-      throw new ComputerError(
-        503,
-        'Computers on your server are not available here.',
+  // An explicit check: it retries problems that do not retry on their own, and stops the tunnel
+  // again afterwards when nothing uses that server.
+  app.post('/computers/remote/check', async (c) => {
+    const { alias } = z
+      .object({ alias: aliasField })
+      .strict()
+      .parse(await c.req.json());
+    const remote = requireRemote();
+    try {
+      return c.json(
+        (await remote.serverCheck(alias, { force: true })) ?? {
+          alias,
+          check: 'ready',
+          message: `ssh, Docker, the images and the supervisor on ${alias} are ready.`,
+        },
       );
+    } finally {
+      remote.pruneIdle();
+    }
+  });
+  // The supervisor settings (both tokens), shown to the owner once per set of tokens, for a
+  // supervisor started by hand. See docs/REMOTE-COMPUTERS.md.
+  app.post('/computers/remote/tokens/reveal', async (c) => {
+    const { alias } = z
+      .object({ alias: aliasField })
+      .strict()
+      .parse(await c.req.json());
+    const remote = requireRemote();
+    let secrets;
+    try {
+      secrets = remote.store.revealOnce(alias);
+    } catch (error) {
+      throw new ComputerError(
+        409,
+        error instanceof Error ? error.message : 'Could not show the settings.',
+      );
+    }
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      alias,
+      envFile: supervisorEnv(secrets, remote.namespace),
+      command: `ssh ${alias} ${remoteCommand(supervisorRunWords(remote.store.serverId(alias)))} < supervisor.env`,
+    });
+  });
+  // Tokens the owner already uses on a supervisor they started by hand.
+  app.put('/computers/remote/tokens', async (c) => {
+    const body = z
+      .object({
+        alias: aliasField,
+        supervisorToken: z.string().max(256),
+        computerToken: z.string().max(256),
+      })
+      .strict()
+      .parse(await c.req.json());
+    const remote = requireRemote();
+    try {
+      remote.store.importTokens(body.alias, {
+        supervisorToken: body.supervisorToken,
+        computerToken: body.computerToken,
+      });
+    } catch (error) {
+      throw new ComputerError(
+        400,
+        error instanceof Error ? error.message : 'Invalid tokens.',
+      );
+    }
+    remote.forget(body.alias);
+    return c.json({ saved: true });
+  });
+  // New tokens. The supervisor must be started again with them; computers are replaced on their
+  // next start and keep their files.
+  app.post('/computers/remote/tokens/reset', async (c) => {
+    const { alias } = z
+      .object({ alias: aliasField })
+      .strict()
+      .parse(await c.req.json());
+    const remote = requireRemote();
+    remote.store.reset(alias);
     remote.forget(alias);
-    return c.json(
-      (await remote.serverCheck(alias)) ?? {
-        alias,
-        check: 'ready',
-        message: `ssh, Docker, the images and the supervisor on ${alias} are ready.`,
-      },
-    );
+    return c.json({ reset: true });
   });
   app.get('/computers/remote/setup', async (c) => {
     const alias = aliasField.parse(c.req.query('alias'));

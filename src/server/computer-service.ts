@@ -188,6 +188,7 @@ export class ComputerService {
   setRemote(remote: RemoteComputers | undefined, setup?: RemoteSetup) {
     this.remote = remote;
     this.setup = setup;
+    remote?.setUsage(() => this.aliasesInUse());
   }
   get remoteComputers() {
     return this.remote;
@@ -644,6 +645,15 @@ export class ComputerService {
         };
       url = await this.endpoint(id, state);
     } catch (error) {
+      if (error instanceof ComputerError && error.status === 409)
+        return {
+          ...base,
+          state: 'stopped',
+          remote: at(
+            'computer_stopped',
+            `This Dot’s computer on ${alias} is stopped. Press Start to turn it on.`,
+          ),
+        };
       const message =
         error instanceof ComputerError
           ? error.message
@@ -1151,17 +1161,20 @@ export class ComputerService {
     return undefined;
   }
   /** Keeps only the tunnels a Dot or the default still uses. */
-  private pruneTunnels() {
-    if (!this.remote) return;
+  /** The aliases the default or any Dot uses. */
+  private aliasesInUse(): Set<string> {
     const inUse = new Set<string>();
-    const defaults = this.remote.defaults();
-    if (defaults.where === 'remote' && defaults.alias)
+    const defaults = this.remote?.defaults();
+    if (defaults?.where === 'remote' && defaults.alias)
       inUse.add(defaults.alias);
     for (const dot of this.workspace.dots()) {
       const own = this.workspace.computers.server(dot.id);
       if (own) inUse.add(own);
     }
-    this.remote.prune(inUse);
+    return inUse;
+  }
+  private pruneTunnels() {
+    this.remote?.prune(this.aliasesInUse());
   }
   private requireAliasInput(alias: string | null | undefined) {
     if (alias !== null && alias !== undefined && !validAlias(alias))

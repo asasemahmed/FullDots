@@ -5,15 +5,17 @@
 // stdin, so nothing but ssh is needed here. The supervisor's two tokens also travel on stdin and
 // never appear in a command, in the output or in a log.
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import {
   OPENBOT_CONTEXT,
   REMOTE_IMAGES,
   REMOTE_SUPERVISOR,
   REMOTE_SUPERVISOR_PORT,
+  SERVER_ID_LABEL,
   type RemoteComputers,
 } from './remote-computers.js';
+import { UnreadableSecretsError, type RemoteSecrets } from './remote-store.js';
 import {
   classifySsh,
   remoteCommand,
@@ -22,6 +24,7 @@ import {
   sshProblemMessage,
   spawnSsh,
   timeoutOptions,
+  type SshChild,
   type SshSpawner,
 } from './remote-ssh.js';
 import { effectiveSshConfig } from './remote-tunnel.js';
@@ -46,6 +49,8 @@ interface RemoteStepCommand {
   stdin?: Stdin;
   /** A failure that is expected and fine, e.g. removing a supervisor that does not exist. */
   mayFail?: boolean;
+  /** Reads which FullDots server record started the supervisor that is there now. */
+  reads?: 'server-id';
 }
 
 const STDIN_LABEL: Record<Stdin, string> = {
@@ -55,20 +60,77 @@ const STDIN_LABEL: Record<Stdin, string> = {
 
 class StepFailed extends Error {}
 
-/** Offered where FullDots runs on the owner's own machine, from a checkout that has the Dockerfiles. */
+/**
+ * Where the set-up steps are offered: FullDots runs on the owner's own machine (it runs the
+ * owner's ssh). Building the images also needs a checkout with the Dockerfiles.
+ */
 export function remoteSetupEnabled(options: {
   host: string;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   inContainer?: boolean;
-}): boolean {
+}): { ssh: boolean; build: boolean } {
   const env = options.env ?? process.env;
-  return (
+  const ssh =
     (env.DOCKER_SETUP ?? 'auto').toLowerCase() !== 'off' &&
     ['127.0.0.1', '::1', 'localhost'].includes(options.host) &&
-    !(options.inContainer ?? existsSync('/.dockerenv')) &&
-    existsSync(join(options.cwd ?? process.cwd(), CONTEXT_DIR))
-  );
+    !(options.inContainer ?? existsSync('/.dockerenv'));
+  return {
+    ssh,
+    build: ssh && existsSync(join(options.cwd ?? process.cwd(), CONTEXT_DIR)),
+  };
+}
+
+/** The supervisor's settings, as the env file `docker run --env-file` reads. */
+export function supervisorEnv(
+  secrets: RemoteSecrets,
+  namespace: string,
+): string {
+  return [
+    'PORT=4300',
+    `SUPERVISOR_TOKEN=${secrets.supervisorToken}`,
+    `COMPUTER_TOKEN=${secrets.computerToken}`,
+    `COMPUTER_NAMESPACE=${namespace}`,
+    `COMPUTER_IMAGE=${REMOTE_IMAGES.browser}`,
+    `COMPUTER_DESKTOP_IMAGE=${REMOTE_IMAGES.desktop}`,
+    'COMPUTER_BROWSER_MODE=headed',
+    'COMPUTER_NETWORK=',
+    'COMPUTER_CPUS=2',
+    '',
+  ].join('\n');
+}
+
+/** The `docker run` that starts the supervisor; the same words the guide gives for a set-up by hand. */
+export function supervisorRunWords(serverId: string): string[] {
+  return [
+    'docker',
+    'run',
+    '-d',
+    '--name',
+    REMOTE_SUPERVISOR,
+    '--label',
+    'fulldots.remote-supervisor=true',
+    '--label',
+    `${SERVER_ID_LABEL}=${serverId}`,
+    '--restart',
+    'unless-stopped',
+    '--init',
+    '--security-opt',
+    'no-new-privileges:true',
+    '--cap-drop',
+    'ALL',
+    '--memory',
+    '512m',
+    '--pids-limit',
+    '256',
+    '-p',
+    `127.0.0.1:${REMOTE_SUPERVISOR_PORT}:4300`,
+    '-v',
+    '/var/run/docker.sock:/var/run/docker.sock',
+    '--env-file',
+    '/dev/stdin',
+    REMOTE_IMAGES.supervisor,
+  ];
 }
 
 function build(tag: string, dockerfile: string): RemoteStepCommand {
@@ -89,7 +151,10 @@ function build(tag: string, dockerfile: string): RemoteStepCommand {
   };
 }
 
-function stepCommands(step: RemoteSetupStep): RemoteStepCommand[] {
+function stepCommands(
+  step: RemoteSetupStep,
+  serverId: string,
+): RemoteStepCommand[] {
   switch (step) {
     case 'check-alias':
       return [{ remote: 'true' }];
@@ -113,33 +178,22 @@ function stepCommands(step: RemoteSetupStep): RemoteStepCommand[] {
     case 'start-supervisor':
       return [
         {
+          remote: remoteCommand([
+            'docker',
+            'inspect',
+            '--format',
+            `{{index .Config.Labels "${SERVER_ID_LABEL}"}}`,
+            REMOTE_SUPERVISOR,
+          ]),
+          mayFail: true,
+          reads: 'server-id',
+        },
+        {
           remote: remoteCommand(['docker', 'rm', '-f', REMOTE_SUPERVISOR]),
           mayFail: true,
         },
         {
-          remote: remoteCommand([
-            'docker',
-            'run',
-            '-d',
-            '--name',
-            REMOTE_SUPERVISOR,
-            '--label',
-            'fulldots.remote-supervisor=true',
-            '--restart',
-            'unless-stopped',
-            '--init',
-            '--security-opt',
-            'no-new-privileges:true',
-            '--cap-drop',
-            'ALL',
-            '-p',
-            `127.0.0.1:${REMOTE_SUPERVISOR_PORT}:4300`,
-            '-v',
-            '/var/run/docker.sock:/var/run/docker.sock',
-            '--env-file',
-            '/dev/stdin',
-            REMOTE_IMAGES.supervisor,
-          ]),
+          remote: remoteCommand(supervisorRunWords(serverId)),
           stdin: 'supervisor-settings',
         },
       ];
@@ -161,11 +215,14 @@ const NOTES: Record<RemoteSetupStep, { title: string; note: string }> = {
   },
   'start-supervisor': {
     title: 'Start the supervisor',
-    note: 'Replaces the supervisor container (Dot computers and their files stay) and starts it bound to 127.0.0.1 on the server, so only ssh reaches it. Its two tokens are made by FullDots, stored encrypted here, and sent on standard input.',
+    note: 'Checks which FullDots server started the supervisor that is there, replaces it (Dot computers and their files stay) and starts it bound to 127.0.0.1 on the server, so only ssh reaches it. Its two tokens are made by FullDots, stored encrypted here, and sent on standard input.',
   },
 };
 
-/** A minimal POSIX tar of the build context: regular files and folders only, fixed metadata. */
+/**
+ * A minimal POSIX tar of the build context: regular files and folders only, fixed metadata.
+ * Symbolic links are skipped, never followed, so nothing outside the folder can be sent.
+ */
 export function contextTar(root: string): Buffer {
   const base = join(root, CONTEXT_DIR);
   const blocks: Buffer[] = [];
@@ -192,7 +249,8 @@ export function contextTar(root: string): Buffer {
     for (const entry of readdirSync(dir).sort()) {
       const path = join(dir, entry);
       const name = relative(root, path).split(sep).join('/');
-      const stat = statSync(path);
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
         blocks.push(header(`${name}/`, 0, '5'));
         walk(path);
@@ -215,7 +273,7 @@ export function contextTar(root: string): Buffer {
 
 export interface RemoteSetupOptions {
   remote: RemoteComputers;
-  enabled: boolean;
+  enabled: { ssh: boolean; build: boolean } | boolean;
   cwd?: string;
   namespace?: string;
   fetch?: typeof fetch;
@@ -235,18 +293,30 @@ const show = (file: string, args: readonly string[], stdin?: Stdin) =>
 
 export class RemoteSetup {
   private job?: RemoteSetupJob;
+  /** Set before anything is awaited, so two steps can never run at once. */
+  private busy = false;
   private current?: Promise<void>;
   private readonly timeouts = new Map<string, string[]>();
   private readonly cwd: string;
   private readonly spawn: SshSpawner;
+  private readonly allowed: { ssh: boolean; build: boolean };
 
   constructor(private readonly options: RemoteSetupOptions) {
     this.cwd = options.cwd ?? process.cwd();
     this.spawn = options.remote.spawn ?? spawnSsh;
+    this.allowed =
+      typeof options.enabled === 'boolean'
+        ? { ssh: options.enabled, build: options.enabled }
+        : options.enabled;
   }
 
+  /** Whether FullDots can run the owner's ssh here for the set-up steps. */
   get enabled() {
-    return this.options.enabled;
+    return this.allowed.ssh;
+  }
+  /** Whether this checkout has the Dockerfiles to build the images. */
+  get canBuild() {
+    return this.allowed.build;
   }
 
   lastJob(): RemoteSetupJob | undefined {
@@ -278,12 +348,19 @@ export class RemoteSetup {
   /** The steps and their exact commands for this alias. Runs only `ssh -G`, which connects nowhere. */
   async plans(alias: string): Promise<RemoteSetupPlan[]> {
     requireAlias(alias);
+    const serverId = this.options.remote.store.serverId(alias);
     return Promise.all(
       REMOTE_SETUP_STEPS.map(async (step) => ({
         step,
         ...NOTES[step],
+        ...(step === 'build-images' && !this.canBuild
+          ? {
+              note: `${NOTES[step].note} This FullDots does not run from a checkout with deployment/computers, so it cannot send the Dockerfiles: build the images by hand (see the guide).`,
+              unavailable: true,
+            }
+          : {}),
         commands: await Promise.all(
-          stepCommands(step).map(async (command) =>
+          stepCommands(step, serverId).map(async (command) =>
             show(this.file(), await this.argv(alias, command), command.stdin),
           ),
         ),
@@ -300,25 +377,39 @@ export class RemoteSetup {
     if (!this.enabled)
       throw new Error('Setting up a server is not available here.');
     requireAlias(alias);
-    if (this.job?.state === 'running')
+    if (step === 'build-images' && !this.canBuild)
+      throw new Error(
+        'Building the images needs FullDots to run from a checkout with deployment/computers.',
+      );
+    if (this.busy || this.job?.state === 'running')
       throw new Error('Another setup step is still running.');
-    const plan = (await this.plans(alias)).find((item) => item.step === step)!;
-    if (
-      approved.length !== plan.commands.length ||
-      approved.some((command, index) => command !== plan.commands[index])
-    )
-      throw new Error('The approved commands do not match this step.');
-    const job: RemoteSetupJob = {
-      id: randomUUID(),
-      alias,
-      step,
-      state: 'running',
-      output: '',
-      message: `${plan.title}…`,
-    };
-    this.job = job;
-    this.current = this.execute(job);
-    return { ...job };
+    this.busy = true;
+    try {
+      const plan = (await this.plans(alias)).find(
+        (item) => item.step === step,
+      )!;
+      if (
+        approved.length !== plan.commands.length ||
+        approved.some((command, index) => command !== plan.commands[index])
+      )
+        throw new Error('The approved commands do not match this step.');
+      const job: RemoteSetupJob = {
+        id: randomUUID(),
+        alias,
+        step,
+        state: 'running',
+        output: '',
+        message: `${plan.title}…`,
+      };
+      this.job = job;
+      this.current = this.execute(job).finally(() => {
+        this.busy = false;
+      });
+      return { ...job };
+    } catch (error) {
+      this.busy = false;
+      throw error;
+    }
   }
 
   async settled(id: string, ms: number): Promise<RemoteSetupJob | undefined> {
@@ -342,8 +433,19 @@ export class RemoteSetup {
     return out;
   }
 
+  /**
+   * Keeps the last part of the output. Redacted before the cut and again after it; the cut line is
+   * dropped, so a token split by the cut can never show its other half.
+   */
   private append(job: RemoteSetupJob, text: string) {
-    job.output = this.redact(job.output + text).slice(-OUTPUT_TAIL);
+    const whole = this.redact(job.output + text);
+    if (whole.length <= OUTPUT_TAIL) {
+      job.output = whole;
+      return;
+    }
+    const tail = whole.slice(-OUTPUT_TAIL);
+    const newline = tail.indexOf('\n');
+    job.output = this.redact(newline >= 0 ? tail.slice(newline + 1) : '');
   }
 
   private stdinFor(
@@ -351,34 +453,28 @@ export class RemoteSetup {
     stdin: Stdin | undefined,
   ): Buffer | undefined {
     if (stdin === 'context') return contextTar(this.cwd);
-    if (stdin === 'supervisor-settings') {
-      const { supervisorToken, computerToken } =
-        this.options.remote.secrets(alias);
+    if (stdin === 'supervisor-settings')
       return Buffer.from(
-        [
-          'PORT=4300',
-          `SUPERVISOR_TOKEN=${supervisorToken}`,
-          `COMPUTER_TOKEN=${computerToken}`,
-          `COMPUTER_NAMESPACE=${this.options.namespace ?? 'opendots'}`,
-          `COMPUTER_IMAGE=${REMOTE_IMAGES.browser}`,
-          `COMPUTER_DESKTOP_IMAGE=${REMOTE_IMAGES.desktop}`,
-          'COMPUTER_BROWSER_MODE=headed',
-          'COMPUTER_NETWORK=',
-          'COMPUTER_CPUS=2',
-          '',
-        ].join('\n'),
+        supervisorEnv(
+          this.options.remote.secrets(alias),
+          this.options.namespace ?? 'opendots',
+        ),
       );
-    }
     return undefined;
   }
 
-  private async run(job: RemoteSetupJob, command: RemoteStepCommand) {
+  private async run(
+    job: RemoteSetupJob,
+    command: RemoteStepCommand,
+    quiet = false,
+  ) {
     const args = await this.argv(job.alias, command);
-    this.append(job, `> ${show(this.file(), args, command.stdin)}\n`);
+    if (!quiet)
+      this.append(job, `> ${show(this.file(), args, command.stdin)}\n`);
     const input = this.stdinFor(job.alias, command.stdin);
     return new Promise<{ code: number | null; output: string }>((resolve) => {
       let output = '';
-      let child;
+      let child: SshChild;
       try {
         child = this.spawn(this.file(), args);
       } catch (error) {
@@ -389,20 +485,23 @@ export class RemoteSetup {
         });
         return;
       }
+      let done = false;
+      const finish = (code: number | null, extra = '') => {
+        if (done) return;
+        done = true;
+        resolve({ code, output: this.redact(output + extra) });
+      };
       const collect = (chunk: Buffer) => {
         const text = chunk.toString('utf8');
         output = (output + text).slice(-20_000);
-        this.append(job, text);
+        if (!quiet) this.append(job, text);
       };
       child.stdout?.on('data', collect);
       child.stderr?.on('data', collect);
       child.stdin?.on('error', () => undefined);
-      child.on('error', (error: Error) =>
-        resolve({ code: null, output: error.message }),
-      );
-      child.once('exit', (code: number | null) =>
-        resolve({ code, output: this.redact(output) }),
-      );
+      child.on('error', (error: Error) => finish(null, error.message));
+      // 'close' waits for the output streams to end, so nothing is cut off.
+      child.once('close', (code: number | null) => finish(code));
       child.stdin?.end(input);
     });
   }
@@ -419,16 +518,38 @@ export class RemoteSetup {
       job.state = 'failed';
     } finally {
       this.options.remote.forget(job.alias);
+      // A tunnel opened for this step is stopped again when nothing uses the server.
+      this.options.remote.pruneIdle();
     }
   }
 
   private async step(job: RemoteSetupJob): Promise<string> {
     const { alias } = job;
-    const commands = stepCommands(job.step);
+    const store = this.options.remote.store;
+    let notes = '';
+    if (job.step === 'start-supervisor') {
+      try {
+        store.secrets(alias);
+      } catch (error) {
+        if (!(error instanceof UnreadableSecretsError)) throw error;
+        store.reset(alias);
+        notes =
+          ' The stored tokens could not be decrypted, so FullDots made new ones; the supervisor uses them now.';
+      }
+    }
+    const commands = stepCommands(job.step, store.serverId(alias));
     const results = [];
     for (const command of commands) {
       const result = await this.run(job, command);
       results.push(result);
+      if (command.reads === 'server-id' && result.code === 0) {
+        const found = result.output.trim().split(/\s+/).pop() ?? '';
+        const owner = found ? store.aliasForServerId(found) : undefined;
+        if (owner && owner !== alias)
+          throw new StepFailed(
+            `${alias} is the same server as ${owner}, which FullDots already set up. Use ${owner} for this server; two aliases for one server would replace each other’s tokens.`,
+          );
+      }
       if (result.code !== 0 && !command.mayFail) {
         // ssh itself exits with 255; anything else is the command on the server.
         const problem =
@@ -454,7 +575,7 @@ export class RemoteSetup {
       case 'build-images':
         return `The images are built on ${alias}.`;
       case 'start-supervisor':
-        return this.waitForSupervisor(alias);
+        return (await this.waitForSupervisor(alias)) + notes;
     }
   }
 
