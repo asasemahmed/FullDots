@@ -920,3 +920,50 @@
     transition: none !important;
   }
 }
+
+/* Computers on the owner's server: what a check found, and the setup steps. */
+.cp-remote-check {
+  margin-top: 8px;
+  text-align: left;
+}
+.cp-remote-check pre,
+.cp-remote-check code {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.cp-remote-row {
+  display: flex;
+  gap: 8px;
+}
+.cp-remote-row input {
+  flex: 1;
+  min-width: 0;
+}
+.cp-remote-steps {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.cp-remote-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.cp-remote-where {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.cp-remote-where .permission-row {
+  margin: 10px 0;
+}
+.cp-remote-setup {
+  align-items: stretch;
+  max-width: none;
+  text-align: left;
+}
+.cp-remote-setup .cp-docker-ask pre,
+.cp-remote-setup .cp-docker-ask code {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
