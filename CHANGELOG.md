@@ -32,6 +32,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- **Two dependency advisories are fixed.** `follow-redirects` is pinned to 1.16.2 (GHSA-mrwp-f3q8-3g9p). `graphql-scalars` is pinned to 1.24.0, the last release before its PhoneNumber pattern became exponential (GHSA-x8rm-f576-gq67); FullDots does not use it directly, and the CopilotKit runtime uses only its JSON scalars, and 1.24.0 is inside both dependents' ranges.
 - **Review desktop typing before approving.** Pending approvals show the proposed text in the app, with its character count and escaped control characters. The removable preview stays out of channels, audit records and replay. Desktop settings now explain that Full desktop includes a terminal even with Terminal off, and connector tabs reference only their rendered panel.
 
 - **A remote agent name is checked at the address it really points to.** A public name that resolves to this machine, a private network, or a cloud metadata address is refused, including when the name changes its answer before the connection. A host listed in `AGENT_ENDPOINT_ALLOWED_HOSTS` may still point at a private address. Metadata addresses stay refused. See [`docs/AGENTS.md`](docs/AGENTS.md#which-addresses-are-allowed).
