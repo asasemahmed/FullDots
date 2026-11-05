@@ -5,7 +5,15 @@
 // stdin, so nothing but ssh is needed here. The supervisor's two tokens also travel on stdin and
 // never appear in a command, in the output or in a log.
 import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import {
   OPENBOT_CONTEXT,
@@ -223,6 +231,19 @@ const NOTES: Record<RemoteSetupStep, { title: string; note: string }> = {
 };
 
 /**
+ * A regular file's bytes, read through one open handle so the file checked is the file read.
+ * Never follows a link (where the platform can refuse one) and skips anything that is not a file.
+ */
+function readRegularFile(path: string): Buffer | undefined {
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    return fstatSync(fd).isFile() ? readFileSync(fd) : undefined;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
  * A minimal POSIX tar of the build context: regular files and folders only, fixed metadata.
  * Symbolic links are skipped, never followed, so nothing outside the folder can be sent.
  */
@@ -249,16 +270,19 @@ export function contextTar(root: string): Buffer {
     return block;
   };
   const walk = (dir: string) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const path = join(dir, entry);
+    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+    for (const entry of entries) {
+      const path = join(dir, entry.name);
       const name = relative(root, path).split(sep).join('/');
-      const stat = lstatSync(path);
-      if (stat.isSymbolicLink()) continue;
-      if (stat.isDirectory()) {
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
         blocks.push(header(`${name}/`, 0, '5'));
         walk(path);
-      } else if (stat.isFile()) {
-        const data = readFileSync(path);
+      } else if (entry.isFile()) {
+        const data = readRegularFile(path);
+        if (!data) continue;
         blocks.push(header(name, data.length, '0'), data);
         const pad = (512 - (data.length % 512)) % 512;
         if (pad) blocks.push(Buffer.alloc(pad, 0));
@@ -290,7 +314,7 @@ const delay = (ms: number) =>
 const show = (file: string, args: readonly string[], stdin?: Stdin) =>
   [file, ...args]
     .map((part) =>
-      /[\s{}"'#]/.test(part) ? `"${part.replace(/"/g, '\\"')}"` : part,
+      /[\s{}"'#\\]/.test(part) ? `"${part.replace(/[\\"]/g, '\\$&')}"` : part,
     )
     .join(' ') + (stdin ? ` ${STDIN_LABEL[stdin]}` : '');
 
