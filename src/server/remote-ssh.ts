@@ -19,6 +19,15 @@ export function requireAlias(alias: unknown): string {
   return alias;
 }
 
+/** The computer namespace, the same rule as for computers on this machine. */
+const NAMESPACE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+export function requireNamespace(namespace: unknown): string {
+  if (typeof namespace !== 'string' || !NAMESPACE.test(namespace))
+    throw new Error('Invalid computer namespace.');
+  return namespace;
+}
+
 /**
  * Always on, whatever the alias says (ssh keeps the first value it sees, and these come first):
  * never ask a question or trust an unseen host key; never share or reuse a connection; never
@@ -43,6 +52,14 @@ export const FIXED_OPTIONS = [
   'PermitLocalCommand=no',
   '-o',
   'ClearAllForwardings=yes',
+  '-o',
+  'StdinNull=no',
+  '-o',
+  'SessionType=default',
+  '-o',
+  'Tunnel=no',
+  '-o',
+  'RemoteCommand=none',
 ] as const;
 
 /** Port forwards an alias sets in its own config, from `ssh -G` output. FullDots refuses them. */

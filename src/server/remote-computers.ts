@@ -8,6 +8,7 @@ import { ComputerError } from './computer-errors.js';
 import type { RemoteStore, RemoteSecrets } from './remote-store.js';
 import {
   remoteCommand,
+  requireNamespace,
   sshProblemMessage,
   type SshProblem,
   type SshSettings,
@@ -66,6 +67,11 @@ export interface ContainerFacts {
   pidMode?: unknown;
   ipcMode?: unknown;
   usernsMode?: unknown;
+  utsMode?: unknown;
+  cgroupnsMode?: unknown;
+  /** The daemon's own default cgroup namespace mode (private on cgroup v2, host on v1). */
+  cgroupnsDefault?: unknown;
+  sysctls?: unknown;
   devices?: unknown;
   runtime?: unknown;
   portBindings?: unknown;
@@ -135,6 +141,7 @@ function hardening(
   facts: ContainerFacts,
   allowedMounts: (mount: {
     type?: string;
+    name?: string;
     source?: string;
     destination?: string;
   }) => boolean,
@@ -169,12 +176,27 @@ function hardening(
     return 'it shares an IPC namespace';
   if (String(facts.usernsMode ?? '') !== '')
     return 'it changes the user namespace';
+  if (String(facts.utsMode ?? '') !== '')
+    return 'it shares the host name namespace';
+  if (
+    !['', String(facts.cgroupnsDefault ?? 'private')].includes(
+      String(facts.cgroupnsMode ?? ''),
+    )
+  )
+    return 'it changes the cgroup namespace';
+  if (
+    facts.sysctls &&
+    typeof facts.sysctls === 'object' &&
+    Object.keys(facts.sysctls).length
+  )
+    return 'it sets kernel parameters';
   if (!isEmpty(facts.devices)) return 'it has host devices';
   if (!['', 'runc'].includes(String(facts.runtime ?? '')))
     return `it uses the ${String(facts.runtime)} runtime`;
   const mounts = Array.isArray(facts.mounts)
     ? (facts.mounts as {
         type?: string;
+        name?: string;
         source?: string;
         destination?: string;
       }[])
@@ -198,7 +220,7 @@ export function unsafeReason(
     image: string;
     kind: 'browser' | 'desktop';
     namespace: string;
-    dotId?: string;
+    dotId: string;
   },
 ): string | undefined {
   const labels = facts.labels ?? {};
@@ -206,19 +228,22 @@ export function unsafeReason(
     return 'it was not created by the computer supervisor';
   if ((labels[NAMESPACE_LABEL] ?? 'openbot') !== expected.namespace)
     return 'it belongs to another deployment';
-  if (expected.dotId && labels[BOT_LABEL] !== expected.dotId)
-    return 'it belongs to another Dot';
+  if (labels[BOT_LABEL] !== expected.dotId) return 'it belongs to another Dot';
   if (facts.image !== expected.image)
     return `it runs ${typeof facts.image === 'string' ? facts.image : 'an unknown image'} instead of ${expected.image}`;
   if ((labels[KIND_LABEL] ?? 'browser') !== expected.kind)
     return `it is a ${labels[KIND_LABEL] ?? 'browser'} computer, not a ${expected.kind} one`;
-  // Only its own named volumes: the browser profile and the workspace.
+  // Only its own two named volumes, each at its own path, named the way the supervisor names them.
+  const own: Record<string, string> = {
+    '/profiles': `${expected.namespace}-profile-${expected.dotId}`,
+    '/workspace': `${expected.namespace}-workspace-${expected.dotId}`,
+  };
   return hardening(
     facts,
     (mount) =>
       mount.type === 'volume' &&
-      ['/profiles', '/workspace'].includes(mount.destination ?? '') &&
-      !String(mount.source ?? '').includes('docker.sock'),
+      own[mount.destination ?? ''] !== undefined &&
+      mount.name === own[mount.destination ?? ''],
   );
 }
 
@@ -228,6 +253,8 @@ export function supervisorUnsafeReason(
 ): string | undefined {
   if (facts.image !== REMOTE_IMAGES.supervisor)
     return `it runs ${typeof facts.image === 'string' ? facts.image : 'an unknown image'} instead of ${REMOTE_IMAGES.supervisor}`;
+  if (facts.labels?.['fulldots.remote-supervisor'] !== 'true')
+    return 'it was not started by FullDots';
   if (!publishesOnLoopback(facts, '4300/tcp', REMOTE_SUPERVISOR_PORT))
     return `it is not published on 127.0.0.1:${REMOTE_SUPERVISOR_PORT}`;
   // Exactly one bind: the Docker socket it exists to hold.
@@ -284,8 +311,17 @@ export class RemoteComputers {
   private inUse: () => Iterable<string> = () => [];
   readonly namespace: string;
 
+  private readonly namespaceValid: boolean;
+
   constructor(private readonly options: RemoteComputersOptions) {
     this.namespace = options.namespace ?? 'opendots';
+    try {
+      requireNamespace(this.namespace);
+      this.namespaceValid = true;
+    } catch {
+      // Not fatal for the app: computers on this machine refuse it too. Remote use is refused.
+      this.namespaceValid = false;
+    }
   }
 
   get ssh(): SshSettings {
@@ -375,6 +411,8 @@ export class RemoteComputers {
         503,
         'No server is set for this Dot’s computer. Type the ssh alias of your server in Settings → Computers.',
       );
+    if (!this.namespaceValid)
+      throw new ComputerError(503, 'Invalid computer namespace.');
     const tunnel = this.tunnel(alias);
     try {
       await tunnel.ready(options);
@@ -528,6 +566,13 @@ export class RemoteComputers {
         check: 'alias_not_set',
         message:
           'No server is set. Type the ssh alias of your server in Settings → Computers.',
+      };
+    if (!this.namespaceValid)
+      return {
+        alias,
+        check: 'ssh_failed',
+        message:
+          'COMPUTER_NAMESPACE is invalid: use letters, digits, dash and underscore, starting with a letter or digit.',
       };
     const cached = this.serverChecks.get(alias);
     if (!options.force && cached && Date.now() - cached.at < SERVER_CHECK_MS)

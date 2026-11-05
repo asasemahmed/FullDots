@@ -166,11 +166,13 @@ const safe: ContainerFacts = {
   mounts: [
     {
       type: 'volume',
+      name: 'opendots-profile-dot-a',
       source: '/var/lib/docker/volumes/opendots-profile-dot-a/_data',
       destination: '/profiles',
     },
     {
       type: 'volume',
+      name: 'opendots-workspace-dot-a',
       source: '/var/lib/docker/volumes/opendots-workspace-dot-a/_data',
       destination: '/workspace',
     },
@@ -186,6 +188,14 @@ describe('unsafe computers', () => {
   };
   it('accepts the hardened container the supervisor makes', () => {
     expect(unsafeReason(safe, expected)).toBeUndefined();
+    // On a cgroup v1 server the daemon's default is the host cgroup namespace.
+    expect(
+      unsafeReason(
+        { ...safe, cgroupnsMode: 'host', cgroupnsDefault: 'host' },
+        expected,
+      ),
+    ).toBeUndefined();
+    expect(unsafeReason({ ...safe, sysctls: {} }, expected)).toBeUndefined();
   });
   it.each([
     [
@@ -241,6 +251,43 @@ describe('unsafe computers', () => {
       { mounts: [{ type: 'volume', source: 'x', destination: '/root' }] },
       'mount',
     ],
+    [
+      {
+        mounts: [
+          {
+            type: 'volume',
+            name: 'opendots-profile-dot-b',
+            destination: '/profiles',
+          },
+          {
+            type: 'volume',
+            name: 'opendots-workspace-dot-a',
+            destination: '/workspace',
+          },
+        ],
+      },
+      'mount',
+    ],
+    [
+      {
+        mounts: [
+          {
+            type: 'volume',
+            name: 'opendots-workspace-dot-a',
+            destination: '/profiles',
+          },
+          {
+            type: 'volume',
+            name: 'opendots-profile-dot-a',
+            destination: '/workspace',
+          },
+        ],
+      },
+      'mount',
+    ],
+    [{ utsMode: 'host' }, 'host name namespace'],
+    [{ cgroupnsMode: 'host', cgroupnsDefault: 'private' }, 'cgroup namespace'],
+    [{ sysctls: { 'net.ipv4.ip_forward': '1' } }, 'kernel parameters'],
     [{ labels: { ...safe.labels, 'openbot.bot-id': 'dot-b' } }, 'another Dot'],
     [{ labels: {} }, 'not created by'],
   ])('refuses %j', (patch, reason) => {
@@ -250,7 +297,7 @@ describe('unsafe computers', () => {
   const supervisor: ContainerFacts = {
     ...safe,
     image: REMOTE_IMAGES.supervisor,
-    labels: { [SERVER_ID_LABEL]: 'abc' },
+    labels: { 'fulldots.remote-supervisor': 'true', [SERVER_ID_LABEL]: 'abc' },
     portBindings: { '4300/tcp': [{ HostIp: '127.0.0.1', HostPort: '4312' }] },
     ports: { '4300/tcp': [{ HostIp: '127.0.0.1', HostPort: '4312' }] },
     mounts: [
@@ -280,6 +327,7 @@ describe('unsafe computers', () => {
       'not published on 127.0.0.1:4312',
     ],
     [{ image: 'someone/supervisor:latest' }, 'instead of'],
+    [{ labels: { [SERVER_ID_LABEL]: 'abc' } }, 'not started by FullDots'],
     [{ capAdd: ['SYS_ADMIN'] }, 'adds capabilities'],
     [
       {
@@ -355,8 +403,18 @@ const computerFacts = (
   },
   ports: { '4100/tcp': [{ HostIp: '127.0.0.1', HostPort: String(port) }] },
   mounts: [
-    { type: 'volume', source: `p-${dotId}`, destination: '/profiles' },
-    { type: 'volume', source: `w-${dotId}`, destination: '/workspace' },
+    {
+      type: 'volume',
+      name: `opendots-profile-${dotId}`,
+      source: 'p',
+      destination: '/profiles',
+    },
+    {
+      type: 'volume',
+      name: `opendots-workspace-${dotId}`,
+      source: 'w',
+      destination: '/workspace',
+    },
   ],
 });
 
@@ -368,7 +426,10 @@ function readyServer(tunnel: FakeTunnel, store: RemoteStore) {
     facts: {
       ...safe,
       image: REMOTE_IMAGES.supervisor,
-      labels: { [SERVER_ID_LABEL]: store.serverId(tunnel.alias) },
+      labels: {
+        'fulldots.remote-supervisor': 'true',
+        [SERVER_ID_LABEL]: store.serverId(tunnel.alias),
+      },
       portBindings: { '4300/tcp': [{ HostIp: '127.0.0.1', HostPort: '4312' }] },
       ports: { '4300/tcp': [{ HostIp: '127.0.0.1', HostPort: '4312' }] },
       mounts: [
@@ -596,7 +657,13 @@ describe('computers on the owner’s server', () => {
 
     const other = f.store.serverId('other-alias');
     tunnel.answers.set('inspect fulldots-computer-supervisor', {
-      facts: { ...good, labels: { [SERVER_ID_LABEL]: other } },
+      facts: {
+        ...good,
+        labels: {
+          'fulldots.remote-supervisor': 'true',
+          [SERVER_ID_LABEL]: other,
+        },
+      },
     });
     check = await f.remote.serverCheck('my-vps', { force: true });
     expect(check?.message).toContain(
@@ -604,7 +671,7 @@ describe('computers on the owner’s server', () => {
     );
 
     tunnel.answers.set('inspect fulldots-computer-supervisor', {
-      facts: { ...good, labels: {} },
+      facts: { ...good, labels: { 'fulldots.remote-supervisor': 'true' } },
     });
     check = await f.remote.serverCheck('my-vps', { force: true });
     expect(check?.message).toContain('not started by FullDots for this alias');
@@ -1084,6 +1151,44 @@ describe('pinned images', () => {
     const { OPENBOT_CONTEXT } =
       await import('../src/server/remote-computers.js');
     expect(compose).toContain(OPENBOT_CONTEXT);
+  });
+});
+
+describe('computer namespace', () => {
+  it('refuses remote use and setup with a namespace that could reach a shell or env file', async () => {
+    const store = new RemoteStore(
+      new DatabaseSync(':memory:'),
+      randomBytes(32),
+    );
+    const remote = new RemoteComputers({
+      store,
+      computers: { server: () => undefined },
+      namespace: 'bad ns; rm -rf /',
+      tunnel: () => {
+        throw new Error('no tunnel may start');
+      },
+    });
+    await expect(remote.ready('my-vps')).rejects.toThrow(
+      'Invalid computer namespace',
+    );
+    expect((await remote.serverCheck('my-vps'))?.message).toContain(
+      'COMPUTER_NAMESPACE',
+    );
+    const { supervisorEnv } = await import('../src/server/remote-setup.js');
+    expect(() =>
+      supervisorEnv(
+        { supervisorToken: 'a', computerToken: 'b' },
+        'x\nSUPERVISOR_TOKEN=evil',
+      ),
+    ).toThrow('Invalid computer namespace');
+    const setup = new RemoteSetup({
+      remote,
+      enabled: true,
+      namespace: 'bad ns',
+    });
+    await expect(setup.start('my-vps', 'check-alias', [])).rejects.toThrow(
+      'Invalid computer namespace',
+    );
   });
 });
 

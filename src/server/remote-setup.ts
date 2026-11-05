@@ -20,6 +20,7 @@ import {
   classifySsh,
   remoteCommand,
   requireAlias,
+  requireNamespace,
   sshArgs,
   sshProblemMessage,
   spawnSsh,
@@ -86,6 +87,8 @@ export function supervisorEnv(
   secrets: RemoteSecrets,
   namespace: string,
 ): string {
+  // One value per line in an env file: the namespace must not be able to add a line.
+  requireNamespace(namespace);
   return [
     'PORT=4300',
     `SUPERVISOR_TOKEN=${secrets.supervisorToken}`,
@@ -377,6 +380,7 @@ export class RemoteSetup {
     if (!this.enabled)
       throw new Error('Setting up a server is not available here.');
     requireAlias(alias);
+    requireNamespace(this.options.namespace ?? 'opendots');
     if (step === 'build-images' && !this.canBuild)
       throw new Error(
         'Building the images needs FullDots to run from a checkout with deployment/computers.',
