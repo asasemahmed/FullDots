@@ -234,7 +234,7 @@ export function RemoteSetupCard({ alias }: { alias: string }) {
               <button
                 type="button"
                 className="cp-link"
-                disabled={running}
+                disabled={running || plan.unavailable}
                 onClick={() => {
                   setError('');
                   setAsking(plan.step);
@@ -242,6 +242,12 @@ export function RemoteSetupCard({ alias }: { alias: string }) {
               >
                 {plan.title}
               </button>
+              {plan.unavailable && (
+                <p className="cp-hint">
+                  Needs FullDots to run from a checkout. Build the images by
+                  hand instead (see the guide).
+                </p>
+              )}
             </li>
           ))}
         </ol>

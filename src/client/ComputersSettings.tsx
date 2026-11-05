@@ -6,6 +6,7 @@ import type {
   RemoteCheckResult,
   RemoteComputersStatus,
 } from '../shared/remote-computer-types';
+import { SupervisorTokens } from './computer-panel/SupervisorTokens';
 import {
   ALIAS_PATTERN,
   Leftovers,
@@ -77,9 +78,9 @@ export function ComputersSettings() {
     setChecking(true);
     try {
       setCheck(
-        await api<RemoteCheckResult>(
-          `/computers/remote/check?alias=${encodeURIComponent(status.alias)}`,
-        ),
+        await api<RemoteCheckResult>('/computers/remote/check', 'POST', {
+          alias: status.alias,
+        }),
       );
     } catch (cause) {
       setCheck({
@@ -203,6 +204,7 @@ export function ComputersSettings() {
       {saved && status?.alias && status.enabled && (
         <RemoteSetupCard alias={status.alias} />
       )}
+      {saved && status?.alias && <SupervisorTokens alias={status.alias} />}
       {saved && status && !status.enabled && (
         <p className="cp-hint">
           Setting up a server from here works only where FullDots runs on your
