@@ -403,6 +403,15 @@
   outline: 2px solid var(--ap-ink);
   outline-offset: 2px;
 }
+/* A card or the heading holds the focus after an answer removes the button that had it. */
+.approval-card:focus,
+.approvals-header h1:focus {
+  outline: none;
+}
+.approval-card:focus-visible {
+  outline: 2px solid var(--ap-ink);
+  outline-offset: 2px;
+}
 .approval-card button:active:not(:disabled) {
   transform: none;
 }

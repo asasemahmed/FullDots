@@ -167,6 +167,31 @@ docker compose down
 
 For remote hosting, configure an HTTPS reverse proxy and the matching `APP_ORIGIN`. On a plain VPS with Docker, follow [Deploy on a VPS](DEPLOY-VPS.md); with Dokploy, follow [Deploy on Dokploy](DEPLOY-DOKPLOY.md). See [Security](../SECURITY.md) for the template's deployment boundary.
 
+### Use the published images
+
+Each release publishes the app and the page reader to GitHub Container Registry, for `linux/amd64` and `linux/arm64`:
+
+| Image                                  | Tags                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `ghcr.io/asasemahmed/fulldots`         | the version (for example `2.1.0`), the minor line (`2.1`) and `latest` for stable releases |
+| `ghcr.io/asasemahmed/fulldots-browser` | the same tags                                                                              |
+
+A pre-release gets only its exact version tag. Each image carries a signed build provenance attestation; `gh attestation verify oci://ghcr.io/asasemahmed/fulldots:2.1.0 --owner asasemahmed` checks it. To run them instead of building, check out the same release tag (the compose files come from it), then set both images in `.env` with the same tag:
+
+```env
+FULLDOTS_IMAGE=ghcr.io/asasemahmed/fulldots:2.1.0
+FULLDOTS_BROWSER_IMAGE=ghcr.io/asasemahmed/fulldots-browser:2.1.0
+```
+
+```sh
+docker compose --profile browser pull
+docker compose --profile browser up -d
+```
+
+Leave out `--build`: it would build from your checkout and give the result the published name. To update, change the tag, pull and run `up -d` again.
+
+Building locally still works and stays the default. Without these variables the images are called `fulldots:local` and `fulldots-browser:local`, and `docker compose up --build` builds them as before. With those local names `docker compose pull` fails, because there is nothing to pull for them; `docker compose pull --ignore-buildable` updates only the other images, such as SearXNG. The Dot computer images (`opendots-computer`, `opendots-computer-desktop` and `opendots-supervisor`) are not published: they are always built locally, as described in [Dot computers](COMPUTERS.md).
+
 ## Development checks
 
 ```sh

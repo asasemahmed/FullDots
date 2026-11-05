@@ -129,6 +129,10 @@ Redeploy. The first build also builds the computer image from the pinned OpenBot
 
 Push to `main`. With Autodeploy on, Dokploy rebuilds and restarts. Database changes run automatically at start and only add tables and columns. Back up first before large updates.
 
+### Published images
+
+Releases also publish the app and page reader images for `linux/amd64` and `linux/arm64` (see [Use the published images](SETUP.md#use-the-published-images)). Dokploy's default deploy runs `docker compose up -d --build`, so it keeps building from your branch: setting `FULLDOTS_IMAGE` and `FULLDOTS_BROWSER_IMAGE` there only renames that build. To run the published images, set both to the same release tag and give the service your own compose command without `--build` (Dokploy lets you replace the default command). The Dot computer images are not published and are built on the server either way.
+
 ## Troubleshooting
 
 - **The deploy stops at once with "Set OWNER_TOKEN…" (or `APP_ORIGIN`, `BROWSER_SECRET`).** The variable is missing from the Environment tab.

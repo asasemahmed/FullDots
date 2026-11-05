@@ -142,7 +142,8 @@ export function RowMenu({
                 tabIndex={-1}
                 className={`sb-menu-item ${item.danger ? 'danger' : ''}`}
                 onClick={() => {
-                  close(false);
+                  // Back on the trigger first, so a dialog the item opens returns focus there.
+                  close(true);
                   item.onSelect();
                 }}
               >

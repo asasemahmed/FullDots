@@ -12,6 +12,9 @@
 # SearXNG next to the app. Use it when DuckDuckGo blocks your server. Both: search,computers.
 services:
   app:
+    # Dokploy deploys with `up --build`: this names what it builds from your branch. See
+    # docs/DEPLOY-DOKPLOY.md to run the published images instead.
+    image: ${FULLDOTS_IMAGE:-fulldots:local}
     build:
       context: .
       target: app
@@ -93,6 +96,7 @@ services:
       retries: 3
 
   browser:
+    image: ${FULLDOTS_BROWSER_IMAGE:-fulldots-browser:local}
     build:
       context: .
       target: browser

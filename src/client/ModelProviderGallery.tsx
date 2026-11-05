@@ -160,9 +160,16 @@ export function providerStatus(
   return { tone: 'ok', label: 'Ready' };
 }
 
-export function StatusPill({ status }: { status: ProviderStatus }) {
+/** `live` makes the pill a status region, for the one pill on an open provider page. */
+export function StatusPill({
+  status,
+  live = false,
+}: {
+  status: ProviderStatus;
+  live?: boolean;
+}) {
   return (
-    <span className="cn-status">
+    <span className="cn-status" role={live ? 'status' : undefined}>
       <span
         className={`cn-pill cn-pill-${status.tone}`}
         data-tone={status.tone}

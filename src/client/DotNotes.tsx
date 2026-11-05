@@ -1,16 +1,10 @@
 // What a Dot remembers about its owner, made visible: one editable note per Dot, its history, and the
 // opt-in switch that lets the Dot propose lines (which wait in the Inbox). Used in the Dot dialog and in
 // a sheet opened from the chat header. Nothing here saves on its own: every change is the owner's click.
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { History, LoaderCircle, NotebookPen, RotateCcw, X } from 'lucide-react';
 import { api } from './api';
+import { useModalDialog } from './useModalDialog';
 import { relativeTime } from './ApprovalsView';
 import { dotColor, Mascot, dotLook } from './Mascot';
 import {
@@ -398,11 +392,9 @@ export function DotNotes({ dot }: { dot: Dot }) {
 /** The chat header's Notes button and the sheet it opens. */
 export function DotNotesButton({ dot }: { dot: Dot }) {
   const [open, setOpen] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
   return (
     <>
       <button
-        ref={opener}
         type="button"
         className="icon-button"
         aria-label={`Notes: what ${dot.name} remembers about you`}
@@ -412,15 +404,7 @@ export function DotNotesButton({ dot }: { dot: Dot }) {
       >
         <NotebookPen size={18} />
       </button>
-      {open && (
-        <DotNotesSheet
-          dot={dot}
-          onClose={() => {
-            setOpen(false);
-            opener.current?.focus();
-          }}
-        />
-      )}
+      {open && <DotNotesSheet dot={dot} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -435,30 +419,7 @@ export function DotNotesSheet({
 }) {
   const sheet = useRef<HTMLElement>(null);
   const titleId = useId().replace(/:/g, '');
-  useEffect(() => {
-    sheet.current?.querySelector<HTMLElement>('textarea,button')?.focus();
-  }, []);
-  const onKeyDown = (event: ReactKeyboardEvent) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const items = [
-      ...(sheet.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]),input:not([disabled]),textarea:not([disabled]),summary',
-      ) ?? []),
-    ];
-    if (!items.length) return;
-    if (event.shiftKey && document.activeElement === items[0]) {
-      event.preventDefault();
-      items.at(-1)?.focus();
-    } else if (!event.shiftKey && document.activeElement === items.at(-1)) {
-      event.preventDefault();
-      items[0]?.focus();
-    }
-  };
+  const modal = useModalDialog(sheet, { onClose, initialFocus: 'first' });
   return (
     <div className="dot-notes-backdrop" onClick={onClose}>
       <aside
@@ -467,8 +428,9 @@ export function DotNotesSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={onKeyDown}
+        onKeyDown={modal.onKeyDown}
       >
         <header className="dot-notes-sheet-head">
           <h3 id={titleId}>Notes</h3>

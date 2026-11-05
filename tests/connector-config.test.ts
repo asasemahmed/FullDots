@@ -371,7 +371,15 @@ describe('connector presets', () => {
     'asana',
     'neon',
     'cloudflare',
+    'monday',
+    'airtable',
+    'prisma',
+    'netlify',
+    'webflow',
+    'wix',
   ];
+  /** Hosted servers that answer without credentials. */
+  const openIds = ['cloudflare-docs', 'deepwiki', 'exa', 'context7'];
 
   it('lists the presets with unique ids', () => {
     const ids = connectorPresets.map((p) => p.id);
@@ -381,7 +389,7 @@ describe('connector presets', () => {
         ...oauthIds,
         'github',
         'paypal',
-        'cloudflare-docs',
+        ...openIds,
         'filesystem',
         'fetch',
         'google-drive',
@@ -395,7 +403,12 @@ describe('connector presets', () => {
     for (const id of oauthIds) expect(byId[id].auth).toBe('oauth');
     expect(byId.github.auth).toBe('token');
     expect(byId.paypal.auth).toBe('token');
-    expect(byId['cloudflare-docs'].auth).toBe('none');
+    for (const id of openIds) {
+      expect(byId[id].auth).toBe('none');
+      expect(byId[id].transport).toBe('http');
+      expect(byId[id].url).toMatch(/^https:\/\//);
+      expect(byId[id].headers).toBeUndefined();
+    }
     for (const id of ['filesystem', 'fetch', 'google-drive', 'gmail']) {
       expect(byId[id].auth).toBe('none');
       expect(byId[id].requiresStdio).toBe(true);

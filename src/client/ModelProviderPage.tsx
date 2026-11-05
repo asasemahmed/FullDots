@@ -966,7 +966,7 @@ function ProviderForm(
             <h3 className="cs-title" id={titleId}>
               {title}
             </h3>
-            {status && <StatusPill status={status} />}
+            {status && <StatusPill status={status} live />}
             {view?.builtIn && <span className="mp-badge">From .env</span>}
           </div>
           <p className="cs-sub">{subtitle}</p>

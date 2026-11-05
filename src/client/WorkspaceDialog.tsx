@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from './api';
+import { useModalDialog } from './useModalDialog';
 import { parseToolkitField } from '../shared/composio';
 import { ComposioAccounts } from './ComposioAccounts';
 import { ConnectorsSettings } from './ConnectorsSettings';
@@ -503,37 +504,7 @@ export function WorkspaceDialog({
     document.getElementById(`settings-tab-${next}`)?.focus();
   };
   const container = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    container.current
-      ?.querySelector<HTMLElement>('input,textarea,select')
-      ?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key === 'Tab') {
-        const items = [
-          ...(container.current?.querySelectorAll<HTMLElement>(
-            'button:not([disabled]),input,textarea,select,a[href]',
-          ) ?? []),
-        ];
-        if (event.shiftKey && document.activeElement === items[0]) {
-          event.preventDefault();
-          items.at(-1)?.focus();
-        } else if (!event.shiftKey && document.activeElement === items.at(-1)) {
-          event.preventDefault();
-          items[0]?.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('keydown', key);
-      previous?.focus();
-    };
-  }, []);
+  const modal = useModalDialog(container, { onClose });
   const title =
     dialog.type === 'space'
       ? 'A space for something.'
@@ -570,6 +541,8 @@ export function WorkspaceDialog({
         aria-modal="true"
         aria-labelledby="dialog-title"
         ref={container}
+        tabIndex={-1}
+        onKeyDown={modal.onKeyDown}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="dlg-header" data-scrolled={scrolled}>

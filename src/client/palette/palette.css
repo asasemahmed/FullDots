@@ -46,6 +46,9 @@
   transform-origin: 50% 0;
   animation: pal-pop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
+.pal:focus {
+  outline: none;
+}
 .pal-input-row {
   display: flex;
   align-items: center;

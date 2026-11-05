@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   Clock,
   Hand,
@@ -185,6 +185,14 @@ export function ApprovalDecision({
   const [busy, setBusy] = useState<'approve' | 'deny'>();
   const [error, setError] = useState('');
   const uid = useId();
+  // "Add a note" disappears when pressed: the field it opens takes the focus.
+  const noteField = useRef<HTMLTextAreaElement>(null);
+  const focusNote = useRef(false);
+  useEffect(() => {
+    if (!noteOpen || !focusNote.current) return;
+    focusNote.current = false;
+    noteField.current?.focus();
+  }, [noteOpen]);
   const decide = async (decision: 'approve' | 'deny') => {
     setBusy(decision);
     setError('');
@@ -205,6 +213,7 @@ export function ApprovalDecision({
             Note for the Dot (optional)
           </label>
           <textarea
+            ref={noteField}
             id={field}
             rows={2}
             maxLength={NOTE_LIMIT}
@@ -227,7 +236,10 @@ export function ApprovalDecision({
               className="approval-link"
               aria-expanded={false}
               disabled={!!busy}
-              onClick={() => setNoteOpen(true)}
+              onClick={() => {
+                focusNote.current = true;
+                setNoteOpen(true);
+              }}
             >
               Add a note
             </button>
@@ -275,10 +287,10 @@ export function ApprovalDecision({
   );
 }
 
-/** The status chip at the end of a card header. */
+/** The status chip at the end of a card header; a status region, so a decision is read out. */
 export function ApprovalBadge({ status }: { status: ApprovalStatus }) {
   return (
-    <span className={`approval-badge is-${statusTone(status)}`}>
+    <span className={`approval-badge is-${statusTone(status)}`} role="status">
       {statusLabel(status)}
     </span>
   );
@@ -756,6 +768,22 @@ export function ApprovalCard({
   /** Opens the computer and takes control in one click, for a handoff. */
   onTakeOver?: () => Promise<void>;
 }) {
+  const status: ApprovalStatus =
+    result.status === 'handoff' ? 'pending' : (approval?.status ?? 'pending');
+  const card = useRef<HTMLElement>(null);
+  const answered = useRef(status !== 'pending');
+  useEffect(() => {
+    const before = answered.current;
+    answered.current = status !== 'pending';
+    // Answering removes the buttons that had focus; keep it on this card, not the page body.
+    if (
+      !before &&
+      answered.current &&
+      typeof document !== 'undefined' &&
+      document.activeElement === document.body
+    )
+      card.current?.focus();
+  }, [status]);
   if (result.status === 'handoff')
     return (
       <HandoffCard
@@ -765,12 +793,13 @@ export function ApprovalCard({
       />
     );
   const asked: PendingApprovalResult = result;
-  const status: ApprovalStatus = approval?.status ?? 'pending';
   const advisory = asked.advisory === true || approval?.argsHash === null;
   return (
     <section
+      ref={card}
       className={`approval-card is-${statusTone(status)}`}
       aria-label="Approval request"
+      tabIndex={-1}
     >
       <header className="approval-head">
         <ApprovalTile tone={statusTone(status)} icon={statusIcon(status)} />

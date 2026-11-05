@@ -1,4 +1,6 @@
-FROM node:24-bookworm-slim AS build
+# The build output is plain JavaScript, so build it once on the native platform even for
+# multi-platform images; only the npm ci --omit=dev steps below run per target platform.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

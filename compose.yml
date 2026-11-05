@@ -1,5 +1,8 @@
 services:
   app:
+    # The local build's name. Set FULLDOTS_IMAGE to a published image such as
+    # ghcr.io/asasemahmed/fulldots:<version> and run `docker compose pull` instead of building.
+    image: ${FULLDOTS_IMAGE:-fulldots:local}
     build:
       context: .
       target: app
@@ -92,6 +95,8 @@ services:
       - ALL
   browser:
     profiles: [browser]
+    # Published: ghcr.io/asasemahmed/fulldots-browser with the same tag as the app.
+    image: ${FULLDOTS_BROWSER_IMAGE:-fulldots-browser:local}
     build:
       context: .
       target: browser

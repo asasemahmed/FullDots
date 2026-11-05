@@ -2,6 +2,7 @@
 // trademark), imported one by one so only these are bundled. Services without a mark get a
 // matching Lucide icon. Everything is inline SVG: the app's CSP allows no remote images.
 import {
+  siAirtable,
   siAsana,
   siAtlassian,
   siBox,
@@ -16,20 +17,27 @@ import {
   siJira,
   siLinear,
   siNeon,
+  siNetlify,
   siNotion,
   siPaypal,
+  siPrisma,
   siSentry,
   siStripe,
   siSupabase,
   siVercel,
   siWebflow,
+  siWix,
   siZapier,
   type SimpleIcon,
 } from 'simple-icons';
 import {
+  BookOpen,
   FolderOpen,
   Globe,
+  Library,
   Plug,
+  Search,
+  SquareKanban,
   Terminal,
   type LucideIcon,
 } from 'lucide-react';
@@ -80,9 +88,22 @@ const MARKS: Record<string, Mark> = {
   zapier: brand(siZapier),
   paypal: brand(siPaypal),
   intercom: brand(siIntercom),
+  airtable: brand(siAirtable),
+  prisma: brand(siPrisma),
+  netlify: brand(siNetlify),
+  wix: brand(siWix),
+  // Not in Simple Icons: a matching Lucide icon in the service's colour.
+  monday: glyph(SquareKanban, '#6161FF'),
+  deepwiki: glyph(BookOpen, '#2F6FEB'),
+  context7: glyph(Library, '#059669'),
+  exa: glyph(Search, '#1F40ED'),
+  'exa.ai': glyph(Search, '#1F40ED'),
   filesystem: glyph(FolderOpen, '#C27C0E'),
   fetch: glyph(Globe, '#2F80ED'),
 };
+
+/** Keys too short to look for inside a name or URL (`exa` is in `example.com`): preset id only. */
+const ID_ONLY = new Set(['exa']);
 
 /** The mark for a preset id, else the first known word in the connector's name or URL. */
 export function connectorMark(
@@ -94,7 +115,7 @@ export function connectorMark(
   if (presetId && MARKS[presetId]) return MARKS[presetId];
   const haystack = `${name ?? ''} ${url ?? ''}`.toLowerCase();
   for (const [key, mark] of Object.entries(MARKS))
-    if (haystack.includes(key)) return mark;
+    if (!ID_ONLY.has(key) && haystack.includes(key)) return mark;
   return transport === 'stdio'
     ? glyph(Terminal, '#5B6170')
     : glyph(Plug, '#5B6170');

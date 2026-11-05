@@ -148,16 +148,20 @@ export const needsAttention = (connector: ConnectorView) =>
 /**
  * The status pill. `detail` adds the reason next to it (an error text, the
  * missing variables); cards pass `detail={false}` and show it on its own line.
+ * `live` makes it a status region, so a change (Connecting… to Connected) is read out;
+ * only the one pill on an open page is live, never every card in the gallery.
  */
 export function StatusPill({
   status,
   detail = true,
+  live = false,
 }: {
   status: ConnectorStatus;
   detail?: boolean;
+  live?: boolean;
 }) {
   return (
-    <span className="cn-status">
+    <span className="cn-status" role={live ? 'status' : undefined}>
       <span
         className={`cn-pill cn-pill-${STATE_TONE[status.state]}`}
         data-state={status.state}

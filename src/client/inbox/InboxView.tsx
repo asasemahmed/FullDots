@@ -507,7 +507,13 @@ export function InboxView(props: InboxViewProps) {
 
   const jump = (section: InboxSection) => {
     const target = document.getElementById(sectionId(section));
-    target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    const still = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    target?.scrollIntoView?.({
+      behavior: still ? 'auto' : 'smooth',
+      block: 'start',
+    });
     target?.focus({ preventScroll: true });
   };
 
