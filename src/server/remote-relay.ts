@@ -11,6 +11,8 @@
 // connections. `fulldotsRelay` is sent to the server as its own source text, so it must use only
 // its argument and the language's globals.
 
+import { requireNamespace, shellQuote } from './remote-ssh.js';
+
 /** Frame types. A frame is: type (1 byte), stream id (4 bytes), length (4 bytes), payload. */
 export const FRAME = {
   OPEN: 2,
@@ -22,6 +24,8 @@ export const FRAME = {
   RES: 8,
   PAUSE: 9,
   RESUME: 10,
+  /** A heartbeat from FullDots; the relay leaves after a minute without any frame. */
+  PING: 11,
 } as const;
 export const RELAY_READY = 'FULLDOTS-READY';
 /** Printed by the server's shell before the relay starts, when it cannot start. */
@@ -77,6 +81,7 @@ export interface RelaySocket {
   on(event: 'data', listener: (data: Buffer) => void): unknown;
   on(event: 'drain' | 'close' | 'connect', listener: () => void): unknown;
   on(event: 'error', listener: (error: Error) => void): unknown;
+  once(event: 'drain', listener: () => void): unknown;
 }
 
 export interface RelayIO {
@@ -92,7 +97,8 @@ export interface RelayIO {
   /** GET on the server's Docker API; null for 404. */
   docker(path: string): Promise<unknown>;
   namespace: string;
-  supervisorImage: string;
+  /** How long without any frame before the relay leaves. Default one minute. */
+  idleMs?: number;
   exit(code: number): void;
 }
 
@@ -108,6 +114,7 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
     RES: 8,
     PAUSE: 9,
     RESUME: 10,
+    PING: 11,
   };
   const SUPERVISOR = 'fulldots-computer-supervisor';
   const SUPERVISOR_PORT = 4312;
@@ -127,15 +134,24 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
     head.writeUInt32BE(body.length, 5);
     return io.write(Buffer.concat([head, body]));
   };
-  const streams = new Map<number, RelaySocket>();
+  /** Open streams. `paused`: the peer asked to pause; `draining`: we asked the peer to pause. */
+  const streams = new Map<
+    number,
+    { socket: RelaySocket; paused: boolean; draining: boolean }
+  >();
+  /** Opens still being checked, and those FullDots gave up on while they were. */
+  const checking = new Set<number>();
+  const cancelled = new Set<number>();
   let blocked = false;
   const flowed = (ok: boolean) => {
     if (ok || blocked) return;
     blocked = true;
-    for (const socket of streams.values()) socket.pause();
+    for (const stream of streams.values()) stream.socket.pause();
     io.onDrain(() => {
       blocked = false;
-      for (const socket of streams.values()) socket.resume();
+      // A stream the peer paused stays paused.
+      for (const stream of streams.values())
+        if (!stream.paused) stream.socket.resume();
     });
   };
   type Port = { IP?: string; PrivatePort?: number; PublicPort?: number };
@@ -158,16 +174,23 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
     if (owner === 'supervisor') {
       if (port !== SUPERVISOR_PORT)
         return { reason: 'not the supervisor port' };
+      // Found by its name and the label the setup step gives it. Its image is FullDots' own check,
+      // so a rebuilt image does not lock the supervisor out here.
       const list = (await io.docker(
-        `/containers/json?filters=${encodeURIComponent(JSON.stringify({ name: [SUPERVISOR] }))}`,
+        `/containers/json?filters=${encodeURIComponent(
+          JSON.stringify({
+            name: [SUPERVISOR],
+            label: ['fulldots.remote-supervisor=true'],
+          }),
+        )}`,
       )) as Listed[] | null;
-      const found = (list ?? []).find((item) =>
-        (item.Names ?? []).includes(`/${SUPERVISOR}`),
+      const found = (list ?? []).find(
+        (item) =>
+          (item.Names ?? []).includes(`/${SUPERVISOR}`) &&
+          item.Labels?.['fulldots.remote-supervisor'] === 'true',
       );
       if (!found || found.State !== 'running')
         return { reason: 'the supervisor is not running' };
-      if (found.Image !== io.supervisorImage)
-        return { reason: 'the supervisor runs another image' };
       const ports = published(found.Ports);
       if (ports.some((item) => !LOOPBACK.includes(item.IP ?? '')))
         return { reason: 'the supervisor publishes a public port' };
@@ -206,7 +229,18 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
       ? { host: hit.IP === '::1' ? '::1' : '127.0.0.1' }
       : { reason: 'that port is not this Dot’s computer' };
   };
-  const facts = (raw: unknown) => {
+  /** The daemon's default cgroup namespace mode: private on cgroup v2, host on v1. */
+  let cgroupDefault: string | undefined;
+  const daemonCgroupDefault = async () => {
+    if (cgroupDefault === undefined) {
+      const info = (await io.docker('/info')) as {
+        CgroupVersion?: string;
+      } | null;
+      cgroupDefault = info?.CgroupVersion === '1' ? 'host' : 'private';
+    }
+    return cgroupDefault;
+  };
+  const facts = (raw: unknown, cgroupnsDefault: string) => {
     if (!raw || typeof raw !== 'object') return null;
     const info = raw as {
       Name?: string;
@@ -214,7 +248,12 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
       State?: { Running?: boolean; Health?: { Status?: string } };
       HostConfig?: Record<string, unknown>;
       NetworkSettings?: { Ports?: unknown };
-      Mounts?: { Type?: string; Source?: string; Destination?: string }[];
+      Mounts?: {
+        Type?: string;
+        Name?: string;
+        Source?: string;
+        Destination?: string;
+      }[];
     };
     const host = info.HostConfig ?? {};
     // Never the environment: it holds the computer's credential.
@@ -234,12 +273,17 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
       pidMode: host.PidMode ?? '',
       ipcMode: host.IpcMode ?? '',
       usernsMode: host.UsernsMode ?? '',
+      utsMode: host.UTSMode ?? '',
+      cgroupnsMode: host.CgroupnsMode ?? '',
+      cgroupnsDefault,
+      sysctls: host.Sysctls ?? null,
       devices: host.Devices ?? null,
       runtime: host.Runtime ?? '',
       portBindings: host.PortBindings ?? null,
       ports: info.NetworkSettings?.Ports ?? null,
       mounts: (info.Mounts ?? []).map((mount) => ({
         type: mount.Type,
+        name: mount.Name,
         source: mount.Source,
         destination: mount.Destination,
       })),
@@ -257,6 +301,7 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
         result = {
           facts: facts(
             await io.docker(`/containers/${encodeURIComponent(arg)}/json`),
+            await daemonCgroupDefault(),
           ),
         };
       else if (request.verb === 'image' && IMAGE.test(arg)) {
@@ -280,6 +325,7 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
       flowed(send(T.FAIL, id, 'bad request'));
       return;
     }
+    checking.add(id);
     let verdict: { host: '127.0.0.1' | '::1' } | { reason: string };
     try {
       verdict = await allowed(
@@ -289,14 +335,23 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
     } catch {
       verdict = { reason: 'docker did not answer' };
     }
+    checking.delete(id);
+    // FullDots gave up while the check ran: never connect.
+    if (cancelled.delete(id)) return;
     if ('reason' in verdict) {
       flowed(send(T.FAIL, id, verdict.reason));
       return;
     }
     const socket = io.connect(Number(request.port), verdict.host);
-    streams.set(id, socket);
+    const stream = { socket, paused: false, draining: false };
+    streams.set(id, stream);
     let opened = false;
     socket.on('connect', () => {
+      // Closed by FullDots between dialling and connecting.
+      if (streams.get(id) !== stream) {
+        socket.destroy();
+        return;
+      }
       opened = true;
       flowed(send(T.OPENED, id));
     });
@@ -304,10 +359,9 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
       for (let at = 0; at < data.length; at += 65536)
         flowed(send(T.DATA, id, data.subarray(at, at + 65536)));
     });
-    socket.on('drain', () => flowed(send(T.RESUME, id)));
     socket.on('error', () => undefined);
     socket.on('close', () => {
-      if (!streams.has(id)) return;
+      if (streams.get(id) !== stream) return;
       streams.delete(id);
       flowed(
         opened ? send(T.CLOSE, id) : send(T.FAIL, id, 'connection refused'),
@@ -315,35 +369,66 @@ export async function fulldotsRelay(io: RelayIO): Promise<void> {
     });
     if (blocked) socket.pause();
   };
+  let lastFrame = Date.now();
+  const idleMs = io.idleMs ?? 60_000;
   let buffer: Buffer = Buffer.alloc(0);
   io.input.on('data', (chunk: Buffer) => {
+    lastFrame = Date.now();
     buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk;
     while (buffer.length >= 9) {
       const length = buffer.readUInt32BE(5);
-      if (length > 1024 * 1024) return io.exit(2);
+      if (length > 1024 * 1024) return leave(2);
       if (buffer.length < 9 + length) return;
       const type = buffer.readUInt8(0);
       const id = buffer.readUInt32BE(1);
       const payload = Buffer.from(buffer.subarray(9, 9 + length));
       buffer = buffer.subarray(9 + length);
-      const socket = streams.get(id);
+      const stream = streams.get(id);
       if (type === T.OPEN) void open(id, payload);
       else if (type === T.REQ) void answer(id, payload);
-      else if (type === T.DATA && socket) {
-        if (!socket.write(payload)) flowed(send(T.PAUSE, id));
-      } else if (type === T.CLOSE && socket) {
-        streams.delete(id);
-        socket.end();
-      } else if (type === T.PAUSE && socket) socket.pause();
-      else if (type === T.RESUME && socket && !blocked) socket.resume();
+      else if (type === T.DATA && stream) {
+        // One PAUSE per backlog, one RESUME when it drains.
+        if (!stream.socket.write(payload) && !stream.draining) {
+          stream.draining = true;
+          flowed(send(T.PAUSE, id));
+          stream.socket.once('drain', () => {
+            stream.draining = false;
+            if (streams.get(id) === stream) flowed(send(T.RESUME, id));
+          });
+        }
+      } else if (type === T.CLOSE) {
+        if (stream) {
+          streams.delete(id);
+          stream.socket.end();
+        } else if (checking.has(id)) cancelled.add(id);
+      } else if (type === T.PAUSE && stream) {
+        stream.paused = true;
+        stream.socket.pause();
+      } else if (type === T.RESUME && stream) {
+        stream.paused = false;
+        if (!blocked) stream.socket.resume();
+      }
+      // T.PING only refreshes lastFrame.
     }
   });
-  // The session ended (FullDots stopped or ssh died): close everything and leave.
-  io.input.on('end', () => {
-    for (const socket of streams.values()) socket.destroy();
+  let left = false;
+  const leave = (code: number) => {
+    if (left) return;
+    left = true;
+    clearInterval(watchdog);
+    for (const stream of streams.values()) stream.socket.destroy();
     streams.clear();
-    io.exit(0);
-  });
+    io.exit(code);
+  };
+  // FullDots sends a heartbeat; a session that went silent (a dropped network) is left.
+  const watchdog = setInterval(
+    () => {
+      if (Date.now() - lastFrame > idleMs) leave(1);
+    },
+    Math.max(50, Math.min(5000, idleMs / 4)),
+  );
+  // The session ended (FullDots stopped or ssh died): close everything and leave.
+  io.input.on('end', () => leave(0));
   io.write('FULLDOTS-READY\n');
 }
 
@@ -362,7 +447,6 @@ const io = {
     return response.json();
   },
   namespace: process.env.FULLDOTS_NAMESPACE,
-  supervisorImage: process.env.FULLDOTS_SUPERVISOR_IMAGE,
   exit: (code) => process.exit(code),
 };
 await (${fulldotsRelay.toString()})(io);
@@ -377,18 +461,20 @@ export function relayCommand(options: {
   namespace: string;
   supervisorImage: string;
 }): string {
+  const namespace = requireNamespace(options.namespace);
+  const image = shellQuote(options.supervisorImage);
   const source = Buffer.from(BOOTSTRAP, 'utf8').toString('base64');
   return [
     `out=$(docker version --format '{{.Server.Version}}' 2>&1) || { printf '${RELAY_FAIL} docker %s\\n' "$(printf '%s' "$out" | head -c 300 | tr '\\n' ' ')"; exit 3; }`,
-    `docker image inspect ${options.supervisorImage} >/dev/null 2>&1 || { echo '${RELAY_FAIL} image'; exit 4; }`,
+    `docker image inspect ${image} >/dev/null 2>&1 || { echo '${RELAY_FAIL} image'; exit 4; }`,
     `gid=$(stat -c %g /var/run/docker.sock) || { echo '${RELAY_FAIL} docker no socket'; exit 3; }`,
     [
       'exec docker run --rm -i --log-driver none --label fulldots.remote-relay=true',
       '--network host --cap-drop ALL --security-opt no-new-privileges:true --read-only',
       '--tmpfs /tmp:size=16m --memory 256m --pids-limit 64 --user 65534:65534 --group-add "$gid"',
       '-v /var/run/docker.sock:/var/run/docker.sock',
-      `-e HOME=/tmp -e FULLDOTS_NAMESPACE=${options.namespace} -e FULLDOTS_SUPERVISOR_IMAGE=${options.supervisorImage}`,
-      `--entrypoint sh ${options.supervisorImage}`,
+      `-e HOME=/tmp -e ${shellQuote(`FULLDOTS_NAMESPACE=${namespace}`)}`,
+      `--entrypoint sh ${image}`,
       `-c 'exec bun -e "$(printf %s "$0" | base64 -d)"' ${source}`,
     ].join(' '),
   ].join('\n');

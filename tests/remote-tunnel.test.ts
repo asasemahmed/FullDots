@@ -69,6 +69,10 @@ interface FakeServer {
   inspect: Record<string, unknown>;
   images: Record<string, string>;
   dialled: { port: number; host: string }[];
+  /** A server port the relay may dial, standing in for a local test port. */
+  map?: Record<number, number>;
+  /** Holds Docker answers until resolved, to test opens given up while they are checked. */
+  hold?: Promise<void>;
 }
 
 /** Runs the real relay in-process on the fake ssh process's stdio. */
@@ -79,11 +83,13 @@ function relayOn(child: FakeChild, server: FakeServer) {
     onDrain: (listener) => child.stdout.once('drain', listener),
     connect: (port, host) => {
       server.dialled.push({ port, host });
-      return connect({ port, host }) as unknown as ReturnType<
-        RelayIO['connect']
-      >;
+      return connect({
+        port: server.map?.[port] ?? port,
+        host,
+      }) as unknown as ReturnType<RelayIO['connect']>;
     },
     docker: async (path) => {
+      await server.hold;
       const url = new URL(`http://docker${path}`);
       if (url.pathname === '/containers/json') {
         const filters = JSON.parse(url.searchParams.get('filters') ?? '{}') as {
@@ -112,7 +118,6 @@ function relayOn(child: FakeChild, server: FakeServer) {
       return null;
     },
     namespace: 'opendots',
-    supervisorImage: 'opendots-supervisor:b6932d3-desktop1',
     exit: () => child.exit(0),
   };
   void fulldotsRelay(io);
@@ -223,6 +228,10 @@ describe('ssh arguments', () => {
       'ForwardX11=no',
       'PermitLocalCommand=no',
       'ClearAllForwardings=yes',
+      'StdinNull=no',
+      'SessionType=default',
+      'Tunnel=no',
+      'RemoteCommand=none',
       '-a',
       '-x',
     ])

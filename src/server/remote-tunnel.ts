@@ -54,6 +54,10 @@ export interface TunnelOptions {
   readyMs?: number;
   /** How long one relay request or connection may take before the tunnel is considered broken. */
   requestMs?: number;
+  /** How often FullDots tells the relay it is still there. */
+  heartbeatMs?: number;
+  /** How long a refused login waits before it is tried again unasked (fail2ban-friendly). */
+  refusedBackoffMs?: number;
   /** What the relay checks containers against on the server. */
   namespace?: string;
   supervisorImage?: string;
@@ -81,6 +85,10 @@ interface Bridge {
 interface Stream {
   socket: Socket;
   opened: boolean;
+  /** The relay asked to pause this stream; only its RESUME undoes that. */
+  paused: boolean;
+  /** We asked the relay to pause and wait for this socket to drain. */
+  draining: boolean;
 }
 
 /** `ssh -G` (prints the effective config, connects nowhere), killed if it hangs. */
@@ -141,7 +149,11 @@ export class RemoteTunnel {
   private reader = new FrameReader();
   private nextId = 1;
   private readonly streams = new Map<number, Stream>();
-  private readonly opening = new Map<number, (error?: string) => void>();
+  private readonly opening = new Map<
+    number,
+    (error?: string, fromRelay?: boolean) => void
+  >();
+  private heartbeat?: NodeJS.Timeout;
   private readonly pending = new Map<number, (answer: unknown) => void>();
   private stdinBlocked = false;
   private readonly bridges = new Map<string, Bridge>();
@@ -194,7 +206,10 @@ export class RemoteTunnel {
         this.problem &&
         LASTING.has(this.problem) &&
         !options.force &&
-        this.now() - this.lastAttempt < (this.options.maxBackoffMs ?? 30_000)
+        this.now() - this.lastAttempt <
+          (this.problem === 'refused'
+            ? (this.options.refusedBackoffMs ?? 600_000)
+            : (this.options.maxBackoffMs ?? 30_000))
       )
         throw this.failure();
       void this.launch();
@@ -319,6 +334,13 @@ export class RemoteTunnel {
         this.state = 'up';
         this.problem = undefined;
         this.upSince = this.now();
+        // The relay leaves after a minute without any frame, so a silently dropped session
+        // does not leave it running on the server.
+        this.heartbeat = setInterval(
+          () => this.send(FRAME.PING, 0),
+          this.options.heartbeatMs ?? 15_000,
+        );
+        this.heartbeat.unref();
         this.settle();
         const rest = Buffer.from(this.text, 'latin1');
         this.text = '';
@@ -348,12 +370,17 @@ export class RemoteTunnel {
         this.opening.get(id)?.();
         return;
       case FRAME.FAIL:
-        this.opening.get(id)?.(payload.toString('utf8').slice(0, 200));
+        this.opening.get(id)?.(payload.toString('utf8').slice(0, 200), true);
         return;
       case FRAME.DATA:
-        if (stream && !stream.socket.write(payload)) {
+        // One PAUSE per backlog and one RESUME when it drains, never a flood.
+        if (stream && !stream.socket.write(payload) && !stream.draining) {
+          stream.draining = true;
           this.send(FRAME.PAUSE, id);
-          stream.socket.once('drain', () => this.send(FRAME.RESUME, id));
+          stream.socket.once('drain', () => {
+            stream.draining = false;
+            if (this.streams.get(id) === stream) this.send(FRAME.RESUME, id);
+          });
         }
         return;
       case FRAME.CLOSE:
@@ -363,10 +390,16 @@ export class RemoteTunnel {
         }
         return;
       case FRAME.PAUSE:
-        stream?.socket.pause();
+        if (stream) {
+          stream.paused = true;
+          stream.socket.pause();
+        }
         return;
       case FRAME.RESUME:
-        if (stream && !this.stdinBlocked) stream.socket.resume();
+        if (stream) {
+          stream.paused = false;
+          if (!this.stdinBlocked && stream.opened) stream.socket.resume();
+        }
         return;
       case FRAME.RES: {
         const resolve = this.pending.get(id);
@@ -397,8 +430,9 @@ export class RemoteTunnel {
   private unblock() {
     if (!this.stdinBlocked) return;
     this.stdinBlocked = false;
+    // The global unblock never overrides a pause the relay asked for.
     for (const stream of this.streams.values())
-      if (stream.opened) stream.socket.resume();
+      if (stream.opened && !stream.paused) stream.socket.resume();
   }
 
   private exited() {
@@ -406,7 +440,9 @@ export class RemoteTunnel {
     this.child = undefined;
     for (const stream of this.streams.values()) stream.socket.destroy();
     this.streams.clear();
-    for (const open of this.opening.values()) open('tunnel closed');
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = undefined;
+    for (const open of this.opening.values()) open('tunnel closed', true);
     this.opening.clear();
     for (const resolve of this.pending.values())
       resolve({ error: 'tunnel closed' });
@@ -541,17 +577,24 @@ export class RemoteTunnel {
       return;
     }
     const id = this.nextId++;
-    const stream: Stream = { socket: client, opened: false };
+    const stream: Stream = {
+      socket: client,
+      opened: false,
+      paused: false,
+      draining: false,
+    };
     this.streams.set(id, stream);
     const timer = this.timer(() => {
       this.opening.get(id)?.('timed out');
     }, this.options.requestMs ?? 10_000);
-    this.opening.set(id, (error) => {
+    this.opening.set(id, (error, fromRelay) => {
       clearTimeout(timer);
       this.opening.delete(id);
       if (error) {
         this.streams.delete(id);
         client.destroy();
+        // Given up here (timeout, or the caller left first): the relay must not connect later.
+        if (!fromRelay) this.send(FRAME.CLOSE, id);
         return;
       }
       client.on('data', (data: Buffer) => {
@@ -562,8 +605,9 @@ export class RemoteTunnel {
     });
     client.on('close', () => {
       if (!this.streams.delete(id)) return;
-      this.opening.get(id)?.('closed');
-      this.send(FRAME.CLOSE, id);
+      const open = this.opening.get(id);
+      if (open) open('closed');
+      else this.send(FRAME.CLOSE, id);
     });
     this.send(FRAME.OPEN, id, JSON.stringify({ port: remotePort, owner }));
   }
