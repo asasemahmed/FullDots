@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CircleCheck, LoaderCircle, MessageSquare } from 'lucide-react';
 import type {
   Approval,
@@ -135,15 +135,46 @@ export function ApprovalsView({
   const waiting = approvals.filter((item) => item.status === 'pending');
   const decided = approvals.filter((item) => item.status !== 'pending');
   const empty = !waiting.length && !handoffs.length;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const cardEls = useRef(new Map<string, HTMLElement>());
+  const cardRef = (key: string) => (el: HTMLElement | null) => {
+    if (el) cardEls.current.set(key, el);
+    else cardEls.current.delete(key);
+  };
+  const cards = [
+    ...waiting.map((item) => `a:${item.id}`),
+    ...handoffs.map((item) => `h:${item.id}`),
+  ];
+  const shown = useRef(cards);
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = cards;
+    // An answered or dismissed card takes the focused button with it: move to the card now in
+    // its place (never straight onto its Approve), or to the page heading when none is left.
+    if (
+      typeof document === 'undefined' ||
+      document.activeElement !== document.body
+    )
+      return;
+    const gone = before.findIndex((key) => !cards.includes(key));
+    if (gone === -1) return;
+    const next = cards.length
+      ? cardEls.current.get(cards[Math.min(gone, cards.length - 1)]!)
+      : undefined;
+    if (next) return next.focus();
+    // The heading takes focus only for this, so it is not a Tab stop otherwise.
+    heading.current?.setAttribute('tabindex', '-1');
+    heading.current?.focus();
+  });
   return (
     <main className="main-content approvals-view">
       <header className="approvals-header">
         <div>
-          <h1>Approvals</h1>
+          <h1 ref={heading}>Approvals</h1>
           <p>Actions and sign-ins waiting for you</p>
         </div>
         {!empty && (
-          <div className="approvals-summary">
+          <div className="approvals-summary" role="status">
             {waiting.length > 0 && (
               <span className="approval-badge is-pending">
                 {waiting.length} to approve
@@ -173,7 +204,12 @@ export function ApprovalsView({
         <Section label="Waiting for approval" count={waiting.length}>
           <ul className="approvals-list">
             {waiting.map((approval) => (
-              <li key={approval.id} className="approval-card is-pending">
+              <li
+                key={approval.id}
+                ref={cardRef(`a:${approval.id}`)}
+                className="approval-card is-pending"
+                tabIndex={-1}
+              >
                 <header className="approval-head">
                   <ApprovalTile tone="pending" icon={statusIcon('pending')} />
                   <div className="approval-title">
@@ -216,7 +252,12 @@ export function ApprovalsView({
         <Section label="Your turn on the computer" count={handoffs.length}>
           <ul className="approvals-list">
             {handoffs.map((handoff) => (
-              <li key={handoff.id} className="approval-card is-handoff">
+              <li
+                key={handoff.id}
+                ref={cardRef(`h:${handoff.id}`)}
+                className="approval-card is-handoff"
+                tabIndex={-1}
+              >
                 <header className="approval-head">
                   <ApprovalTile
                     tone="handoff"

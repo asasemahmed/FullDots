@@ -1322,7 +1322,7 @@ export function ConnectorSheet(props: ConnectorSheetProps) {
               {title}
             </h3>
             {connector && (
-              <StatusPill status={connector.status} detail={false} />
+              <StatusPill status={connector.status} detail={false} live />
             )}
           </div>
           <HeadSubtitle text={subtitle} copy={copyText} />
