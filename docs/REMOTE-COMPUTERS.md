@@ -13,7 +13,7 @@ This is not the same as [running all of FullDots on a VPS](DEPLOY-VPS.md). There
 
 ## Prerequisites
 
-- A Linux server (x86_64 tested) with **Docker Engine** running.
+- A Linux server (x86_64 tested) with **Docker Engine** running as the system daemon on `/var/run/docker.sock`. Rootless Docker and a non-default `docker context` are not supported: the relay and the supervisor use `/var/run/docker.sock`.
 - An ssh user on it that is in the **docker group**, so `docker info` works without `sudo`. Be clear about what that means: membership in the docker group is **root-equivalent** on that server. Anyone who can talk to its Docker can mount the whole disk into a container. Use a **dedicated server** for Dot computers, not one that also holds things you would not hand to an agent.
 - `ssh` on this machine (OpenSSH on Linux and macOS; Windows 10 and 11 include OpenSSH; Git Bash's ssh works too).
 - FullDots running on your own machine. **Build the images** also needs it to run from a checkout, so it can send the Dockerfiles. The set-up buttons are hidden when FullDots runs in a container or is bound to the network; you can still use a server you set up by hand (see [Set it up by hand](#set-it-up-by-hand)).
@@ -93,7 +93,7 @@ A Dot can also use its own server: in the Computer panel's settings, type an ali
 Use this when FullDots runs in a container or without a checkout, or when you prefer to type the commands.
 
 1. Build the three images on the server from a FullDots checkout: run the commands **Build the images** shows, in a terminal on a machine with that checkout (they send `deployment/computers` on standard input). Or copy the checkout to the server and run the same `docker build` commands there with `.` instead of `-`.
-2. Get the tokens. In Settings → Computers, under **Supervisor tokens**, choose **Show the supervisor settings once**. FullDots shows the env file and the exact `docker run` command once, with a warning; to see them again you must **Make new tokens**, which stops the old ones. Save the file as `supervisor.env` on a machine only you use, run the command (it reads the file on standard input), then delete the file. If you already run a supervisor with tokens of your own, choose **Use my own tokens** and paste them instead (32 to 256 letters, digits, dash or underscore).
+2. Get the tokens. In Settings → Computers, under **Supervisor tokens**, choose **Show the supervisor settings once**. FullDots shows the env file and the exact `docker run` command once, with a warning; to see them again you must **Make new tokens**, which stops the old ones. Save the file as `supervisor.env` on a machine only you use, run the command (it reads the file on standard input), then delete the file. If you already run a supervisor with tokens of your own, choose **Use my own tokens** and paste them instead (32 to 256 letters, digits, dash or underscore). This works only with a supervisor started by FullDots’ own command, because every use checks it: the `fulldots.remote-supervisor=true` and `fulldots.server-id=<id>` labels (the id is in the command FullDots shows), `--memory` and `--pids-limit`, the default bridge network, exactly one bind mount (`/var/run/docker.sock`), all capabilities dropped with `no-new-privileges`, the pinned supervisor image, and `-p 127.0.0.1:4312:4300`. Anything else is refused.
 3. Press **Check the server**.
 
 A supervisor started by hand must carry the `fulldots.server-id` label from that command, or **Check the server** says it was not started for this alias.
@@ -122,17 +122,25 @@ Each time FullDots uses a computer on the server, not only when it is created, i
 - any port is published on an address other than `127.0.0.1` (or `::1`), the port the supervisor names is not one the container itself publishes on loopback for its API, or it uses a network other than the default bridge (host networking included);
 - its image is not the expected tag for its kind (`opendots-computer:b6932d3-acp5` or `opendots-computer-desktop:b6932d3-desk1`);
 - it does not drop all capabilities, adds any, allows new privileges, turns off a security profile (`seccomp=unconfined`, `apparmor=unconfined`, `label=disable`), runs privileged, has host devices, shares the process, IPC or user namespace, uses a runtime other than runc, or has no memory or process limit;
-- it has any mount other than its own two volumes (`/profiles` and `/workspace`): a bind mount or the Docker socket is refused;
+- it shares the host name namespace, changes the cgroup namespace from the daemon’s default, or sets any kernel parameter (`--sysctl`);
+- it has any mount other than its own two volumes, `<namespace>-profile-<dot id>` at `/profiles` and `<namespace>-workspace-<dot id>` at `/workspace`: another Dot’s volume, a bind mount or the Docker socket is refused;
 - it was not created by this deployment's supervisor for this Dot.
 
 The supervisor gets the same checks, with one difference: it must have exactly one bind mount, the Docker socket, and be published only on `127.0.0.1:4312`. A supervisor on the host network is refused.
 
 The container's environment is never read, because it holds the computer's credential.
 
+## Security
+
+- Set `OWNER_TOKEN` when you use a server. Without it, anything that can reach the FullDots API (on loopback, that is any program on this machine) can read the supervisor settings once with **Show the supervisor settings once**, and use the computers like any other API caller.
+- The relay can reach only the ports described above; FullDots opens no proxy into the server’s network. Each local tunnel port reaches one Dot’s computer or the supervisor, which still require their tokens (the supervisor’s `/health` answers without one).
+- Membership in the docker group is root-equivalent on the server; the relay runs with the same Docker access the ssh user already has, and only reads from Docker.
+
 ## Lifecycle
 
 - The tunnel starts the first time a Dot needs its server, restarts on its own with a growing delay (1 s up to 30 s) when ssh drops, and stops when FullDots shuts down or no Dot and no default uses that server any more. FullDots only ever stops ssh processes it started.
-- A problem that retrying cannot fix (an unknown or changed host key, a refused key, an unknown alias, ssh not found, an alias that forwards ports) does not start ssh again on every poll or connection. It is tried again when you press **Check the server**, or on the next use after 30 seconds.
+- A problem that retrying cannot fix (an unknown or changed host key, a refused key, an unknown alias, ssh not found, an alias that forwards ports) does not start ssh again on every poll or connection. It is tried again when you press **Check the server**, or on the next use after 30 seconds. A refused login waits 10 minutes, so FullDots does not trip a ban tool such as fail2ban.
+- FullDots sends the relay a heartbeat every 15 seconds. A relay that hears nothing for a minute (the network dropped without closing the connection) stops, so none is left running on the server.
 - A tunnel that **Check the server** or a set-up step opened is stopped again when it is done, if no Dot and no default uses that server.
 - Stop keeps a computer's files and browser profile in their volumes on the server.
 - **A Dot cannot move to another server while its computer still exists on the old one.** Remove it there first. If the old server cannot be reached, the move goes ahead and FullDots shows the exact command that removes the leftover container once that server is back. FullDots never removes a computer on your server on its own.
