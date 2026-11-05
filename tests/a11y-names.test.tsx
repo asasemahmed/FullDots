@@ -44,6 +44,16 @@ import type { ApprovalToolResult } from '../src/client/chat-turns';
 import { FakeDocument, FakeElement, mountTree } from './fixtures/fake-dom';
 
 const noop = () => {};
+/** Markup with every tag removed, repeated until none is left (one pass can leave a tag behind). */
+function withoutTags(html: string, between = ''): string {
+  let previous: string;
+  let text = html;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, between);
+  } while (text !== previous);
+  return text;
+}
 const roots: ReactTestRenderer[] = [];
 let dom: ReturnType<typeof mountTree>;
 
@@ -406,10 +416,10 @@ describe('icon-only buttons have names', () => {
           else if (char === '}') depth--;
           else if (char === '>' && depth === 0) break;
         }
-        const inside = block
-          .slice(at + 1)
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
+        const inside = withoutTags(block.slice(at + 1), ' ').replace(
+          /\{\/\*[\s\S]*?\*\/\}/g,
+          ' ',
+        );
         // Text, or an expression that renders text (a label variable, a ternary of strings).
         if (/[A-Za-z]{2,}/.test(inside)) continue;
         const line = source.slice(0, match.index).split('\n').length;
@@ -435,12 +445,14 @@ describe('status chips are read out', () => {
       const html = renderToStaticMarkup(
         <StatusPill status={status} detail={false} />,
       );
-      expect(html.replace(/<[^>]*>/g, '').trim()).not.toBe('');
+      expect(withoutTags(html).trim()).not.toBe('');
     }
     expect(
-      renderToStaticMarkup(
-        <ProviderPill status={{ tone: 'ok', label: 'Ready' }} />,
-      ).replace(/<[^>]*>/g, ''),
+      withoutTags(
+        renderToStaticMarkup(
+          <ProviderPill status={{ tone: 'ok', label: 'Ready' }} />,
+        ),
+      ),
     ).toBe('Ready');
   });
 
