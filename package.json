@@ -113,7 +113,9 @@
     "@ag-ui/core": "$@ag-ui/core",
     "@ag-ui/client": "$@ag-ui/client",
     "@ag-ui/encoder": "1.0.3",
-    "@ag-ui/proto": "1.0.3"
+    "@ag-ui/proto": "1.0.3",
+    "follow-redirects": "1.16.2",
+    "graphql-scalars": "1.24.0"
   },
   "contributors": [
     "Atai Barkai (original OpenDots)"
