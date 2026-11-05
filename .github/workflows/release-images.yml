@@ -1,0 +1,149 @@
+name: Release images
+# Builds the app and page reader images for a release tag and pushes them to GitHub Container
+# Registry under this repository's owner, for linux/amd64 and linux/arm64. Runs when a release is
+# published, or by hand for an existing v* tag (for example a release made before this workflow).
+# The images are built from the tag's own Dockerfile. A new package starts private: make it public
+# once in its package settings.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build, for example v2.1.0
+        required: true
+        type: string
+      latest:
+        description: Also point the latest tag at this release (stable releases only)
+        required: false
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: release-images-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    name: Publish ${{ matrix.target }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: app
+            suffix: ''
+            title: FullDots
+            description: Self-hosted, local-first AI coworkers with their own computers.
+          - target: browser
+            suffix: -browser
+            title: FullDots page reader
+            description: The isolated read-only page reader that FullDots uses for search and research.
+    steps:
+      - name: Check the release tag
+        id: release
+        env:
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+          GITHUB_PRERELEASE: ${{ github.event_name == 'release' && github.event.release.prerelease }}
+          WANT_LATEST: ${{ github.event_name == 'release' || inputs.latest }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Only release tags such as v2.1.0 or v2.1.0-rc.1 are published."
+            echo "Got: $TAG"
+            exit 1
+          fi
+          version="${TAG#v}"
+          # A pre-release (a -suffix, or marked so on GitHub) gets only its exact version tag.
+          stable=true
+          if [[ "$version" == *-* || "$GITHUB_PRERELEASE" == true ]]; then stable=false; fi
+          latest=false
+          if [[ "$stable" == true && "$WANT_LATEST" == true ]]; then latest=true; fi
+          {
+            echo "tag=$TAG"
+            echo "version=$version"
+            echo "stable=$stable"
+            echo "latest=$latest"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY,,}${SUFFIX}"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          # refs/tags/ makes a branch with the same name fail instead of being built.
+          ref: refs/tags/${{ steps.release.outputs.tag }}
+          persist-credentials: false
+      - name: Read the licence and commit
+        id: source
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          package_version="$(jq -r .version package.json)"
+          if [[ "$package_version" != "$VERSION" ]]; then
+            echo "::warning::package.json says $package_version but the tag is $VERSION."
+          fi
+          echo "license=$(jq -r .license package.json)" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          # Multi-platform images: GHCR reads the description and source from the index.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ steps.release.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.release.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.tag }},enable=${{ steps.release.outputs.stable }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.latest }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.licenses=${{ steps.source.outputs.license }}
+          annotations: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.licenses=${{ steps.source.outputs.license }}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          # CI's cache on main covers the amd64 layers; release runs keep their own.
+          cache-from: |
+            type=gha,scope=${{ matrix.target }}
+            type=gha,scope=release-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.target }}
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.release.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+          # Storage records exist only for organisation-owned repositories.
+          create-storage-record: false

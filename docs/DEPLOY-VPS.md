@@ -207,6 +207,31 @@ docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.
 
 The initial build takes several minutes to compile TypeScript, build the client bundle, and download container images.
 
+### (c) Use the published images instead of building
+
+Releases publish the app and page reader images to GitHub Container Registry for `linux/amd64` and `linux/arm64` (see [Use the published images](SETUP.md#use-the-published-images)). To skip building those two, add to `.env`, with the tag you checked out:
+
+```env
+FULLDOTS_IMAGE=ghcr.io/asasemahmed/fulldots:2.1.0
+FULLDOTS_BROWSER_IMAGE=ghcr.io/asasemahmed/fulldots-browser:2.1.0
+```
+
+For (a), run `docker compose -f compose.yml --profile browser pull`, then the command from (a) without `--build`. For (b), the Dot computer images are not published and are still built here, so pull the two images and build only the computer services:
+
+```sh
+docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.yml --profile search --profile browser --profile build-computers pull app browser searxng
+```
+
+```sh
+docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.yml --profile search --profile browser --profile build-computers build computer-image computer-desktop-image computer-supervisor
+```
+
+```sh
+docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.yml --profile search --profile browser --profile build-computers up -d
+```
+
+Do not add `--build` to these commands: it would rebuild the app from the checkout under the published name.
+
 Verify that all containers are healthy:
 
 ```sh
@@ -345,6 +370,8 @@ Check [CHANGELOG.md](../CHANGELOG.md) under the release's **Upgrading** section 
 ```sh
 docker compose -f compose.yml -f compose.computers.yml -f compose.computers-app.yml --profile search --profile browser --profile build-computers up -d --build
 ```
+
+With the published images, change the tag in `FULLDOTS_IMAGE` and `FULLDOTS_BROWSER_IMAGE` to the new release and run the commands from [(c)](#c-use-the-published-images-instead-of-building) instead.
 
 Database migrations run automatically at startup. SQLite columns and tables are added dynamically without data loss.
 
