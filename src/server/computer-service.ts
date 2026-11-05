@@ -28,6 +28,18 @@ export { ComputerConflictError } from './computer-conflict.js';
 export { ComputerError } from './computer-errors.js';
 import { liveFrames, type LiveFrames } from './computer-frames.js';
 import { keyframeFromPng } from './frame-image.js';
+import {
+  removeCommand,
+  UnsafeComputerError,
+  type DotTarget,
+  type RemoteComputers,
+} from './remote-computers.js';
+import { validAlias } from './remote-ssh.js';
+import type { RemoteSetup } from './remote-setup.js';
+import type {
+  ComputerMoveResult,
+  ComputerWhere,
+} from '../shared/remote-computer-types.js';
 const stateSchema = z.object({
   botId: z.string(),
   container: z.string(),
@@ -149,6 +161,9 @@ export class ComputerService {
       model?: string | null,
     ) => boolean;
   };
+  /** Computers on the owner's own server; set by the server entry. */
+  private remote?: RemoteComputers;
+  private setup?: RemoteSetup;
   readonly inputs: ComputerInputs;
   readonly streamInput: ReturnType<typeof computerStreamInputSchema>;
   constructor(
@@ -169,6 +184,38 @@ export class ComputerService {
     this.replayFrames = limits.computerReplayFrames;
     this.inputs = computerInputSchemas(this.inputLimits);
     this.streamInput = computerStreamInputSchema(this.inputLimits);
+  }
+  setRemote(remote: RemoteComputers | undefined, setup?: RemoteSetup) {
+    this.remote = remote;
+    this.setup = setup;
+    remote?.setUsage(() => this.aliasesInUse());
+  }
+  get remoteComputers() {
+    return this.remote;
+  }
+  /** "Set up this server", where FullDots can run ssh for the owner. */
+  get remoteSetup() {
+    return this.setup;
+  }
+  /** Where this Dot's computer runs. Without remote support, always this machine. */
+  target(id: string): DotTarget {
+    return this.remote?.target(id) ?? { where: 'local' };
+  }
+  /** Whether this Dot's computer can be reached at all: this machine's settings, or a server alias. */
+  configuredFor(id: string): boolean {
+    const target = this.target(id);
+    return target.where === 'remote'
+      ? validAlias(target.alias)
+      : this.localConfigured;
+  }
+  private requireConfigured(id: string) {
+    if (this.configuredFor(id)) return;
+    throw new ComputerError(
+      503,
+      this.target(id).where === 'remote'
+        ? 'No server is set for this Dot’s computer. Type the ssh alias of your server in Settings → Computers.'
+        : 'Computer service is not configured.',
+    );
   }
   setHandoffs(store: Pick<HandoffStore, 'waitingFor'> | undefined) {
     this.handoffs = store;
@@ -206,7 +253,22 @@ export class ComputerService {
   get streamInputBytes() {
     return Math.max(64 * 1024, this.inputLimits.typeChars * 6 + 1024);
   }
+  /**
+   * Whether any Dot can have a computer: this machine's supervisor is configured, or computers run
+   * on the owner's server. Each Dot is still checked on its own (see {@link configuredFor}).
+   */
   get configured() {
+    if (this.localConfigured) return true;
+    const remote = this.remote;
+    if (!remote) return false;
+    const defaults = remote.defaults();
+    if (defaults.where === 'remote' && validAlias(defaults.alias)) return true;
+    return this.workspace
+      .dots()
+      .some((dot) => !!this.workspace.computers.server(dot.id));
+  }
+  /** Whether this machine's supervisor is configured. */
+  private get localConfigured() {
     return !!(
       this.config.computerSupervisorUrl?.trim() &&
       this.config.computerSupervisorToken?.trim() &&
@@ -214,7 +276,12 @@ export class ComputerService {
     );
   }
   private token(id: string) {
-    return createHmac('sha256', this.config.computerToken!.trim())
+    const target = this.target(id);
+    const master =
+      target.where === 'remote' && target.alias && this.remote
+        ? this.remote.secrets(target.alias).computerToken
+        : this.config.computerToken!.trim();
+    return createHmac('sha256', master)
       .update(`opendots-computer:${id}`)
       .digest('hex');
   }
@@ -228,8 +295,7 @@ export class ComputerService {
     actor: 'agent' | 'owner',
   ) {
     this.requireDot(id);
-    if (!this.configured)
-      throw new ComputerError(503, 'Computer service is not configured.');
+    this.requireConfigured(id);
     const policy = this.workspace.computers.permissions(id);
     const computerKind = policy.kind ?? 'browser';
     if (!policy.enabled)
@@ -321,6 +387,9 @@ export class ComputerService {
         this.redact(Buffer.concat(chunks).toString('utf8'), token),
       );
     } catch (error) {
+      // A call that failed because the tunnel to the owner's server is down says so.
+      const down = signal?.aborted ? undefined : this.remoteDown(url);
+      if (down) throw new ComputerError(503, down, { cause: error });
       if (combined.aborted)
         throw new ComputerError(
           502,
@@ -345,17 +414,58 @@ export class ComputerService {
       clearTimeout(timeout);
     }
   }
-  /** Infrastructure secrets must never leave the gateway even if an upstream response reflects one. */
-  private redact(text: string, token: string) {
-    for (const secret of [
+  /** A clear reason when a call failed because the tunnel to the owner's server is down. */
+  private remoteDown(url: string): string | undefined {
+    if (!this.remote) return undefined;
+    try {
+      return this.remote.downAt(Number(new URL(url).port));
+    } catch {
+      return undefined;
+    }
+  }
+  /** Every infrastructure secret, local and for each of the owner's servers. */
+  private secrets(token?: string): string[] {
+    return [
       token,
       this.config.computerToken?.trim(),
       this.config.computerSupervisorToken?.trim(),
-    ])
+      ...(this.remote?.allSecrets() ?? []),
+    ].filter((secret): secret is string => !!secret);
+  }
+  /** Infrastructure secrets must never leave the gateway even if an upstream response reflects one. */
+  private redact(text: string, token: string) {
+    for (const secret of this.secrets(token))
       if (secret) text = text.split(secret).join('[redacted]');
     return text;
   }
-  private supervisor(path: string, body?: unknown, signal?: AbortSignal) {
+  /**
+   * One call to the supervisor that holds this Dot's computer: this machine's, or the one on the
+   * owner's server through its tunnel. A server that cannot be reached is an error; there is no
+   * fallback to this machine's Docker.
+   */
+  private async supervisor(
+    id: string,
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ) {
+    const target = this.target(id);
+    if (target.where === 'remote') {
+      if (!this.remote)
+        throw new ComputerError(
+          503,
+          'Computers on your server are not available here.',
+        );
+      const origin = await this.remote.supervisorOrigin(target.alias);
+      return this.json(
+        `${origin}${path}`,
+        this.remote.secrets(target.alias!).supervisorToken,
+        body,
+        signal,
+      );
+    }
+    if (!this.localConfigured)
+      throw new ComputerError(503, 'Computer service is not configured.');
     return this.json(
       `${this.config.computerSupervisorUrl!.replace(/\/$/, '')}${path}`,
       this.config.computerSupervisorToken!.trim(),
@@ -363,7 +473,26 @@ export class ComputerService {
       signal,
     );
   }
-  private endpoint(id: string, raw: unknown) {
+  private async endpoint(id: string, raw: unknown): Promise<string> {
+    const target = this.target(id);
+    if (target.where !== 'remote') return this.localEndpoint(id, raw);
+    const state = stateSchema.parse(raw);
+    const ns = this.config.computerNamespace ?? 'opendots';
+    if (state.botId !== id || state.container !== `${ns}-computer-${id}`)
+      throw new ComputerError(502, 'Computer identity mismatch.');
+    if (!this.remote)
+      throw new ComputerError(
+        503,
+        'Computers on your server are not available here.',
+      );
+    return this.remote.origin(
+      target.alias!,
+      id,
+      state,
+      this.policy(id).kind === 'desktop' ? 'desktop' : 'browser',
+    );
+  }
+  private localEndpoint(id: string, raw: unknown) {
     const state = stateSchema.parse(raw);
     const ns = this.config.computerNamespace ?? 'opendots';
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(ns))
@@ -402,7 +531,7 @@ export class ComputerService {
   private async existing(id: string, signal?: AbortSignal) {
     const listing = z
       .object({ computers: z.array(stateSchema) })
-      .parse(await this.supervisor('/computers', undefined, signal));
+      .parse(await this.supervisor(id, '/computers', undefined, signal));
     return listing.computers.find((c) => c.botId === id);
   }
   private async running(id: string, signal?: AbortSignal) {
@@ -413,8 +542,17 @@ export class ComputerService {
   }
   async status(id: string): Promise<ComputerStatus> {
     this.requireDot(id);
+    const target = this.target(id);
     const base: Omit<ComputerStatus, 'state'> = {
-      configured: this.configured,
+      configured: this.configuredFor(id),
+      server:
+        target.where === 'remote'
+          ? {
+              where: 'remote',
+              ...(target.alias ? { alias: target.alias } : {}),
+              own: !!this.workspace.computers.server(id),
+            }
+          : { where: 'local', own: false },
       permissions: this.workspace.computers.permissions(id),
       audit: this.workspace.computers.audit(id),
       limits: this.inputLimits,
@@ -433,12 +571,13 @@ export class ComputerService {
           createdAt: waiting.createdAt,
         },
       });
-    if (!this.configured) return { ...base, state: 'not_configured' };
+    if (target.where === 'remote') return this.remoteStatus(id, target, base);
+    if (!this.localConfigured) return { ...base, state: 'not_configured' };
     try {
       const state = await this.existing(id);
       if (!state || state.status !== 'running')
         return { ...base, state: 'stopped' };
-      const url = this.endpoint(id, state);
+      const url = await this.endpoint(id, state);
       const control = controlSchema.parse(
         await this.json(
           `${url}/control`,
@@ -455,6 +594,112 @@ export class ComputerService {
         state: 'unavailable',
         error:
           'Computer service is unavailable. Check the supervisor configuration and connection.',
+      };
+    }
+  }
+  /**
+   * A computer on the owner's server, checked in the order of the guide: the alias, ssh, Docker,
+   * the images, the supervisor, then this Dot's computer (stopped, unsafe, not ready yet).
+   */
+  private async remoteStatus(
+    id: string,
+    target: Extract<DotTarget, { where: 'remote' }>,
+    base: Omit<ComputerStatus, 'state'>,
+  ): Promise<ComputerStatus> {
+    const alias = target.alias;
+    const failed = this.remote
+      ? await this.remote.serverCheck(alias)
+      : {
+          check: 'ssh_failed' as const,
+          message: 'Computers on your server are not available here.',
+        };
+    if (failed)
+      return {
+        ...base,
+        state:
+          failed.check === 'alias_not_set' ? 'not_configured' : 'unavailable',
+        error: failed.message,
+        remote: failed,
+      };
+    const at = (
+      check: NonNullable<ComputerStatus['remote']>['check'],
+      message: string,
+      command?: string,
+    ) => ({
+      ...(alias ? { alias } : {}),
+      check,
+      message,
+      ...(command ? { command } : {}),
+    });
+    let url: string;
+    try {
+      const state = await this.existing(id);
+      if (!state || state.status !== 'running')
+        return {
+          ...base,
+          state: 'stopped',
+          remote: at(
+            'computer_stopped',
+            `This Dot’s computer on ${alias} is stopped. Press Start to turn it on.`,
+          ),
+        };
+      url = await this.endpoint(id, state);
+    } catch (error) {
+      if (error instanceof ComputerError && error.status === 409)
+        return {
+          ...base,
+          state: 'stopped',
+          remote: at(
+            'computer_stopped',
+            `This Dot’s computer on ${alias} is stopped. Press Start to turn it on.`,
+          ),
+        };
+      const message =
+        error instanceof ComputerError
+          ? error.message
+          : 'The server did not answer.';
+      const unsafe = error instanceof UnsafeComputerError;
+      return {
+        ...base,
+        state: 'unavailable',
+        error: message,
+        remote: unsafe
+          ? at(
+              'computer_unsafe',
+              message,
+              removeCommand(
+                target,
+                this.config.computerNamespace ?? 'opendots',
+                id,
+              ),
+            )
+          : at('supervisor_not_running', message),
+      };
+    }
+    try {
+      const control = controlSchema.parse(
+        await this.json(
+          `${url}/control`,
+          this.token(id),
+          undefined,
+          undefined,
+          id,
+        ),
+      );
+      return {
+        ...base,
+        state: 'running',
+        control,
+        remote: at('ready', `This Dot’s computer runs on ${alias}.`),
+      };
+    } catch {
+      const kind = this.policy(id).kind === 'desktop' ? 'desktop' : 'browser';
+      const message = `The ${kind} on ${alias} is not ready yet. Wait a moment; if it stays like this, Stop and Start the computer.`;
+      return {
+        ...base,
+        state: 'unavailable',
+        error: message,
+        remote: at('not_ready', message),
       };
     }
   }
@@ -497,9 +742,9 @@ export class ComputerService {
     await this.audited(id, 'start', 'owner', async () => {
       this.allowed(id, undefined, 'owner');
       const policy = this.workspace.computers.permissions(id);
-      this.endpoint(
+      await this.endpoint(
         id,
-        await this.supervisor(`/computers/${id}/ensure`, {
+        await this.supervisor(id, `/computers/${id}/ensure`, {
           kind: policy.kind ?? 'browser',
         }),
       );
@@ -508,16 +753,14 @@ export class ComputerService {
   }
   async stop(id: string) {
     await this.audited(id, 'stop', 'owner', async () => {
-      if (!this.configured)
-        throw new ComputerError(503, 'Computer service is not configured.');
-      await this.supervisor(`/computers/${id}/stop`, {});
+      this.requireConfigured(id);
+      await this.supervisor(id, `/computers/${id}/stop`, {});
     });
     return this.status(id);
   }
   async control(id: string, verb: 'take' | 'release') {
     await this.audited(id, verb, 'owner', async () => {
-      if (!this.configured)
-        throw new ComputerError(503, 'Computer service is not configured.');
+      this.requireConfigured(id);
       const policy = this.workspace.computers.permissions(id);
       const screenKind = policy.kind === 'desktop' ? 'desktop' : 'browser';
       if (verb === 'take') this.allowed(id, screenKind, 'owner');
@@ -616,8 +859,7 @@ export class ComputerService {
    */
   async cancelOwnerControl(id: string): Promise<ComputerControl> {
     return this.audited(id, 'cancel_control', 'owner', async () => {
-      if (!this.configured)
-        throw new ComputerError(503, 'Computer service is not configured.');
+      this.requireConfigured(id);
       const url = await this.running(id);
       const settle = async (verb: 'cancel' | 'release', requestId: string) => {
         try {
@@ -850,6 +1092,153 @@ export class ComputerService {
   async framesSettled() {
     while (this.pendingFrames.size) await Promise.all(this.pendingFrames);
   }
+  /** Where computers run for a Dot that has no server of its own. */
+  private defaultTarget(): DotTarget {
+    const defaults = this.remote?.defaults();
+    return defaults?.where === 'remote'
+      ? { where: 'remote', alias: defaults.alias }
+      : { where: 'local' };
+  }
+  private reachable(target: DotTarget) {
+    return target.where === 'remote'
+      ? validAlias(target.alias)
+      : this.localConfigured;
+  }
+  private same(a: DotTarget, b: DotTarget) {
+    if (a.where === 'local' || b.where === 'local') return a.where === b.where;
+    return a.alias === b.alias;
+  }
+  /** The Dot ids of the computers a supervisor holds. */
+  private async listAt(target: DotTarget): Promise<string[]> {
+    const listing = z.object({ computers: z.array(stateSchema) });
+    if (target.where === 'remote') {
+      if (!this.remote) return [];
+      const origin = await this.remote.supervisorOrigin(target.alias);
+      return listing
+        .parse(
+          await this.json(
+            `${origin}/computers`,
+            this.remote.secrets(target.alias!).supervisorToken,
+            undefined,
+          ),
+        )
+        .computers.map((computer) => computer.botId);
+    }
+    return listing
+      .parse(
+        await this.json(
+          `${this.config.computerSupervisorUrl!.replace(/\/$/, '')}/computers`,
+          this.config.computerSupervisorToken!.trim(),
+          undefined,
+        ),
+      )
+      .computers.map((computer) => computer.botId);
+  }
+  private where(target: DotTarget) {
+    return target.where === 'remote'
+      ? (target.alias ?? 'your server')
+      : 'this machine';
+  }
+  /**
+   * Checks that no computer of these Dots is left where they used to run. A computer that still
+   * exists there blocks the move, with the command that removes it; FullDots never removes it
+   * itself. A server that cannot be reached does not block: the commands come back as leftovers.
+   */
+  private async leaving(before: DotTarget, dotIds: string[]) {
+    const ns = this.config.computerNamespace ?? 'opendots';
+    if (!dotIds.length || !this.reachable(before)) return undefined;
+    let held: string[];
+    try {
+      held = (await this.listAt(before)).filter((id) => dotIds.includes(id));
+    } catch {
+      return dotIds.map((id) => removeCommand(before, ns, id));
+    }
+    if (held.length)
+      throw new ComputerError(
+        409,
+        `Remove the computer on ${this.where(before)} first. FullDots does not remove it for you; its files stay in their volumes. Run: ${held.map((id) => removeCommand(before, ns, id)).join(' ; ')}`,
+      );
+    return undefined;
+  }
+  /** Keeps only the tunnels a Dot or the default still uses. */
+  /** The aliases the default or any Dot uses. */
+  private aliasesInUse(): Set<string> {
+    const inUse = new Set<string>();
+    const defaults = this.remote?.defaults();
+    if (defaults?.where === 'remote' && defaults.alias)
+      inUse.add(defaults.alias);
+    for (const dot of this.workspace.dots()) {
+      const own = this.workspace.computers.server(dot.id);
+      if (own) inUse.add(own);
+    }
+    return inUse;
+  }
+  private pruneTunnels() {
+    this.remote?.prune(this.aliasesInUse());
+  }
+  private requireAliasInput(alias: string | null | undefined) {
+    if (alias !== null && alias !== undefined && !validAlias(alias))
+      throw new ComputerError(
+        400,
+        'Use the name of a Host from your ssh config: letters, digits, dot, dash and underscore, not starting with a dash.',
+      );
+  }
+  /** Gives a Dot its own server alias, or puts it back on the default with null. */
+  async moveServer(
+    id: string,
+    alias: string | null,
+  ): Promise<ComputerMoveResult> {
+    this.requireDot(id);
+    if (!this.remote)
+      throw new ComputerError(
+        503,
+        'Computers on your server are not available here.',
+      );
+    this.requireAliasInput(alias);
+    if ((this.workspace.computers.server(id) ?? null) === alias)
+      return { moved: false };
+    const before = this.target(id);
+    const after: DotTarget =
+      alias !== null ? { where: 'remote', alias } : this.defaultTarget();
+    const leftover = this.same(before, after)
+      ? undefined
+      : await this.leaving(before, [id]);
+    await this.audited(id, 'server', 'owner', async () =>
+      this.workspace.computers.setServer(id, alias ?? undefined),
+    );
+    if (before.where === 'remote' && before.alias)
+      this.remote.release(before.alias, id);
+    this.pruneTunnels();
+    return { moved: true, ...(leftover ? { leftover } : {}) };
+  }
+  /** Changes where computers run by default, for every Dot without its own server. */
+  async setDefaults(
+    where: ComputerWhere,
+    alias?: string,
+  ): Promise<ComputerMoveResult> {
+    if (!this.remote)
+      throw new ComputerError(
+        503,
+        'Computers on your server are not available here.',
+      );
+    this.requireAliasInput(alias);
+    if (where === 'remote' && !alias)
+      throw new ComputerError(400, 'Type the ssh alias of your server.');
+    const before = this.defaultTarget();
+    const after: DotTarget = where === 'remote' ? { where, alias } : { where };
+    const users = this.workspace
+      .dots()
+      .map((dot) => dot.id)
+      .filter((id) => !this.workspace.computers.server(id));
+    const leftover = this.same(before, after)
+      ? undefined
+      : await this.leaving(before, users);
+    this.remote.setDefaults(where, alias);
+    if (before.where === 'remote' && before.alias && !this.same(before, after))
+      for (const id of users) this.remote.release(before.alias, id);
+    this.pruneTunnels();
+    return { moved: true, ...(leftover ? { leftover } : {}) };
+  }
   /**
    * A one-time ticket for opening the live screen.
    *
@@ -934,11 +1323,7 @@ export class ComputerService {
       this.allowed(id, screenKind, 'owner');
       signal?.throwIfAborted();
       const token = this.token(id);
-      const secrets = [
-        token,
-        this.config.computerToken?.trim(),
-        this.config.computerSupervisorToken?.trim(),
-      ].filter((secret): secret is string => !!secret);
+      const secrets = this.secrets(token);
       return {
         url: `ws://${new URL(origin).host}/stream?bot=${encodeURIComponent(id)}&token=${token}`,
         redact: (text) =>

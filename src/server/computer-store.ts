@@ -11,20 +11,22 @@ export class ComputerStore {
       CREATE TABLE IF NOT EXISTS computer_audit(id TEXT PRIMARY KEY,dotId TEXT NOT NULL,action TEXT NOT NULL,actor TEXT NOT NULL,outcome TEXT NOT NULL,createdAt INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS action_audit(id TEXT PRIMARY KEY,dotId TEXT NOT NULL,threadId TEXT,tool TEXT NOT NULL,actor TEXT NOT NULL,outcome TEXT NOT NULL,createdAt INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS action_audit_dot ON action_audit(dotId,createdAt);`);
-    const hasKind = db
+    const columns = db
       .prepare('PRAGMA table_info(computer_permissions)')
       .all()
-      .some(
-        (col) =>
-          typeof col === 'object' &&
-          col !== null &&
-          (col as { name?: unknown }).name === 'kind',
+      .map((col) =>
+        typeof col === 'object' && col !== null
+          ? (col as { name?: unknown }).name
+          : undefined,
       );
-    if (!hasKind) {
+    if (!columns.includes('kind')) {
       db.exec(
         `ALTER TABLE computer_permissions ADD COLUMN kind TEXT NOT NULL DEFAULT 'browser'`,
       );
     }
+    // The ssh alias of the Dot's own server. NULL means the default for every Dot.
+    if (!columns.includes('server'))
+      db.exec('ALTER TABLE computer_permissions ADD COLUMN server TEXT');
     const row = db.prepare('SELECT COUNT(*) AS n FROM action_audit').get();
     if (Number(row?.n) === 0)
       db.exec(
@@ -76,6 +78,24 @@ export class ComputerStore {
       )
       .run(id, JSON.stringify(value), kind);
     return value;
+  }
+  /** The Dot's own server alias, or undefined when it uses the default. */
+  server(id: string): string | undefined {
+    const row = this.db
+      .prepare('SELECT server FROM computer_permissions WHERE dotId=?')
+      .get(id) as { server?: unknown } | undefined;
+    return typeof row?.server === 'string' && row.server
+      ? row.server
+      : undefined;
+  }
+  setServer(id: string, alias: string | undefined) {
+    const value = this.permissions(id);
+    this.db
+      .prepare(
+        `INSERT INTO computer_permissions(dotId, value, kind, server) VALUES (?,?,?,?)
+         ON CONFLICT(dotId) DO UPDATE SET server=excluded.server`,
+      )
+      .run(id, JSON.stringify(value), value.kind ?? 'browser', alias ?? null);
   }
   begin(
     dotId: string,
