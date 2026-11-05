@@ -31,6 +31,7 @@ import {
   type SheetTarget,
 } from '../src/client/ConnectorSheet';
 import { ConnectorsSettings } from '../src/client/ConnectorsSettings';
+import { connectorMark } from '../src/client/connector-logos';
 import {
   AUTH_MESSAGE_TYPE,
   AuthorizeError,
@@ -46,6 +47,7 @@ import {
 } from '../src/client/useConnectorAuth';
 import { WorkspaceDialog, readStoredTab } from '../src/client/WorkspaceDialog';
 import { connectorPresets } from '../src/shared/connector-presets';
+import { Plug, Terminal } from 'lucide-react';
 import type {
   ConnectorToolInfo,
   ConnectorView,
@@ -1096,5 +1098,29 @@ describe('Settings dialog tabs', () => {
 
   it('remembers nothing, and does not throw, when storage is unavailable', () => {
     expect(readStoredTab()).toBe('general');
+  });
+});
+
+describe('connector logos', () => {
+  const fallback = (mark: ReturnType<typeof connectorMark>) =>
+    mark.kind === 'glyph' && (mark.icon === Plug || mark.icon === Terminal);
+
+  it.each(connectorPresets)('$id has its own logo', (item) => {
+    // As the gallery card asks for it, and for a connector saved without its preset id.
+    expect(
+      fallback(connectorMark(item.id, item.name, item.url, item.transport)),
+    ).toBe(false);
+    expect(
+      fallback(connectorMark(null, item.name, item.url, item.transport)),
+    ).toBe(false);
+  });
+
+  it('does not take the Exa mark for an address that only contains "exa"', () => {
+    const mark = connectorMark(null, 'docs', 'https://mcp.example.com/mcp');
+    expect(fallback(mark)).toBe(true);
+    expect(fallback(connectorMark('exa'))).toBe(false);
+    expect(
+      fallback(connectorMark(null, 'search', 'https://mcp.exa.ai/mcp')),
+    ).toBe(false);
   });
 });

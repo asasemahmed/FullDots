@@ -6,6 +6,7 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Added
 
+- **Nine more connector presets.** Settings → Connectors now offers monday.com, Airtable, Prisma, Netlify, Webflow and Wix with browser sign-in, and DeepWiki, Exa and Context7 with no sign-in. Each one is the vendor's own hosted server, and its card links to the vendor's setup page. monday.com can also use a personal API token from `.env`. See [`docs/CONNECTORS.md`](docs/CONNECTORS.md#presets) (closing [#10](https://github.com/asasemahmed/FullDots/issues/10)).
 - **A full Linux desktop for each Dot.** Choose Full desktop in computer settings to use Linux apps, native mouse and keyboard input, whole-screen viewing, takeover and replay. Desktop actions require an owner-enabled Images flag for the Dot's model; typing always asks unless approvals are off. The desktop image is built locally, runs its GUI as a separate user, and defaults to 4 GiB of memory. See [Dot computers](docs/COMPUTERS.md#full-desktop).
 
 - **Install FullDots as an app.** A web app manifest and app icons let you install FullDots on phones and desktops. On a phone, choose Add to Home Screen; on a desktop browser, click Install in the address bar. The app opens in its own window. It still needs your server running; there is no offline mode. See [`docs/UI.md`](docs/UI.md#install-fulldots-as-an-app) (closing [#12](https://github.com/asasemahmed/FullDots/issues/12)).

@@ -79,6 +79,15 @@ The **Token alternative** column names the environment variable for a token. For
 | `supabase`        | Browser sign-in | `https://mcp.supabase.com/mcp`                   | `SUPABASE_ACCESS_TOKEN` |
 | `neon`            | Browser sign-in | `https://mcp.neon.tech/mcp`                      | `NEON_API_KEY`          |
 | `stripe`          | Browser sign-in | `https://mcp.stripe.com`                         | `STRIPE_AGENT_API_KEY`  |
+| `monday`          | Browser sign-in | `https://mcp.monday.com/mcp`                     | `MONDAY_API_TOKEN`      |
+| `airtable`        | Browser sign-in | `https://mcp.airtable.com/mcp`                   | —                       |
+| `prisma`          | Browser sign-in | `https://mcp.prisma.io/mcp`                      | —                       |
+| `netlify`         | Browser sign-in | `https://mcp.netlify.com/mcp`                    | —                       |
+| `webflow`         | Browser sign-in | `https://mcp.webflow.com/mcp`                    | —                       |
+| `wix`             | Browser sign-in | `https://mcp.wix.com/mcp`                        | —                       |
+| `deepwiki`        | No sign-in      | `https://mcp.deepwiki.com/mcp`                   | —                       |
+| `exa`             | No sign-in      | `https://mcp.exa.ai/mcp`                         | —                       |
+| `context7`        | No sign-in      | `https://mcp.context7.com/mcp`                   | —                       |
 | `filesystem`      | Local program   | `npx -y @modelcontextprotocol/server-filesystem` | —                       |
 | `fetch`           | Local program   | `uvx mcp-server-fetch`                           | —                       |
 | `google-drive`    | Local program   | `npx -y @modelcontextprotocol/server-gdrive`     | —                       |
@@ -88,6 +97,9 @@ Notes on specific presets:
 
 - `sentry`: the token variable must hold the whole value `Sentry-Bearer <token>`. FullDots sends it as given.
 - `stripe`: use a restricted API key. Stripe asks for its own confirmation before write actions.
+- `monday`: your monday.com account admin may need to approve FullDots and its redirect address before you can connect.
+- `deepwiki`: public GitHub repositories only. Private repositories need a Devin account and the Devin MCP server.
+- `exa` and `context7`: both work without an account at a lower rate limit. To sign in with the browser, change the URL to `https://mcp.exa.ai/mcp?login` or `https://mcp.context7.com/mcp/oauth` and choose **Connect with browser**. An Exa API key goes in an `x-api-key` header.
 - `filesystem`: add the directory to expose as the last argument. Access is limited to that directory.
 - `google-drive` and `gmail`: run the program once to finish Google sign-in. See each preset's docs link.
 - The stdio presets need `CONNECTORS_ALLOW_STDIO=true`. Without it, saving a stdio connector is refused.
