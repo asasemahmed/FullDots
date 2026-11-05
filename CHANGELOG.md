@@ -32,6 +32,8 @@ All notable changes to FullDots are listed here. The project follows [Semantic V
 
 ### Fixed
 
+- **Keyboard and screen reader access in Settings, dialogs and approval cards.** Every modal dialog now shares one focus trap: Tab and Shift+Tab stay inside it and skip hidden Settings tabs and disabled controls, Escape closes it, and focus returns to the button that opened it, including from a sidebar menu. The trigger dialog gains Escape and the trap it lacked. The status chip on an open connector or provider page and approval badges are read out when they change, focus stays on an approval card after you answer it, and "Add a note" moves focus into the note. The Dot character settles at rest when reduced motion is turned on while the page is open, and Inbox jumps no longer scroll smoothly under reduced motion. See [`docs/UI.md`](docs/UI.md#accessibility).
+
 - **Review desktop typing before approving.** Pending approvals show the proposed text in the app, with its character count and escaped control characters. The removable preview stays out of channels, audit records and replay. Desktop settings now explain that Full desktop includes a terminal even with Terminal off, and connector tabs reference only their rendered panel.
 
 - **A remote agent name is checked at the address it really points to.** A public name that resolves to this machine, a private network, or a cloud metadata address is refused, including when the name changes its answer before the connection. A host listed in `AGENT_ENDPOINT_ALLOWED_HOSTS` may still point at a private address. Metadata addresses stay refused. See [`docs/AGENTS.md`](docs/AGENTS.md#which-addresses-are-allowed).
