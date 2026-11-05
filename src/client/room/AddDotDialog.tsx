@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import type { Dot } from '../../shared/types';
 import { Mascot, dotLook } from '../Mascot';
+import { useModalDialog } from '../useModalDialog';
 import './room.css';
 
 export function AddDotDialog({
@@ -16,6 +17,12 @@ export function AddDotDialog({
   busy?: boolean;
 }) {
   const add = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  // Escape cancels, Tab stays inside, and focus goes back to the composer afterwards.
+  const modal = useModalDialog(dialog, {
+    onClose: onCancel,
+    initialFocus: false,
+  });
   useEffect(() => {
     // After the keypress that sent the message has settled, so the composer does not take it back.
     const timer = setTimeout(() => add.current?.focus(), 0);
@@ -30,17 +37,14 @@ export function AddDotDialog({
       }}
     >
       <div
+        ref={dialog}
         className="fd-add-dot"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={`${titleId}-text`}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            onCancel();
-          }
-        }}
+        tabIndex={-1}
+        onKeyDown={modal.onKeyDown}
       >
         <Mascot
           identity={dot.id}

@@ -29,6 +29,7 @@ import { SEARCH_QUERY_MAX } from '../../shared/search';
 import { api } from '../api';
 import { BrandMark } from '../DotCharacter';
 import { Mascot } from '../Mascot';
+import { useModalDialog } from '../useModalDialog';
 import { idleSearch, type SearchState } from './debounced-search';
 import {
   buildActions,
@@ -164,14 +165,8 @@ function PaletteDialog({
   const active = resolveActive(groups, activeId);
   const count = groups.reduce((sum, group) => sum + group.items.length, 0);
 
-  useEffect(() => {
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    input.current?.focus();
-    return () => previous?.focus();
-  }, []);
+  const dialog = useRef<HTMLDivElement>(null);
+  const modal = useModalDialog(dialog, { onClose, initialFocus: input });
   useEffect(() => {
     if (active)
       document
@@ -223,10 +218,13 @@ function PaletteDialog({
       }}
     >
       <div
+        ref={dialog}
         className="pal"
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        tabIndex={-1}
+        onKeyDown={modal.onKeyDown}
       >
         <div className="pal-input-row">
           <span className="pal-brand" aria-hidden="true">

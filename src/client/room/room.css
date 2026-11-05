@@ -195,6 +195,9 @@
   box-shadow: var(--shadow-lg);
   text-align: center;
 }
+.fd-add-dot:focus {
+  outline: none;
+}
 .fd-add-dot .mascot {
   width: 72px;
   height: 72px;

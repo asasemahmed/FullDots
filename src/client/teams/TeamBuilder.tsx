@@ -5,7 +5,6 @@
 // the lead (default) or Direct, and the team's home Space with its run log. A new team can also
 // start from a template.
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -31,6 +30,7 @@ import {
 } from '../../shared/teams';
 import type { Dot } from '../../shared/types';
 import { api } from '../api';
+import { useModalDialog } from '../useModalDialog';
 import { Mascot, dotLook } from '../Mascot';
 import {
   addToTeam,
@@ -130,34 +130,7 @@ export function TeamBuilder({
   const full = teamIsFull(draft);
 
   // Focus the name, keep Tab inside, close on Escape; give focus back when closed.
-  useEffect(() => {
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    container.current?.querySelector<HTMLElement>('input')?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) onClose();
-      if (event.key !== 'Tab') return;
-      const items = [
-        ...(container.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]):not([tabindex="-1"]),input,textarea,select,a[href]',
-        ) ?? []),
-      ];
-      if (event.shiftKey && document.activeElement === items[0]) {
-        event.preventDefault();
-        items.at(-1)?.focus();
-      } else if (!event.shiftKey && document.activeElement === items.at(-1)) {
-        event.preventDefault();
-        items[0]?.focus();
-      }
-    };
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('keydown', key);
-      previous?.focus();
-    };
-  }, []);
+  const modal = useModalDialog(container, { onClose });
 
   const add = (dotId: string) => {
     const next = addToTeam(draft, dotId);
@@ -255,6 +228,8 @@ export function TeamBuilder({
         aria-modal="true"
         aria-labelledby="team-builder-title"
         ref={container}
+        tabIndex={-1}
+        onKeyDown={modal.onKeyDown}
         onClick={(event) => event.stopPropagation()}
         style={{ '--team-color': `var(--dot-${draft.color}-base)` } as never}
       >

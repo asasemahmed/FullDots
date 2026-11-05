@@ -353,6 +353,9 @@
   box-shadow: var(--shadow-lg);
   animation: dot-notes-slide var(--dur-med) var(--ease-out) both;
 }
+.dot-notes-sheet:focus {
+  outline: none;
+}
 .dot-notes-sheet-head {
   display: flex;
   align-items: center;

@@ -27,6 +27,10 @@
     0 2px 8px #2424240d;
   color: var(--text);
 }
+/* The dialog itself takes focus when it has no control to start on; no ring for that. */
+.modal.dlg:focus {
+  outline: none;
+}
 .modal.dlg.dlg-dot {
   max-width: 680px;
 }

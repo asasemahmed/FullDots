@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CircleAlert, Copy, Webhook, X, Radar } from 'lucide-react';
 import { api } from './api';
+import { useModalDialog } from './useModalDialog';
 import type {
   ConnectorView,
   DotConnectorGrant,
@@ -57,9 +58,16 @@ function CopyField({ label, value }: { label: string; value: string }) {
             })
           }
         >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied ? (
+            <Check size={14} aria-hidden="true" />
+          ) : (
+            <Copy size={14} aria-hidden="true" />
+          )}
           {copied ? 'Copied' : 'Copy'}
         </button>
+        <span className="sr-only" role="status">
+          {copied ? `${label} copied` : ''}
+        </span>
       </div>
     </div>
   );
@@ -91,6 +99,12 @@ export function TriggerDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<Created>();
+  const container = useRef<HTMLElement>(null);
+  const modal = useModalDialog(container, { onClose });
+  // The form is replaced by the secret: start there instead of on the page body.
+  useEffect(() => {
+    if (created) container.current?.focus();
+  }, [created]);
 
   useEffect(() => {
     if (kind !== 'poll') return;
@@ -186,6 +200,9 @@ export function TriggerDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="trigger-title"
+        ref={container}
+        tabIndex={-1}
+        onKeyDown={modal.onKeyDown}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="dlg-header">
@@ -201,7 +218,7 @@ export function TriggerDialog({
             aria-label="Close dialog"
             onClick={onClose}
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </header>
         {created ? (
