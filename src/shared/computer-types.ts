@@ -1,3 +1,4 @@
+import type { RemoteCheckResult } from './remote-computer-types.js';
 import { z } from 'zod';
 export type ComputerKind = 'browser' | 'desktop';
 
@@ -62,6 +63,16 @@ export interface ComputerStatus {
   control?: ComputerControl;
   error?: string;
   limits?: ComputerInputLimits;
+  /** Where this Dot's computer runs. */
+  server?: {
+    where: 'local' | 'remote';
+    /** The ssh alias, for a computer on the owner's server. */
+    alias?: string;
+    /** True when the Dot has its own alias instead of the default. */
+    own: boolean;
+  };
+  /** For a computer on the owner's server: the first check that failed, or ready. */
+  remote?: RemoteCheckResult;
   /** A waiting owner handoff for this Dot, if any. */
   handoff?: {
     id: string;

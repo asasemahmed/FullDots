@@ -7,6 +7,7 @@ import type {
   ComputerStatus,
 } from '../../shared/computer-types';
 import type { Working } from './PanelHeader';
+import { ServerField } from './RemoteServer';
 import {
   COMPUTER_DOCS_URL,
   PERMISSION_COPY,
@@ -87,6 +88,7 @@ export function SettingsSheet({
   onStart,
   onStop,
   onClose,
+  onServerChanged,
 }: {
   id: string;
   dot: Dot;
@@ -104,6 +106,8 @@ export function SettingsSheet({
   onStart: () => void;
   onStop: () => void;
   onClose: () => void;
+  /** Reloads the status after the Dot's server changed. */
+  onServerChanged?: () => void;
 }) {
   const running = status.state === 'running';
   const currentKind: ComputerKind =
@@ -185,7 +189,16 @@ export function SettingsSheet({
           </p>
         )}
       </div>
-      {!status.configured && (
+      {status.server && onServerChanged && (
+        <ServerField
+          id={`${id}-server`}
+          dotId={dot.id}
+          status={status}
+          disabled={busy || running}
+          onChanged={onServerChanged}
+        />
+      )}
+      {!status.configured && status.server?.where !== 'remote' && (
         <p className="cp-callout">
           No computer service is connected yet, so nothing here can be changed.{' '}
           <a href={COMPUTER_DOCS_URL} target="_blank" rel="noreferrer">

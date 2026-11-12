@@ -405,6 +405,8 @@ export class Platform {
     return undefined;
   }
   async stop() {
+    // Ends the ssh tunnels to the owner's servers that FullDots started.
+    this.computers.remoteComputers?.stop();
     await this.channels.stop();
     // Open event streams first: they would otherwise hold the HTTP server's close.
     this.events.close();

@@ -1057,15 +1057,16 @@ describe('Settings dialog tabs', () => {
       />,
     );
 
-  it('renders the six tabs, General selected, with Save on General only', () => {
+  it('renders the seven tabs, General selected, with Save on General only', () => {
     const html = render();
     expect(html).toContain('modal modal-settings');
     expect(html).toContain('role="tablist"');
-    expect(countOf(html, 'role="tab"')).toBe(6);
+    expect(countOf(html, 'role="tab"')).toBe(7);
     for (const label of [
       'General',
       'Models',
       'Connectors',
+      'Computers',
       'Channels',
       'Prompts',
       'About',
