@@ -35,9 +35,15 @@ export function makeSnippet(
   const match = query.trim() ? matcher(query).exec(flat) : null;
   let start = match ? Math.max(0, match.index - Math.floor(width / 3)) : 0;
   if (start + width > flat.length) start = Math.max(0, flat.length - width);
-  // Do not begin in the middle of a surrogate pair.
+  // Do not begin or end in the middle of a surrogate pair.
   if (start > 0 && /[\udc00-\udfff]/.test(flat[start]!)) start += 1;
-  const end = Math.min(flat.length, start + width);
+  let end = Math.min(flat.length, start + width);
+  if (
+    end > start &&
+    end < flat.length &&
+    /[\ud800-\udbff]/.test(flat[end - 1]!)
+  )
+    end -= 1;
   return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`;
 }
 
