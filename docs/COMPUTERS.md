@@ -4,6 +4,8 @@ FullDots connects each specialist to its own container through [OpenBot](https:/
 
 The app exposes selected computer tools to the same Dot agent used by web chat, scheduled work, and voice's compute delegation. Browser, workspace-file, and shell permissions are saved per Dot and checked by the server. They start disabled. No action falls back to your host's shell or files when the computer service is unavailable.
 
+To run the computers on a Linux server you own while FullDots stays on this machine, see [Dot computers on your own server](REMOTE-COMPUTERS.md): only the computers move, over ssh.
+
 ## Set up from the app
 
 When FullDots runs on your own computer (`HOST` is loopback and the app is not in a container), a Dot's Computer panel shows **Set up with Docker** whenever computers are not set up. It replaces the commands below with buttons:

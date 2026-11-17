@@ -2,6 +2,8 @@
 
 This guide walks through deploying FullDots for a single owner on a plain Linux virtual private server (VPS) with Docker and Caddy for HTTPS. No platform manager or PaaS is required.
 
+This moves all of FullDots to the server. To keep FullDots on your own machine and move only the Dot computers to a server, see [Dot computers on your own server](REMOTE-COMPUTERS.md).
+
 ## What you get
 
 | Service               | What it does                                                     | Needed   |

@@ -17,6 +17,9 @@ import type { PlatformConfig } from './platform-config.js';
 import { TurnRegistry } from './turn-registry.js';
 import { createBackgroundRunner } from './task-executor.js';
 import { wakeOnWork } from './live-wiring.js';
+import { RemoteStore } from './remote-store.js';
+import { RemoteComputers } from './remote-computers.js';
+import { RemoteSetup, remoteSetupEnabled } from './remote-setup.js';
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 4310);
 const ownerToken = process.env.OWNER_TOKEN;
@@ -87,6 +90,31 @@ const dockerSetup = new DockerSetup({
   enabled: dockerSetupEnabled({ host }),
 });
 platform.dockerSetup = dockerSetup;
+// Computers on the owner's own server, reached over ssh (docs/REMOTE-COMPUTERS.md).
+const remoteComputers = new RemoteComputers({
+  store: new RemoteStore(database, connectorKey),
+  computers: workspace.computers,
+  ssh: {
+    ...(process.env.COMPUTER_SSH_COMMAND
+      ? { command: process.env.COMPUTER_SSH_COMMAND }
+      : {}),
+    ...(process.env.COMPUTER_SSH_CONFIG
+      ? { configFile: process.env.COMPUTER_SSH_CONFIG }
+      : {}),
+  },
+  namespace: config.computerNamespace ?? 'opendots',
+  log: (message) => console.log(message),
+});
+platform.computers.setRemote(
+  remoteComputers,
+  new RemoteSetup({
+    remote: remoteComputers,
+    enabled: remoteSetupEnabled({ host }),
+    namespace: config.computerNamespace ?? 'opendots',
+  }),
+);
+// Only the ssh processes FullDots started, also when the process ends without a clean shutdown.
+process.once('exit', () => remoteComputers.stop());
 const app = createApp({
   store,
   runner,

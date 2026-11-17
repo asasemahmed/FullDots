@@ -18,6 +18,7 @@ import {
   Users,
   Monitor,
   Moon,
+  Server,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -30,6 +31,7 @@ import { useModalDialog } from './useModalDialog';
 import { parseToolkitField } from '../shared/composio';
 import { ComposioAccounts } from './ComposioAccounts';
 import { ConnectorsSettings } from './ConnectorsSettings';
+import { ComputersSettings } from './ComputersSettings';
 import { ChannelsSettings } from './ChannelsSettings';
 import {
   ApprovalModeField,
@@ -72,11 +74,18 @@ export type Dialog =
   | { type: 'memory'; memory?: Memory }
   | { type: 'schedule'; threadId: string };
 export type SettingsTab =
-  'general' | 'models' | 'connectors' | 'channels' | 'prompts' | 'about';
+  | 'general'
+  | 'models'
+  | 'connectors'
+  | 'computers'
+  | 'channels'
+  | 'prompts'
+  | 'about';
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'models', label: 'Models', icon: Cpu },
   { id: 'connectors', label: 'Connectors', icon: Plug },
+  { id: 'computers', label: 'Computers', icon: Server },
   { id: 'channels', label: 'Channels', icon: Radio },
   { id: 'prompts', label: 'Prompts', icon: Bookmark },
   { id: 'about', label: 'About', icon: Info },
@@ -465,12 +474,14 @@ export function WorkspaceDialog({
   const [channelsSeen, setChannelsSeen] = useState(tab === 'channels');
   const [modelsSeen, setModelsSeen] = useState(tab === 'models');
   const [promptsSeen, setPromptsSeen] = useState(tab === 'prompts');
+  const [computersSeen, setComputersSeen] = useState(tab === 'computers');
   const selectTab = (next: SettingsTab) => {
     setTab(next);
     if (next === 'connectors') setConnectorsSeen(true);
     if (next === 'channels') setChannelsSeen(true);
     if (next === 'models') setModelsSeen(true);
     if (next === 'prompts') setPromptsSeen(true);
+    if (next === 'computers') setComputersSeen(true);
     storeTab(next);
   };
   const onTabKeyDown = (event: ReactKeyboardEvent) => {
@@ -1273,6 +1284,15 @@ export function WorkspaceDialog({
                     hidden={tab !== 'connectors'}
                   >
                     {connectorsSeen && <ConnectorsSettings />}
+                  </div>
+                  <div
+                    className="ss-panel"
+                    role="tabpanel"
+                    id="settings-panel-computers"
+                    aria-labelledby="settings-tab-computers"
+                    hidden={tab !== 'computers'}
+                  >
+                    {computersSeen && <ComputersSettings />}
                   </div>
                   <div
                     className="ss-panel"

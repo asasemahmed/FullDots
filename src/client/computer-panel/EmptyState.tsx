@@ -12,6 +12,7 @@ import {
 import type { ComputerStatus } from '../../shared/computer-types';
 import type { Working } from './PanelHeader';
 import { DockerSetupCard } from './DockerSetupCard';
+import { RemoteCheckNote } from './RemoteServer';
 import { COMPUTER_DOCS_URL, type PanelPhase } from './model';
 
 /** One short message and, where there is something to do about it, one button. */
@@ -62,7 +63,10 @@ export function EmptyState({
     case 'not_configured':
       icon = <Plug size={26} aria-hidden="true" />;
       title = 'No computer is set up';
-      text = `Connect a computer service to give ${dotName} its own browser and files.`;
+      text =
+        status?.server?.where === 'remote'
+          ? `Choose the server for ${dotName}’s computer in Settings → Computers.`
+          : `Connect a computer service to give ${dotName} its own browser and files.`;
       action = (
         <a
           className="cp-btn"
@@ -133,8 +137,12 @@ export function EmptyState({
       <h3>{title}</h3>
       <p>{text}</p>
       {action && <div className="cp-empty-actions">{action}</div>}
-      {(phase === 'not_configured' || phase === 'unavailable') && (
-        <DockerSetupCard onDone={onRetry} />
+      {status?.server?.where === 'remote' ? (
+        <RemoteCheckNote check={status.remote} />
+      ) : (
+        (phase === 'not_configured' || phase === 'unavailable') && (
+          <DockerSetupCard onDone={onRetry} />
+        )
       )}
     </div>
   );

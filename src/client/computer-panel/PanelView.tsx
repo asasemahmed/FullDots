@@ -403,6 +403,7 @@ export function PanelView({
           onStart={actions.start}
           onStop={actions.stop}
           onClose={() => setSettingsOpen(false)}
+          onServerChanged={actions.refresh}
         />
       )}
     </section>
