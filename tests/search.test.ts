@@ -234,6 +234,14 @@ it('builds a snippet of about 120 characters around the first match', () => {
   // No match: the start of the text.
   expect(makeSnippet(filler, 'zzz').startsWith('lorem')).toBe(true);
   expect(makeSnippet('   ', 'a')).toBe('');
+  // Never split a surrogate pair at the end of a snippet.
+  const emojiBoundary = makeSnippet(
+    `${'a'.repeat(9)}🚀${'b'.repeat(10)}`,
+    '',
+    10,
+  );
+  expect(emojiBoundary).toBe(`${'a'.repeat(9)}…`);
+  expect(/[\ud800-\udfff]/.test(emojiBoundary)).toBe(false);
 });
 
 it('finds message text but never tool arguments or hidden content', async () => {
