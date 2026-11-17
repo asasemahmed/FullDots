@@ -77,5 +77,12 @@ it('rejects stop scope bypasses and misleading prefixes while allowing canonical
       null,
     ),
   ).not.toThrow();
+  expect(() =>
+    validateRuntimeScope(
+      new Request('http://localhost/api/copilotkit/threads/%ZZ/messages'),
+      store,
+      null,
+    ),
+  ).toThrow('This runtime route is not enabled in FullDots.');
   store.close();
 });

@@ -14,7 +14,12 @@ export function validateRuntimeScope(
   const data =
     body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const id = (value: string) => {
-    const decoded = decodeURIComponent(value);
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      return deny();
+    }
     if (!decoded || /[/\\\s]/.test(decoded)) return deny();
     return decoded;
   };
