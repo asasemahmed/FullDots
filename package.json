@@ -16,6 +16,7 @@
     "bench:team": "node --import tsx scripts/team-bench.ts",
     "brand": "node --import tsx scripts/brand-art.ts",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
+    "doctor": "node --env-file-if-exists=.env scripts/doctor.mjs",
     "browser": "node --env-file-if-exists=.env --import tsx src/browser/index.ts",
     "browser:start": "node --env-file-if-exists=.env dist/server/browser/index.js",
     "desktop": "npm run build && npm --prefix desktop start",

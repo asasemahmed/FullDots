@@ -22,6 +22,8 @@ npm run dev
 
 Open <http://127.0.0.1:5173>. The API runs on port 4310. You can work on most of the app without a model key. [docs/SETUP.md](docs/SETUP.md) covers the page reader, voice and Docker. [docs/COMPUTERS.md](docs/COMPUTERS.md) covers Dot computers and needs Docker.
 
+If something does not start, `npm run doctor` checks your Node.js version, `.env`, the data folder, the default ports and Docker, and says how to fix what it finds.
+
 ## Run the checks
 
 Run these before you push:
