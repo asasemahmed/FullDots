@@ -42,6 +42,10 @@ it('drops trailing punctuation before the ellipsis and handles unbroken text', (
   ).toBe('Explain how scheduling works, then compare it with the…');
   const unbroken = deriveTitle('x'.repeat(200));
   expect(unbroken).toBe(`${'x'.repeat(59)}…`);
+  // Never split a surrogate pair right before the ellipsis.
+  const emojiBoundary = deriveTitle(`${'a'.repeat(58)}🚀${'b'.repeat(10)}`);
+  expect(emojiBoundary).toBe(`${'a'.repeat(58)}…`);
+  expect(/[\ud800-\udfff]/.test(emojiBoundary)).toBe(false);
 });
 
 it('falls back to the placeholder only when there is nothing to use', () => {
