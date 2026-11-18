@@ -30,8 +30,9 @@ export function dotPackFileName(name: string): string {
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40);
+    .replace(/^-+/, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
   return `${slug || 'dot'}.dot-pack.json`;
 }
 

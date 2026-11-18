@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/server/app.js';
 import {
+  dotPackFileName,
   exportDotPack,
   importDotPack,
   parseDotPack,
@@ -415,6 +416,13 @@ describe('refusing a bad pack', () => {
     const body = (await response.json()) as { dot: Dot; hidden: number };
     expect(body.dot.name).toBe('Research helper');
     expect(workspace.dot(body.dot.id)).toBeDefined();
+  });
+
+  it('builds a clean filename without a trailing dash after truncation', () => {
+    expect(dotPackFileName(`${'a'.repeat(39)} helper`)).toBe(
+      `${'a'.repeat(39)}.dot-pack.json`,
+    );
+    expect(dotPackFileName('!!!')).toBe('dot.dot-pack.json');
   });
 });
 
