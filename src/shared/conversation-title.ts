@@ -19,8 +19,9 @@ export function deriveTitle(
     .find(Boolean);
   if (!line) return fallback;
   if (line.length <= max) return line;
-  // Leave one character for the ellipsis.
-  const room = max - 1;
+  // Leave one character for the ellipsis, and never split a surrogate pair.
+  let room = max - 1;
+  if (room > 0 && /[\ud800-\udbff]/.test(line[room - 1]!)) room -= 1;
   let head = line.slice(0, room);
   // Cut at the last space unless the cut already lands on a word boundary.
   if (!/\s/.test(line[room] ?? '')) {
