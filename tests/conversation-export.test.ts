@@ -208,4 +208,5 @@ it('builds a file name from the title, dropping what a file name cannot carry', 
   expect(nameOf('Pläne für den Start')).toBe('Pläne für den Start.md');
   expect(nameOf('   ')).toBe('conversation.md');
   expect(nameOf('x'.repeat(200))).toBe(`${'x'.repeat(80)}.md`);
+  expect(nameOf(`${'x'.repeat(79)} rest`)).toBe(`${'x'.repeat(79)}.md`);
 });

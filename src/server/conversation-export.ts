@@ -81,7 +81,8 @@ function exportFilename(title: string): string {
   const safe = title
     .replace(/[^\p{L}\p{N} -]/gu, '')
     .trim()
-    .slice(0, 80);
+    .slice(0, 80)
+    .trim();
   return `${safe || 'conversation'}.md`;
 }
 
