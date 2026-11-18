@@ -66,7 +66,7 @@ export const FIXED_OPTIONS = [
 export function configuredForwards(effective: string): string[] {
   return effective
     .split(/\r?\n/)
-    .map((line) => line.trim().toLowerCase().split(' ')[0] ?? '')
+    .map((line) => line.trim().toLowerCase().split(/\s+/)[0] ?? '')
     .filter((name) =>
       ['localforward', 'remoteforward', 'dynamicforward'].includes(name),
     );

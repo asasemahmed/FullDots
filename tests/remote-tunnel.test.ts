@@ -269,6 +269,9 @@ describe('ssh arguments', () => {
     expect(
       configuredForwards('dynamicforward 1080\nremoteforward 9 x:9'),
     ).toHaveLength(2);
+    expect(configuredForwards('localforward\t8080 [127.0.0.1]:80\n')).toEqual([
+      'localforward',
+    ]);
     expect(configuredForwards('user dots\nclearallforwardings no')).toEqual([]);
   });
 
