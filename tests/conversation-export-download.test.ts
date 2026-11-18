@@ -23,6 +23,14 @@ it('falls back to the plain file name', () => {
   );
 });
 
+it('uses the plain file name when the UTF-8 value is malformed', () => {
+  expect(
+    filenameFrom(
+      `attachment; filename="Fallback.md"; filename*=UTF-8''%E0%A4%A`,
+    ),
+  ).toBe('Fallback.md');
+});
+
 it('reports no file name for a missing or malformed header', () => {
   expect(filenameFrom(null)).toBeUndefined();
   expect(filenameFrom(`attachment; filename*=UTF-8''%E0%A4%A`)).toBeUndefined();
